@@ -25,6 +25,24 @@ fn speed_increases_with_throttle_in_forward() {
 }
 
 #[test]
+fn partial_throttle_launch_moves_machine_promptly() {
+    let mut sim = HeavyMachinery::new();
+    bootstrap_running_machine(&mut sim);
+
+    sim.throttle_pct = 30.0;
+    sim.brake_pct = 0.0;
+
+    for _ in 0..240 {
+        sim.tick(1.0 / 60.0);
+    }
+
+    assert!(
+        sim.tcm.ground_speed_kmh > 2.0,
+        "partial throttle should still move the machine visibly from launch"
+    );
+}
+
+#[test]
 fn brake_reduces_speed_after_acceleration() {
     let mut sim = HeavyMachinery::new();
     bootstrap_running_machine(&mut sim);

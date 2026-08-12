@@ -101,6 +101,14 @@ pub enum FaultType {
     LowFuelPressure,  // SPN  94 FMI 1 — fuel delivery < 150 kPa
     CriticalDefLevel, // SPN 3361 FMI 1 — DEF < 2% → power derate
     HighDpfSoot,      // SPN 3251 FMI 16 — DPF > 80%
+    HighBoostPressure, // SPN 102 FMI 0 — intake manifold pressure too high
+    LowBoostPressure,  // SPN 102 FMI 1 — intake manifold pressure too low
+    LowCoolantPressure, // SPN 111 FMI 1 — coolant pressure low
+    HighIntakeTemp,    // SPN 105 FMI 15 — intake manifold temp high
+    HighExhaustTemp,   // SPN 173 FMI 0 — exhaust temperature high
+    PoorDefQuality,    // SPN 1761 FMI 3 — DEF quality/sensor abnormal
+    HighNoxTailpipe,   // SPN 3226 FMI 16 — tailpipe NOx above threshold
+    LowFuelRailPressure, // SPN 157 FMI 1 — common-rail pressure low
     // Transmission faults
     TransClutchOverheat, // clutch temp > 200°C
     TransNeutralFailure, // TCM cannot engage neutral
@@ -127,6 +135,14 @@ impl std::fmt::Display for FaultType {
             FaultType::LowFuelPressure => "Low Fuel Pressure (SPN94 FMI1)",
             FaultType::CriticalDefLevel => "Critical DEF Level (SPN3361 FMI1)",
             FaultType::HighDpfSoot => "High DPF Soot (SPN3251 FMI16)",
+            FaultType::HighBoostPressure => "High Boost Pressure (SPN102 FMI0)",
+            FaultType::LowBoostPressure => "Low Boost Pressure (SPN102 FMI1)",
+            FaultType::LowCoolantPressure => "Low Coolant Pressure (SPN111 FMI1)",
+            FaultType::HighIntakeTemp => "High Intake Temp (SPN105 FMI15)",
+            FaultType::HighExhaustTemp => "High Exhaust Temp (SPN173 FMI0)",
+            FaultType::PoorDefQuality => "Poor DEF Quality (SPN1761 FMI3)",
+            FaultType::HighNoxTailpipe => "High Tailpipe NOx (SPN3226 FMI16)",
+            FaultType::LowFuelRailPressure => "Low Fuel Rail Pressure (SPN157 FMI1)",
             FaultType::TransClutchOverheat => "Trans Clutch Overheat",
             FaultType::TransNeutralFailure => "Trans Neutral Failure",
             FaultType::LowBatteryVoltage => "Low Battery Voltage",
@@ -150,6 +166,14 @@ pub const FAULT_TYPES: &[FaultType] = &[
     FaultType::LowFuelPressure,
     FaultType::CriticalDefLevel,
     FaultType::HighDpfSoot,
+    FaultType::HighBoostPressure,
+    FaultType::LowBoostPressure,
+    FaultType::LowCoolantPressure,
+    FaultType::HighIntakeTemp,
+    FaultType::HighExhaustTemp,
+    FaultType::PoorDefQuality,
+    FaultType::HighNoxTailpipe,
+    FaultType::LowFuelRailPressure,
     FaultType::TransClutchOverheat,
     FaultType::TransNeutralFailure,
     FaultType::LowBatteryVoltage,
@@ -299,9 +323,17 @@ impl HeavyMachinery {
         // 3. ── ECM ───────────────────────────────────────────────────────────
         //    Load demand comes from TCM (drivetrain) + PTO shaft.
         let pto_load_nm = self.implement.pto_torque_demand();
-        // Simplified drivetrain torque demand: TCM output / gear-ratio feedback
+        // Approximate wheel resistance mapped back to engine shaft.
+        // Avoid feeding amplified driveline torque back into ECM directly,
+        // which can over-load the engine and block normal upshifts.
         let drivetrain_load_nm = if self.tcm.direction != Direction::Neutral {
-            self.tcm.output_torque_nm * 0.05 // scaled back to engine shaft
+            let v = self.tcm.ground_speed_kmh.max(0.0);
+            // Rolling + aerodynamic + brake resisting torque at wheel side.
+            let rolling_wheel_nm = 220.0 + 9.0 * v + 0.55 * v * v;
+            let brake_wheel_nm = (self.brake_pct / 100.0) * 1200.0;
+            let wheel_resist_nm = rolling_wheel_nm + brake_wheel_nm;
+            let ratio_eff = (self.tcm.gear_ratio * 0.92).max(1.0);
+            (wheel_resist_nm / ratio_eff).clamp(0.0, 1400.0)
         } else {
             0.0
         };
@@ -843,6 +875,34 @@ impl HeavyMachinery {
             }
             FaultType::HighDpfSoot => {
                 self.ecm.dpf_soot_pct = 95.0;
+            }
+            FaultType::HighBoostPressure => {
+                self.ecm.boost_pressure_kpa = 340.0;
+                self.ecm.intake_manifold_kpa = 340.0;
+            }
+            FaultType::LowBoostPressure => {
+                self.ecm.boost_pressure_kpa = 80.0;
+                self.ecm.intake_manifold_kpa = 82.0;
+            }
+            FaultType::LowCoolantPressure => {
+                self.ecm.coolant_pres_kpa = 40.0;
+            }
+            FaultType::HighIntakeTemp => {
+                self.ecm.intake_temp_c = 115.0;
+            }
+            FaultType::HighExhaustTemp => {
+                self.ecm.exhaust_temp_c = 860.0;
+                self.ecm.dpf_temp_c = 780.0;
+            }
+            FaultType::PoorDefQuality => {
+                self.ecm.def_quality_pct = 55.0;
+            }
+            FaultType::HighNoxTailpipe => {
+                self.ecm.nox_tailpipe_ppm = 1100.0;
+            }
+            FaultType::LowFuelRailPressure => {
+                self.ecm.fuel_rail_pressure_mpa = 45.0;
+                self.ecm.fuel_pressure_kpa = 120.0;
             }
             FaultType::TransClutchOverheat => {
                 self.tcm.clutch_temp_c = 250.0;

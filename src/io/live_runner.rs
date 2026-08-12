@@ -21,8 +21,10 @@ pub struct DetectResult {
 #[derive(Clone)]
 pub struct LiveFeed {
     stop: Arc<AtomicBool>,
+    alive: Arc<AtomicBool>,
     latest_snapshot: Arc<Mutex<EcmSnapshot>>,
     history: Arc<Mutex<VecDeque<SnapshotPoint>>>,
+    last_error: Arc<Mutex<Option<String>>>,
     last_update_ms: Arc<AtomicU64>,
     frames_total: Arc<AtomicU64>,
 }
@@ -39,10 +41,10 @@ pub struct SnapshotPoint {
 
 impl LiveFeed {
     pub fn latest_snapshot(&self) -> EcmSnapshot {
-        self.latest_snapshot
-            .lock()
-            .map(|s| s.clone())
-            .unwrap_or_default()
+        match self.latest_snapshot.lock() {
+            Ok(s) => s.clone(),
+            Err(poisoned) => poisoned.into_inner().clone(),
+        }
     }
 
     pub fn last_update_ms(&self) -> u64 {
@@ -54,11 +56,23 @@ impl LiveFeed {
     }
 
     pub fn recent_points(&self, limit: usize) -> Vec<SnapshotPoint> {
-        let Ok(hist) = self.history.lock() else {
-            return Vec::new();
+        let hist = match self.history.lock() {
+            Ok(h) => h,
+            Err(poisoned) => poisoned.into_inner(),
         };
         let count = hist.len().min(limit);
         hist.iter().skip(hist.len() - count).cloned().collect()
+    }
+
+    pub fn is_alive(&self) -> bool {
+        self.alive.load(Ordering::Relaxed)
+    }
+
+    pub fn last_error(&self) -> Option<String> {
+        match self.last_error.lock() {
+            Ok(e) => e.clone(),
+            Err(poisoned) => poisoned.into_inner().clone(),
+        }
     }
 
     pub fn export_csv<P: AsRef<Path>>(&self, path: P) -> Result<(), HwError> {
@@ -177,14 +191,18 @@ pub fn connect_ecm(cfg: &HwConfig, target_sa: Option<u8>) -> Result<(), HwError>
             }
         }
 
-        // Authentication/identification proxy: require at least one response from target or any ECM.
+        // Authentication/identification proxy: require at least one expected PGN
+        // from the requested source (or any source when no target SA is provided).
         let deadline = Instant::now() + Duration::from_secs(2);
         let mut got_response = false;
         while Instant::now() < deadline {
             match adapter.read_frame() {
                 Ok(Frame::Can(cf)) => {
+                    let pgn = j1939_pgn(cf.id);
                     let sa = (cf.id & 0xFF) as u8;
-                    if target_sa.is_none() || Some(sa) == target_sa {
+                    let valid_pgn = matches!(pgn, 60928 | PGN_EEC1 | PGN_ET1 | PGN_EFL_P1);
+                    let valid_sa = target_sa.is_none() || Some(sa) == target_sa;
+                    if valid_pgn && valid_sa {
                         got_response = true;
                         break;
                     }
@@ -216,15 +234,19 @@ pub fn start_retrieve_data(cfg: HwConfig, target_sa: Option<u8>) -> Result<LiveF
     check_live_channel_policy(&cfg)?;
 
     let stop = Arc::new(AtomicBool::new(false));
+    let alive = Arc::new(AtomicBool::new(true));
     let latest_snapshot = Arc::new(Mutex::new(EcmSnapshot::default()));
     let history = Arc::new(Mutex::new(VecDeque::<SnapshotPoint>::new()));
+    let last_error = Arc::new(Mutex::new(None));
     let last_update_ms = Arc::new(AtomicU64::new(0));
     let frames_total = Arc::new(AtomicU64::new(0));
 
     let feed = LiveFeed {
         stop: Arc::clone(&stop),
+        alive: Arc::clone(&alive),
         latest_snapshot: Arc::clone(&latest_snapshot),
         history: Arc::clone(&history),
+        last_error: Arc::clone(&last_error),
         last_update_ms: Arc::clone(&last_update_ms),
         frames_total: Arc::clone(&frames_total),
     };
@@ -233,11 +255,19 @@ pub fn start_retrieve_data(cfg: HwConfig, target_sa: Option<u8>) -> Result<LiveF
         let mut adapter = match super::hw::open_real_adapter(&cfg) {
             Ok(a) => a,
             Err(e) => {
+                if let Ok(mut err) = last_error.lock() {
+                    *err = Some(format!("open adapter failed: {e}"));
+                }
+                alive.store(false, Ordering::Relaxed);
                 eprintln!("[ecm-live] open adapter failed: {e}");
                 return;
             }
         };
         if let Err(e) = adapter.init(&cfg) {
+            if let Ok(mut err) = last_error.lock() {
+                *err = Some(format!("init adapter failed: {e}"));
+            }
+            alive.store(false, Ordering::Relaxed);
             eprintln!("[ecm-live] init adapter failed: {e}");
             return;
         }
@@ -302,12 +332,16 @@ pub fn start_retrieve_data(cfg: HwConfig, target_sa: Option<u8>) -> Result<LiveF
                     thread::sleep(Duration::from_millis(20));
                 }
                 Err(e) => {
+                    if let Ok(mut err) = last_error.lock() {
+                        *err = Some(format!("read error: {e}"));
+                    }
                     eprintln!("[ecm-live] read error: {e}");
                     thread::sleep(Duration::from_millis(150));
                 }
             }
         }
 
+        alive.store(false, Ordering::Relaxed);
         let _ = adapter.close();
     });
 
@@ -970,4 +1004,28 @@ pub fn live_flash_ecm_firmware(
         blocks_sent: blocks,
         crc32: firmware_crc,
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::is_uds_response_id;
+
+    #[test]
+    fn uds_response_id_matches_expected_target() {
+        // PF=0xDA, PS=0xF9, SA=0x00
+        let id = 0x18DAF900u32;
+        assert!(is_uds_response_id(Some(0x00), id));
+        assert!(is_uds_response_id(None, id));
+    }
+
+    #[test]
+    fn uds_response_id_rejects_wrong_pf_ps_or_sa() {
+        let wrong_pf = 0x18EAF900u32;
+        let wrong_ps = 0x18DA1200u32;
+        let wrong_sa = 0x18DAF901u32;
+
+        assert!(!is_uds_response_id(Some(0x00), wrong_pf));
+        assert!(!is_uds_response_id(Some(0x00), wrong_ps));
+        assert!(!is_uds_response_id(Some(0x00), wrong_sa));
+    }
 }

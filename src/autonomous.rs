@@ -290,6 +290,9 @@ impl AutonomousController {
         self.drowsiness_pct = (self.drowsiness_pct + noise(n * 0.001) * 0.01).clamp(0.0, 100.0);
 
         if !self.engaged {
+            self.throttle_cmd = 0.0;
+            self.brake_cmd = 0.0;
+            self.steer_cmd_deg = 0.0;
             return (None, None, None);
         }
 
@@ -327,6 +330,10 @@ impl AutonomousController {
 
         // ── Safety supervision (ISO 26262 ASIL-D monitoring) ─────────────────
         self.safety_check(ego_speed_ms, thr, brk);
+
+        self.throttle_cmd = thr.unwrap_or(0.0).clamp(0.0, 1.0);
+        self.brake_cmd = brk.unwrap_or(0.0).clamp(0.0, 1.0);
+        self.steer_cmd_deg = str.unwrap_or(0.0).clamp(-8.0, 8.0);
 
         (thr, brk, str)
     }
@@ -371,18 +378,33 @@ impl AutonomousController {
         // Target speed: minimum of set speed and speed needed to maintain headway
         let safe_dist = speed_ms * self.acc_headway_s;
         let dist_error = lead_range - safe_dist;
-        let gap_speed = if lead_range < f64::INFINITY {
+        let lead_valid = lead_range.is_finite();
+        let gap_speed = if lead_valid {
             (speed_ms + dist_error * 0.5).clamp(0.0, set_speed)
         } else {
             set_speed
         };
         let target_speed = gap_speed.min(set_speed);
 
-        // PI speed controller
+        // PI speed controller with anti-windup.
         let speed_error = target_speed - speed_ms;
-        self.acc_speed_error_integral =
+        if !lead_valid {
+            // Prevent stale integral from causing surge when a lead target reappears.
+            self.acc_speed_error_integral *= 0.92;
+        }
+
+        let candidate_integral =
             (self.acc_speed_error_integral + speed_error * dt).clamp(-20.0, 20.0);
-        let control = speed_error * 0.08 + self.acc_speed_error_integral * 0.004;
+        let unsat_control = speed_error * 0.08 + candidate_integral * 0.004;
+        let control = unsat_control.clamp(-0.8, 1.0);
+
+        // Integrate only when not saturating in the same error direction.
+        let same_direction_saturation = (unsat_control - control).abs() > f64::EPSILON
+            && speed_error.abs() > 0.001
+            && speed_error.signum() == control.signum();
+        if !same_direction_saturation {
+            self.acc_speed_error_integral = candidate_integral;
+        }
 
         if control > 0.02 {
             *thr = Some(control.clamp(0.0, 1.0));
@@ -480,14 +502,23 @@ impl AutonomousController {
     pub fn engage(&mut self, current_speed: f64) {
         self.engaged = true;
         self.acc_state = FeatureState::Active;
+        self.lka_state = FeatureState::Active;
+        self.tja_state = FeatureState::Active;
         self.acc_set_speed_kmh = (current_speed).max(30.0);
         self.acc_speed_error_integral = 0.0;
+        self.throttle_cmd = 0.0;
+        self.brake_cmd = 0.0;
+        self.steer_cmd_deg = 0.0;
+        self.lka_integral = 0.0;
     }
     pub fn disengage(&mut self) {
         self.engaged = false;
         self.acc_state = FeatureState::Off;
         self.lka_state = FeatureState::Off;
         self.tja_state = FeatureState::Off;
+        self.throttle_cmd = 0.0;
+        self.brake_cmd = 0.0;
+        self.steer_cmd_deg = 0.0;
     }
     pub fn toggle_lka(&mut self) {
         self.lka_state = if self.lka_state == FeatureState::Active {
@@ -502,5 +533,115 @@ impl AutonomousController {
     }
     pub fn set_headway(&mut self, s: f64) {
         self.acc_headway_s = s.clamp(1.0, 3.5);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{AutonomousController, FeatureState};
+
+    #[test]
+    fn disengaged_controller_outputs_none_and_zero_state() {
+        let mut ad = AutonomousController::new();
+        let (t, b, s) = ad.tick(
+            20.0,
+            0.0,
+            0.0,
+            f64::INFINITY,
+            0.0,
+            0.0,
+            0.0,
+            0.9,
+            f64::INFINITY,
+            false,
+            false,
+            0.02,
+        );
+        assert!(t.is_none());
+        assert!(b.is_none());
+        assert!(s.is_none());
+        assert_eq!(ad.throttle_cmd, 0.0);
+        assert_eq!(ad.brake_cmd, 0.0);
+        assert_eq!(ad.steer_cmd_deg, 0.0);
+    }
+
+    #[test]
+    fn engage_enables_l2_features() {
+        let mut ad = AutonomousController::new();
+        ad.engage(42.0);
+        assert!(ad.engaged);
+        assert_eq!(ad.acc_state, FeatureState::Active);
+        assert_eq!(ad.lka_state, FeatureState::Active);
+        assert_eq!(ad.tja_state, FeatureState::Active);
+        assert!(ad.acc_set_speed_kmh >= 30.0);
+    }
+
+    #[test]
+    fn engage_from_standstill_requests_positive_throttle_on_clear_road() {
+        let mut ad = AutonomousController::new();
+        ad.engage(0.0);
+
+        let (thr, brk, steer) = ad.tick(
+            0.0,
+            0.0,
+            0.0,
+            f64::INFINITY,
+            0.0,
+            0.0,
+            0.0,
+            0.95,
+            f64::INFINITY,
+            false,
+            false,
+            0.05,
+        );
+
+        assert!(thr.is_some_and(|v| v > 0.05));
+        assert!(brk.is_none() || brk == Some(0.0));
+        assert!(steer.is_none() || steer == Some(0.0));
+        assert!(ad.throttle_cmd > 0.05);
+    }
+
+    #[test]
+    fn no_lead_then_close_lead_transitions_to_brake() {
+        let mut ad = AutonomousController::new();
+        ad.engage(50.0);
+
+        // Build integral/throttle while road is clear.
+        for _ in 0..120 {
+            let _ = ad.tick(
+                30.0,
+                0.0,
+                0.0,
+                f64::INFINITY,
+                0.0,
+                0.0,
+                0.0,
+                0.95,
+                f64::INFINITY,
+                false,
+                false,
+                0.02,
+            );
+        }
+        assert!(ad.throttle_cmd >= 0.0);
+
+        // Sudden close lead should force braking and suppress throttle.
+        let _ = ad.tick(
+            30.0,
+            0.0,
+            0.0,
+            8.0,
+            0.0,
+            0.0,
+            0.0,
+            0.95,
+            1.2,
+            false,
+            false,
+            0.02,
+        );
+        assert!(ad.brake_cmd > 0.0);
+        assert!(ad.throttle_cmd <= 0.05);
     }
 }

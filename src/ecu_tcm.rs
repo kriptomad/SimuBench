@@ -124,16 +124,18 @@ pub enum AutoShiftMode {
     Hold,
 }
 
-// ── Gear ratios: [range][speed 1-4] = overall ratio (incl. final drive ×3.82) ─
+// ── Gear ratios: [range][speed 1-4] = overall ratio (incl. final drive) ──────
+// Calibrated for heavy-machine bands:
+//   A ≈ 1-4 km/h, B ≈ 4-8 km/h, C ≈ 8-18 km/h, D ≈ 18-50 km/h
 const GEAR_RATIOS: [[f64; 4]; 4] = [
-    // A: 0.3–4 km/h
-    [120.0, 85.0, 60.0, 42.0],
-    // B: 4–8 km/h
-    [32.0, 22.0, 16.0, 11.0],
-    // C: 8–18 km/h
-    [9.0, 6.5, 4.8, 3.5],
-    // D: 18–50 km/h
-    [2.8, 2.1, 1.6, 1.2],
+    // A: low-speed tractive work
+    [420.0, 300.0, 220.0, 160.0],
+    // B: field maneuvering
+    [100.0, 78.0, 60.0, 46.0],
+    // C: transport in worksite
+    [38.0, 29.0, 22.0, 17.0],
+    // D: road transport
+    [15.5, 14.0, 12.5, 11.2],
 ];
 
 const TIRE_RADIUS_M: f64 = 0.80; // rear tyre radius (metre)
@@ -172,6 +174,7 @@ pub struct EcuTcm {
     pub pending_speed: Option<u8>,
     pub pending_dir: Option<Direction>,
     shift_timer: f64,
+    auto_shift_cooldown_s: f64,
     /// Duration of current shift phase (varies with temperature & quality)
     shift_duration: f64,
 
@@ -236,6 +239,7 @@ impl EcuTcm {
             pending_speed: None,
             pending_dir: None,
             shift_timer: 0.0,
+            auto_shift_cooldown_s: 0.0,
             shift_duration: 0.30,
             auto_mode: AutoShiftMode::Auto,
             gsm_target_kmh: 8.0,
@@ -287,23 +291,47 @@ impl EcuTcm {
                 engine_rpm / self.gear_ratio
             };
 
-        // v = ω_out × r_tyre × 3.6 (convert m/s → km/h)
-        self.ground_speed_kmh =
-            (self.output_shaft_rpm / 60.0 * 2.0 * std::f64::consts::PI * TIRE_RADIUS_M * 3.6)
-                .clamp(0.0, MAX_SPEED_KMH);
-
         // ─ Output torque amplified by gear ratio (efficiency ~0.96) ─────────
         self.output_torque_nm = engine_torque_nm * self.gear_ratio * 0.96;
 
         // ─ Clutch dynamics ────────────────────────────────────────────────────
         self.update_clutch(engine_rpm, engine_torque_nm, dt);
 
+        // ─ Ground-speed dynamics (avoid unreal instant RPM→speed jumps) ─────
+        // v_target = ω_out × r_tyre × 3.6 (m/s → km/h), then limit by clutch coupling
+        let mut target_speed_kmh =
+            (self.output_shaft_rpm / 60.0 * 2.0 * std::f64::consts::PI * TIRE_RADIUS_M * 3.6)
+                .clamp(0.0, MAX_SPEED_KMH);
+
+        let coupling = match self.clutch_state {
+            ClutchState::Locked => 1.0,
+            ClutchState::Filling => 0.35,
+            ClutchState::Modulating => (1.0 - self.clutch_slip_pct).clamp(0.2, 0.75),
+            ClutchState::Open => 0.0,
+        };
+        target_speed_kmh *= coupling;
+
+        let accel_limit_kmh_s = 1.4 + (throttle_pct / 100.0) * 4.6;
+        let decel_limit_kmh_s = 2.0 + (brake_pct / 100.0) * 14.0;
+        let max_rise = accel_limit_kmh_s * dt;
+        let max_drop = decel_limit_kmh_s * dt;
+        let delta = target_speed_kmh - self.ground_speed_kmh;
+        if delta >= 0.0 {
+            self.ground_speed_kmh += delta.min(max_rise);
+        } else {
+            self.ground_speed_kmh += delta.max(-max_drop);
+        }
+        self.ground_speed_kmh = self.ground_speed_kmh.clamp(0.0, MAX_SPEED_KMH);
+
         // ─ Auto-shift logic ──────────────────────────────────────────────────
+        self.auto_shift_cooldown_s = (self.auto_shift_cooldown_s - dt).max(0.0);
+
         if !self.is_shifting
             && self.auto_mode == AutoShiftMode::Auto
             && self.direction == Direction::Forward
+            && self.auto_shift_cooldown_s <= 0.0
         {
-            self.auto_shift_logic(engine_rpm, throttle_pct, dt);
+            self.auto_shift_logic(engine_rpm, engine_torque_nm, throttle_pct, brake_pct, dt);
         }
 
         // ─ Shift completion ──────────────────────────────────────────────────
@@ -393,15 +421,54 @@ impl EcuTcm {
     }
 
     // ─────────────────────────────────────────────────────────────────────────
-    fn auto_shift_logic(&mut self, engine_rpm: f64, throttle_pct: f64, _dt: f64) {
-        // Upshift: engine RPM above rated AND throttle not floored
-        let upshift_rpm = match self.range {
-            GearRange::A | GearRange::B => 2100.0,
-            GearRange::C | GearRange::D => 2000.0,
-        };
-        let downshift_rpm = 1000.0;
+    fn auto_shift_logic(
+        &mut self,
+        engine_rpm: f64,
+        engine_torque_nm: f64,
+        throttle_pct: f64,
+        brake_pct: f64,
+        _dt: f64,
+    ) {
+        let t = (throttle_pct / 100.0).clamp(0.0, 1.0);
+        let load = (engine_torque_nm / 1050.0).clamp(0.0, 1.2);
+        // ECM governor target approximation (matches ECM model family).
+        let throttle_rpm_ceiling = 800.0 + t * (2600.0 - 800.0);
 
-        if engine_rpm > upshift_rpm && throttle_pct < 95.0 {
+        let base_up = match self.range {
+            GearRange::A => 1180.0,
+            GearRange::B => 1240.0,
+            GearRange::C => 1300.0,
+            GearRange::D => 1360.0,
+        };
+        // Higher throttle/load delays upshift; light pedal upshifts early.
+        let upshift_rpm_raw = base_up + t * 520.0 + load * 180.0;
+        let upshift_rpm = upshift_rpm_raw
+            .min(throttle_rpm_ceiling - (90.0 - t * 35.0))
+            .clamp(1000.0, 2320.0);
+        // Keep hysteresis wide enough to avoid gear hunting.
+        let downshift_rpm = (upshift_rpm - (300.0 - t * 70.0)).clamp(760.0, 1820.0);
+
+        // Aggressive kickdown when high pedal but engine is lugging.
+        if throttle_pct > 80.0 && engine_rpm < 1250.0 {
+            self.request_downshift();
+            return;
+        }
+
+        // Prefer holding or downshifting under braking.
+        if brake_pct > 20.0 {
+            if engine_rpm < 1200.0 {
+                self.request_downshift();
+            }
+            return;
+        }
+
+        // Stall/lugging protection.
+        if engine_rpm < 820.0 {
+            self.request_downshift();
+            return;
+        }
+
+        if engine_rpm > upshift_rpm {
             self.request_upshift();
         } else if engine_rpm < downshift_rpm {
             self.request_downshift();
@@ -458,6 +525,7 @@ impl EcuTcm {
         // Shift duration: longer for range change, shorter for speed-step
         let range_change = new_range != self.range || new_dir != self.direction;
         self.shift_duration = if range_change { 0.45 } else { 0.25 };
+        self.auto_shift_cooldown_s = self.shift_duration + 0.20;
         // Disengage clutch to start shift
         self.clutch_state = ClutchState::Open;
         self.clutch_phase_timer = 0.0;
@@ -602,5 +670,47 @@ impl EcuTcm {
             J1939Frame::build_id(3, j1939::pgn::ETC2, self.sa, 0xFF),
             &data,
         )
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{AutoShiftMode, ClutchState, Direction, EcuTcm, GearRange};
+
+    #[test]
+    fn d4_partial_throttle_does_not_pin_to_50_kmh() {
+        let mut tcm = EcuTcm::new();
+        tcm.direction = Direction::Forward;
+        tcm.range = GearRange::D;
+        tcm.speed_step = 4;
+        tcm.auto_mode = AutoShiftMode::Hold;
+        tcm.clutch_state = ClutchState::Locked;
+
+        for _ in 0..400 {
+            let _ = tcm.tick(1340.0, 650.0, 30.0, 0.0, 0.1);
+        }
+
+        assert!(tcm.ground_speed_kmh > 20.0, "speed should build under partial throttle");
+        assert!(
+            tcm.ground_speed_kmh < 40.0,
+            "partial throttle should not saturate speedometer at 50 km/h"
+        );
+    }
+
+    #[test]
+    fn d4_full_throttle_reaches_transport_band_without_exceeding_limit() {
+        let mut tcm = EcuTcm::new();
+        tcm.direction = Direction::Forward;
+        tcm.range = GearRange::D;
+        tcm.speed_step = 4;
+        tcm.auto_mode = AutoShiftMode::Hold;
+        tcm.clutch_state = ClutchState::Locked;
+
+        for _ in 0..600 {
+            let _ = tcm.tick(2200.0, 1050.0, 100.0, 0.0, 0.1);
+        }
+
+        assert!(tcm.ground_speed_kmh >= 45.0, "transport gear should reach high-road band");
+        assert!(tcm.ground_speed_kmh <= 50.0, "speed must remain capped at configured maximum");
     }
 }

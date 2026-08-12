@@ -1,67 +1,127 @@
 # SimuBench
 
-SimuBench e uma bancada completa de simulacao e diagnostico de ECUs para maquinas pesadas, escrita em Rust.
+SimuBench e uma bancada visual de simulacao, diagnostico e engenharia para ECUs de maquinas pesadas, escrita em Rust.
 
-O projeto integra em um unico app:
+Em um unico aplicativo, o projeto junta:
 - simulacao multi-ECU em tempo real;
-- monitoramento CAN/J1939 e UDS;
-- fluxo de dados ECM live com exportacao;
-- Leak Physics Lab com predicao, Monte Carlo e calibracao automatica por CSV de bancada;
-- camada de I/O com politicas de seguranca (allowlist, rate limit, dry-run e auditoria).
+- painel desktop com tabs operacionais e de diagnostico;
+- CAN/J1939, UDS e captura ECM Live;
+- Leak Physics Lab com predicao, Monte Carlo e calibracao via CSV de bancada;
+- camada de I/O com politicas de seguranca para uso em hardware real.
 
-## Sumario
+## Visao Rapida
 
-- [Visao geral rapida](#visao-geral-rapida)
-- [Arquitetura do projeto](#arquitetura-do-projeto)
-- [Executaveis](#executaveis)
-- [Como rodar](#como-rodar)
-- [Fluxo da interface (tabs)](#fluxo-da-interface-tabs)
-- [Leak Lab e modo calibracao](#leak-lab-e-modo-calibracao)
-- [Seguranca para I/O real](#seguranca-para-io-real)
-- [Testes e qualidade](#testes-e-qualidade)
-- [Mapa de arquivos](#mapa-de-arquivos)
+| Area | O que entrega |
+|---|---|
+| Simulacao | ECM, TCM, ABS/ESP/TCS, BCM, HCM, VCM, sensores e telematica rodando juntos |
+| Diagnostico | Trace CAN, sinais J1939, faults, boot, UDS e rede ECU |
+| Dados live | Detect, connect, retrieve e export de dados ECM |
+| Engenharia | Leak Lab para risco, ruptura, tuning e calibracao automatica |
+| Seguranca | Allowlist, rate limit, dry-run e gates explicitos para escrita |
 
-## Visao geral rapida
+## Comece Aqui
 
-- Linguagem: Rust (edition 2021)
-- UI desktop: eframe/egui
-- Plataforma foco: Windows (com suporte de modo sim completo)
-- Branch principal: master
+### 1. Rodar em simulacao
 
-Entrypoints principais:
-- Orquestrador e modulos: [src/lib.rs](src/lib.rs)
-- Aplicacao desktop: [src/main.rs](src/main.rs)
-- Fisica de vazamento/calibracao: [src/leak_physics.rs](src/leak_physics.rs)
-- I/O live e seguranca: [src/io/hw.rs](src/io/hw.rs)
+```powershell
+cargo run -- --hw-mode=sim
+```
 
-## Arquitetura do projeto
+### 2. Rodar o binario principal explicitamente
 
-### 1. Core de simulacao multi-ECU
+```powershell
+cargo run --bin auto_breaking -- --hw-mode=sim
+```
 
-O orchestrator central instancia e integra ECM, TCM, BCM, ICM, HCM, ABS/ESP, VCM, sensores e telematica.
+### 3. Rodar o runner headless
 
-Referencia:
+```powershell
+cargo run --bin simulator_cli -- --seed 7 --steps 20000 --model reduced
+```
+
+### 4. Validar qualidade
+
+```powershell
+cargo check
+cargo clippy --workspace --all-targets
+cargo test --workspace
+```
+
+## O Que Voce Vai Ver Na UI
+
+O app foi dividido em duas frentes:
+
+### Operacao
+
+- `Cluster`: velocidade, RPM, marcha, lamps e sinais principais
+- `Engine`: torque, carga, temperaturas, aftertreatment e DTCs ativos
+- `Implements`: PTO, hitch, loader, auxiliares e hidraulica
+- `Sensors`: GPS, IMU, radar, lidar, camera e coerencia de percepcao
+- `Autonomous`: ACC, AEB, LKA, TJA e saidas de comando
+- `V2X`: V2V, SPaT, work zones, telematica e OTA
+- `Leak Lab`: laboratorio visual para leak/risco/ruptura
+- `Plots`: comparacao temporal rapida dos principais canais
+
+### Diagnostico
+
+- `CAN Bus`: sinais, trace e estado dos barramentos
+- `Events`: historico de eventos e correlacao temporal
+- `ECU Net`: rede de ECUs, presenca e comportamento de boot
+- `Faults`: injecao de falhas e observacao de DTCs/DM1
+- `Boot`: sequencia de ignicao, interlocks e readiness
+- `UDS`: console de servicos ISO 14229
+- `ECM Live`: fluxo real/simulado de captura de parametros
+- `Help`: leitura guiada do produto e da operacao
+
+## Fluxo Recomendado
+
+Se voce esta chegando agora, use esta ordem:
+
+1. `Help` para entender a navegacao.
+2. `Cluster` e `Engine` para validar se a maquina liga, troca marcha e se move.
+3. `CAN Bus` e `Events` para ver rede e correlacao temporal.
+4. `Faults` para injetar falha controlada e acompanhar DTC/DM1.
+5. `UDS` para exercitar sessao, seguranca, leitura e limpeza.
+6. `ECM Live` para capturar/exportar sinais.
+7. `Leak Lab` para engenharia, risco e calibracao.
+
+## Principais Capacidades
+
+### Simulacao multi-ECU
+
+O orchestrator central integra os modulos de powertrain, chassis, hidraulica, sensores, telematica e diagnostico.
+
+Arquivos principais:
 - [src/lib.rs](src/lib.rs)
+- [src/main.rs](src/main.rs)
 
-### 2. Rede CAN/J1939 e UDS
+### CAN, J1939 e UDS
 
-Cobertura de monitoramento e diagnostico de rede:
-- transporte e gateway;
-- multi-bus CAN com estados de saude;
+Cobertura da pilha de rede:
+- gateway e multi-bus CAN;
+- estados de saude e injecao de erro;
 - decode J1939;
-- servidor UDS para fluxos de diagnostico.
+- servidor UDS para ECM e TCM;
+- log visual no desktop.
 
-Referencias:
+Arquivos principais:
 - [src/can_gateway.rs](src/can_gateway.rs)
 - [src/can_network.rs](src/can_network.rs)
 - [src/j1939.rs](src/j1939.rs)
 - [src/uds.rs](src/uds.rs)
 
-### 3. Pilha de sensores/autonomia
+### Sensores e autonomia
 
-Inclui GPS, IMU, radar, lidar, camera e fusao para cenarios AD.
+O projeto inclui sensores sinteticos e fusao para cenarios AD:
+- GPS
+- IMU
+- radar
+- lidar
+- camera
+- fusao de sensores
+- controlador autonomo
 
-Referencias:
+Arquivos principais:
 - [src/gps.rs](src/gps.rs)
 - [src/imu.rs](src/imu.rs)
 - [src/radar.rs](src/radar.rs)
@@ -69,163 +129,123 @@ Referencias:
 - [src/camera.rs](src/camera.rs)
 - [src/autonomous.rs](src/autonomous.rs)
 
-### 4. Leak Physics Lab
+### Leak Physics Lab
 
-Ambiente de engenharia para circuitos hidraulicos e de vedacao:
-- simulacao de degradacao e risco de ruptura;
-- predicao por cenario;
+Ambiente de engenharia para circuitos hidraulicos e vedacao:
+- runtime por circuito;
+- predicao por horizonte e `dt`;
 - Monte Carlo;
-- exportacao runtime/prediction/catalogos;
-- calibracao automatica com dados reais de bancada (CSV).
+- export runtime/prediction/catalogos;
+- calibracao automatica com CSV de bancada;
+- ASCII CAD e visualizacoes de apoio.
 
-Referencia:
+Arquivo principal:
 - [src/leak_physics.rs](src/leak_physics.rs)
 
-## Executaveis
+## Leak Lab Em 30 Segundos
 
-O repositorio possui dois bins:
-- auto_breaking: app desktop principal
-- simulator_cli: runner headless
+### O que ele faz
 
-Referencia:
-- [src/bin/simulator_cli.rs](src/bin/simulator_cli.rs)
+- mostra leak atual por circuito;
+- estima risco de ruptura;
+- projeta cenarios;
+- roda Monte Carlo;
+- calibra coeficientes com dados reais.
 
-## Como rodar
+### Fluxo rapido
 
-### Rodar app desktop (modo simulacao)
-
-```powershell
-cargo run -- --hw-mode=sim
-```
-
-### Rodar binario explicito
-
-```powershell
-cargo run --bin auto_breaking -- --hw-mode=sim
-```
-
-### Rodar CLI headless
-
-```powershell
-cargo run --bin simulator_cli -- --seed 7 --steps 20000 --model reduced
-```
-
-### Build com feature Windows vendor
-
-```powershell
-cargo build --release --features "vendor-windows"
-```
-
-## Fluxo da interface (tabs)
-
-Tabs principais no app ([src/main.rs](src/main.rs)):
-1. Cluster
-2. CAN Bus
-3. Events
-4. ECU Net
-5. Engine
-6. Faults
-7. Boot
-8. Implements
-9. Params
-10. Sensors
-11. Autonomous
-12. V2X
-13. UDS
-14. ECM Live
-15. Leak Lab
-16. Plots
-
-Sugestao de fluxo de uso rapido:
-1. Inicie em modo sim.
-2. Use Cluster/Engine para validar dinamica basica.
-3. Va para CAN Bus + Events para diagnostico.
-4. Use UDS para exercitar servicos de diagnostico.
-5. Use ECM Live para captura e exportacao de historico.
-6. Finalize no Leak Lab para analise de risco e calibracao por CSV.
-
-## Leak Lab e modo calibracao
-
-### O que o Leak Lab entrega
-
-- runtime em tempo real por circuito;
-- predicao por horizonte e dt;
-- Monte Carlo;
-- export CSV/JSON de runtime e prediction;
-- export de catalogos de materiais e oleos;
-- calibracao por CSV de bancada com ajuste automatico de coeficientes.
-
-### Fluxo de calibracao (UI)
-
-No tab Leak Lab:
-1. Clique em Select CSV
-2. Escolha o arquivo de bancada
-3. Clique em Run Auto Calibration
-4. Veja o resumo por circuito (RMSE, MAPE, acuracia de ruptura)
-5. Exporte o relatorio em CSV/JSON
+1. Selecione um circuito.
+2. Ajuste parametros manuais, se necessario.
+3. Clique em `Aplicar + Rodar Cenario` ou `Aplicar + Rodar Monte Carlo`.
+4. Leia o `Scenario Ranking`.
+5. Use export CSV/JSON para rastreabilidade.
 
 ### CSV esperado para calibracao
-
-Cabecalho esperado:
 
 ```text
 timestamp_s,circuit_name,pressure_bar,delta_p_bar,temp_c,cycles_per_s,duty_01,fluid_density_kg_m3,measured_leak_lpm,observed_rupture
 ```
 
-Descricao rapida de campos:
-- timestamp_s: tempo da amostra
-- circuit_name: nome do circuito (deve bater com circuito conhecido)
-- pressure_bar: pressao instantanea
-- delta_p_bar: diferencial de pressao
-- temp_c: temperatura do fluido
-- cycles_per_s: frequencia de ciclagem
-- duty_01: duty cycle entre 0 e 1
-- fluid_density_kg_m3: densidade
-- measured_leak_lpm: vazao medida de leak
-- observed_rupture: true/false opcional
+Campos:
+- `timestamp_s`: tempo da amostra
+- `circuit_name`: nome do circuito
+- `pressure_bar`: pressao instantanea
+- `delta_p_bar`: diferencial de pressao
+- `temp_c`: temperatura do fluido
+- `cycles_per_s`: frequencia de ciclagem
+- `duty_01`: duty entre `0` e `1`
+- `fluid_density_kg_m3`: densidade do fluido
+- `measured_leak_lpm`: vazao medida
+- `observed_rupture`: ruptura observada (`true/false`)
 
-### O que e ajustado automaticamente
+## Modo Live e Seguranca
 
-A calibracao faz busca deterministica (grid search) por circuito para ajustar:
-- damage_rate_scale
-- extrusion_rate_scale
-- thermal_rate_scale
-- flow_rate_scale
-- rupture_area_scale
+O projeto foi desenhado para ser seguro por padrao quando ha I/O real.
 
-Saidas do relatorio:
-- por circuito;
-- agregado por material;
-- agregado por oleo.
+### Flags importantes
 
-## Seguranca para I/O real
+```text
+--hw-mode=sim|live
+--vendor-name=cat_comm
+--serial-port
+--serial-baud
+--can-if
+--enable-write
+--allowlist
+--noninteractive-approved
+--dry-run / --dry-run=false
+--rate-limit-global
+--rate-limit-per-id
+--log-dir
+```
 
-A camada de I/O foi desenhada com default seguro.
+### Gates de escrita fisica
 
-Diretorio:
-- [src/io](src/io)
-
-Gates para escrita fisica:
-- enable-write
+- `enable-write`
 - allowlist valida
-- noninteractive-approved
-- dry-run desabilitado de forma explicita
+- `noninteractive-approved`
+- `dry-run` explicitamente desabilitado
 
-Flags importantes:
-- --hw-mode=sim|live
-- --vendor-name=cat_comm
-- --serial-port
-- --serial-baud
-- --can-if
-- --enable-write
-- --allowlist
-- --noninteractive-approved
-- --dry-run / --dry-run=false
-- --rate-limit-global
-- --rate-limit-per-id
-- --log-dir
+Arquivos principais:
+- [src/io/hw.rs](src/io/hw.rs)
+- [src/io/live_runner.rs](src/io/live_runner.rs)
+- [docs/ECM-Data.md](docs/ECM-Data.md)
 
-## Testes e qualidade
+## Binarios
+
+O repositorio possui dois executaveis:
+
+- `auto_breaking`: aplicacao desktop principal
+- `simulator_cli`: runner headless para reproducao e carga
+
+Arquivo principal do CLI:
+- [src/bin/simulator_cli.rs](src/bin/simulator_cli.rs)
+
+## Estrutura Rapida do Repositorio
+
+```text
+AutoBreaking/
+├── README.md
+├── Cargo.toml
+├── src/
+│   ├── lib.rs
+│   ├── main.rs
+│   ├── leak_physics.rs
+│   └── io/
+├── tests/
+├── docs/
+├── reports/
+└── artifacts/
+```
+
+Arquivos que valem abrir primeiro:
+- [src/main.rs](src/main.rs): UI desktop, tabs e fila de comandos
+- [src/lib.rs](src/lib.rs): orchestrator principal
+- [src/leak_physics.rs](src/leak_physics.rs): Leak Lab
+- [src/io/hw.rs](src/io/hw.rs): configuracao e politicas de hardware
+- [src/io/live_runner.rs](src/io/live_runner.rs): fluxo ECM live
+
+## Qualidade e Testes
 
 Comandos recomendados:
 
@@ -238,21 +258,33 @@ cargo test --test io_mock
 cargo check
 ```
 
-Suites de referencia:
+Suites importantes:
 - [tests/io_mock.rs](tests/io_mock.rs)
 - [tests/leak_system_integration.rs](tests/leak_system_integration.rs)
 - [tests/property_invariants.rs](tests/property_invariants.rs)
+- [tests/speed_regression.rs](tests/speed_regression.rs)
 - [tests/system_failure_scenarios.rs](tests/system_failure_scenarios.rs)
 
-## Mapa de arquivos
+## Documentacao Auxiliar
 
-- [src/main.rs](src/main.rs): UI desktop, tabs e fila de comandos
-- [src/lib.rs](src/lib.rs): orchestrator principal e API publica
-- [src/leak_physics.rs](src/leak_physics.rs): fisica de leak, predicoes e calibracao
-- [src/io/hw.rs](src/io/hw.rs): configuracao de hardware e politicas de runtime
-- [src/io/live_runner.rs](src/io/live_runner.rs): ciclo live ECM
-- [src/io/ecm_params.rs](src/io/ecm_params.rs): decode de parametros live
-- [docs/ECM-Data.md](docs/ECM-Data.md): runbook de dados ECM
-- [CHANGELOG.md](CHANGELOG.md): historico de mudancas
+- [TESTING.md](TESTING.md): guia de testes praticos
+- [PROJECT_SUMMARY.md](PROJECT_SUMMARY.md): resumo tecnico do projeto
+- [CODE_EXAMPLES.md](CODE_EXAMPLES.md): exemplos e referencia rapida
+- [J1939_CAN_MANUAL.md](J1939_CAN_MANUAL.md): material focado em rede
+- [AUDIT_FULL_2026-08-12.md](AUDIT_FULL_2026-08-12.md): auditoria consolidada
+
+## Estado Atual
+
+O projeto esta organizado como uma bancada integrada de simulacao + diagnostico + engenharia, com UI desktop, fluxo headless, cobertura de testes e runbook para operacao simulada ou live.
+
+Se a sua entrada no projeto for pratica, use primeiro:
+- [README.md](README.md)
+- [TESTING.md](TESTING.md)
+- [docs/ECM-Data.md](docs/ECM-Data.md)
+
+Se a sua entrada for tecnica, abra primeiro:
+- [src/lib.rs](src/lib.rs)
+- [src/main.rs](src/main.rs)
+- [src/leak_physics.rs](src/leak_physics.rs)
 
 

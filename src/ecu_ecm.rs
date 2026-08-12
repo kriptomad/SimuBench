@@ -693,6 +693,99 @@ impl EcuEcm {
             self.amber_lamp = true;
         }
 
+        // SPN 102: Boost / Intake manifold pressure
+        if self.boost_pressure_kpa > 320.0 || self.intake_manifold_kpa > 320.0 {
+            self.add_dtc(
+                102,
+                0,
+                DtcSeverity::Red,
+                "Boost pressure above safe limit — inspect VGT/wastegate",
+                true,
+            );
+            self.red_lamp = true;
+        } else if self.rpm > 1000.0 && self.boost_pressure_kpa < 95.0 {
+            self.add_dtc(
+                102,
+                1,
+                DtcSeverity::Amber,
+                "Boost pressure below expected level — possible leak or turbo issue",
+                true,
+            );
+            self.amber_lamp = true;
+        }
+
+        // SPN 111: Coolant pressure low
+        if self.rpm > 600.0 && self.coolant_pres_kpa < 55.0 {
+            self.add_dtc(
+                111,
+                1,
+                DtcSeverity::Amber,
+                "Coolant pressure low — inspect cap/pump/leak",
+                true,
+            );
+            self.amber_lamp = true;
+        }
+
+        // SPN 105: Intake manifold temperature high
+        if self.intake_temp_c > 95.0 {
+            self.add_dtc(
+                105,
+                15,
+                DtcSeverity::Amber,
+                "Intake manifold temperature high — charge-air cooling degraded",
+                true,
+            );
+            self.amber_lamp = true;
+        }
+
+        // SPN 173: Exhaust temperature severe
+        if self.exhaust_temp_c > 820.0 || self.dpf_temp_c > 760.0 {
+            self.add_dtc(
+                173,
+                0,
+                DtcSeverity::Red,
+                "Exhaust temperature above severe threshold",
+                true,
+            );
+            self.red_lamp = true;
+        }
+
+        // SPN 1761: DEF quality abnormal
+        if self.def_quality_pct < 80.0 {
+            self.add_dtc(
+                1761,
+                3,
+                DtcSeverity::Amber,
+                "DEF quality out of expected range",
+                true,
+            );
+            self.amber_lamp = true;
+        }
+
+        // SPN 3226: Tailpipe NOx excessive
+        if self.nox_tailpipe_ppm > 900.0 {
+            self.add_dtc(
+                3226,
+                16,
+                DtcSeverity::Red,
+                "Tailpipe NOx above legal threshold",
+                true,
+            );
+            self.red_lamp = true;
+        }
+
+        // SPN 157: Common rail pressure low
+        if self.rpm > 900.0 && self.fuel_rail_pressure_mpa < 70.0 {
+            self.add_dtc(
+                157,
+                1,
+                DtcSeverity::Amber,
+                "Fuel rail pressure below expected range",
+                true,
+            );
+            self.amber_lamp = true;
+        }
+
         // SPN 247: Service interval
         if self.service_hours_left < 0.0 {
             self.add_dtc(247, 31, DtcSeverity::Mil, "Service interval overdue", true);

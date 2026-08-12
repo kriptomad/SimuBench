@@ -111,6 +111,10 @@ enum Cmd {
     LeakExportCalibrationCsv(String),
     LeakExportCalibrationJson(String),
     LeakRunMonteCarlo,
+    LeakClearScenarioOutputs,
+    LeakResetSimulation,
+    LeakApplyAndPredict,
+    LeakApplyAndMonteCarlo,
     // CAN network controls
     CanInjectBitError(usize),
     CanInjectAckError(usize),
@@ -133,6 +137,7 @@ enum Cmd {
 // ═════════════════════════════════════════════════════════════════════════════
 #[derive(PartialEq, Clone, Copy, Debug)]
 enum Tab {
+    Help,
     Cluster,
     CanBus,
     Events,
@@ -298,6 +303,12 @@ struct App {
     // Inputs mirrored here (bench mutations happen via Cmd)
     throttle: f32,
     brake: f32,
+    throttle_target: f32,
+    brake_target: f32,
+    throttle_cmd_last: f32,
+    brake_cmd_last: f32,
+    throttle_cmd_last_tick: u64,
+    brake_cmd_last_tick: u64,
 
     // CAN monitor
     can_mode: CanMode,
@@ -306,6 +317,13 @@ struct App {
     can_bus_idx: usize,
     can_note: String,
     can_trace_tree: bool,
+    can_trace_limit: usize,
+    can_signal_limit: usize,
+    can_hide_stale: bool,
+    can_trace_update_every_ticks: u64,
+    can_trace_tick_counter: u64,
+    can_trace_pause_on_scroll: bool,
+    can_trace_pause_ticks_left: u32,
     sig_map: HashMap<(u32, u8), Signal>,
     // (ts, raw_id, sa, dlc, hex_data, pgn[sa], decoded_str)
     trace_snap: Vec<(f64, u32, u8, u8, String, String, String)>,
@@ -348,6 +366,16 @@ struct App {
 
     // Fault panel
     fault_idx: usize,
+    fault_feedback: String,
+    fault_last_dtc_count: usize,
+
+    // Implements operator feedback
+    implement_feedback: String,
+
+    // V2X smoothed KPIs
+    v2x_range_ema: f64,
+    v2x_loss_ema: f64,
+    v2x_lat_ema: f64,
 
     // UDS console
     uds_input: String,
@@ -369,6 +397,9 @@ struct App {
     leak_view_yaw_deg: f32,
     leak_view_pitch_deg: f32,
     leak_view_zoom: f32,
+    leak_timeback_window_s: f64,
+    leak_timeback_latest_first: bool,
+    leak_timeback_stride: usize,
 
     // Plots
     pl_rpm: Vec<[f64; 2]>,
@@ -381,6 +412,8 @@ struct App {
     pl_hyd: Vec<[f64; 2]>,
 
     ticks: u64,
+    ux_show_guide: bool,
+    ux_compact_mode: bool,
 }
 
 impl App {
@@ -413,6 +446,12 @@ impl App {
             ecm_live_frames_total: 0,
             throttle: 0.0,
             brake: 0.0,
+            throttle_target: 0.0,
+            brake_target: 0.0,
+            throttle_cmd_last: 0.0,
+            brake_cmd_last: 0.0,
+            throttle_cmd_last_tick: 0,
+            brake_cmd_last_tick: 0,
             can_mode: CanMode::Signals,
             can_freeze: false,
             can_filter: String::new(),
@@ -421,6 +460,13 @@ impl App {
             can_bus_idx: 0,
             can_note: String::new(),
             can_trace_tree: true,
+            can_trace_limit: 500,
+            can_signal_limit: 300,
+            can_hide_stale: false,
+            can_trace_update_every_ticks: 1,
+            can_trace_tick_counter: 0,
+            can_trace_pause_on_scroll: true,
+            can_trace_pause_ticks_left: 0,
             events: Vec::new(),
             ev_pause: false,
             ev_filter: String::new(),
@@ -446,6 +492,12 @@ impl App {
             ad_waypoints: Vec::new(),
             ad_canvas_pos: 0.0,
             fault_idx: 0,
+            fault_feedback: String::new(),
+            fault_last_dtc_count: 0,
+            implement_feedback: String::new(),
+            v2x_range_ema: 300.0,
+            v2x_loss_ema: 2.0,
+            v2x_lat_ema: 15.0,
             uds_input: "10 02".into(),
             uds_sa: 0x00,
             uds_flash_path: String::new(),
@@ -463,6 +515,9 @@ impl App {
             leak_view_yaw_deg: 25.0,
             leak_view_pitch_deg: 20.0,
             leak_view_zoom: 1.0,
+            leak_timeback_window_s: 120.0,
+            leak_timeback_latest_first: false,
+            leak_timeback_stride: 1,
             pl_rpm: vec![],
             pl_spd: vec![],
             pl_torque: vec![],
@@ -472,6 +527,8 @@ impl App {
             pl_boost: vec![],
             pl_hyd: vec![],
             ticks: 0,
+            ux_show_guide: true,
+            ux_compact_mode: false,
         }
     }
 
@@ -575,6 +632,118 @@ impl App {
         }
     }
 
+    fn sanitize_leak_manual(&mut self) {
+        self.leak_manual.piston_pressure_bar = self.leak_manual.piston_pressure_bar.clamp(0.0, 1000.0);
+        self.leak_manual.operation_pressure_bar = self.leak_manual.operation_pressure_bar.clamp(0.0, 1000.0);
+        self.leak_manual.pressure_min_bar = self.leak_manual.pressure_min_bar.max(0.0);
+        self.leak_manual.pressure_mean_bar = self
+            .leak_manual
+            .pressure_mean_bar
+            .max(self.leak_manual.pressure_min_bar);
+        self.leak_manual.pressure_ideal_bar = self
+            .leak_manual
+            .pressure_ideal_bar
+            .max(self.leak_manual.pressure_mean_bar);
+        self.leak_manual.pressure_max_bar = self
+            .leak_manual
+            .pressure_max_bar
+            .max(self.leak_manual.pressure_ideal_bar);
+        self.leak_manual.pressure_rupture_bar = self
+            .leak_manual
+            .pressure_rupture_bar
+            .max(self.leak_manual.pressure_max_bar + 0.1);
+        self.leak_manual.squeeze_pct = self.leak_manual.squeeze_pct.clamp(5.0, 45.0);
+        self.leak_manual.compression_set_pct = self.leak_manual.compression_set_pct.clamp(0.0, 80.0);
+        self.leak_manual.base_leak_area_mm2 = self.leak_manual.base_leak_area_mm2.clamp(0.0, 0.1);
+    }
+
+    fn sanitize_leak_custom(&mut self) {
+        self.leak_custom.name = self.leak_custom.name.trim().to_string();
+        self.leak_custom.application = self.leak_custom.application.trim().to_string();
+        self.leak_custom.seal_count = self.leak_custom.seal_count.clamp(1, 128);
+        self.leak_custom.shore_a = self.leak_custom.shore_a.clamp(40.0, 95.0);
+        self.leak_custom.piston_pressure_bar = self.leak_custom.piston_pressure_bar.clamp(0.0, 1000.0);
+        self.leak_custom.operation_pressure_bar = self.leak_custom.operation_pressure_bar.clamp(0.0, 1000.0);
+        self.leak_custom.min_bar = self.leak_custom.min_bar.max(0.0);
+        self.leak_custom.mean_bar = self.leak_custom.mean_bar.max(self.leak_custom.min_bar);
+        self.leak_custom.ideal_bar = self.leak_custom.ideal_bar.max(self.leak_custom.mean_bar);
+        self.leak_custom.max_bar = self.leak_custom.max_bar.max(self.leak_custom.ideal_bar);
+        self.leak_custom.rupture_bar = self.leak_custom.rupture_bar.max(self.leak_custom.max_bar + 0.1);
+        self.leak_custom.cross_section_mm = self.leak_custom.cross_section_mm.clamp(0.5, 20.0);
+        self.leak_custom.squeeze_pct = self.leak_custom.squeeze_pct.clamp(5.0, 45.0);
+        self.leak_custom.extrusion_gap_mm = self.leak_custom.extrusion_gap_mm.clamp(0.01, 3.0);
+        self.leak_custom.compression_set_pct = self.leak_custom.compression_set_pct.clamp(0.0, 80.0);
+        self.leak_custom.design_life_hours = self.leak_custom.design_life_hours.clamp(1.0, 200000.0);
+        self.leak_custom.base_leak_area_mm2 = self.leak_custom.base_leak_area_mm2.clamp(0.0, 0.1);
+        self.leak_custom.discharge_coeff = self.leak_custom.discharge_coeff.clamp(0.05, 1.0);
+        self.leak_custom.reservoir_volume_l = self.leak_custom.reservoir_volume_l.clamp(0.1, 2000.0);
+        self.leak_custom.support_lpm = self.leak_custom.support_lpm.clamp(0.0, 5000.0);
+    }
+
+    fn validate_leak_manual(&self) -> Result<(), String> {
+        if !(self.leak_manual.pressure_min_bar <= self.leak_manual.pressure_mean_bar
+            && self.leak_manual.pressure_mean_bar <= self.leak_manual.pressure_ideal_bar
+            && self.leak_manual.pressure_ideal_bar <= self.leak_manual.pressure_max_bar
+            && self.leak_manual.pressure_max_bar < self.leak_manual.pressure_rupture_bar)
+        {
+            return Err("Envelope invalido: requer min <= mean <= ideal <= max < rupture".into());
+        }
+        if self.leak_manual.base_leak_area_mm2 <= 0.0 {
+            return Err("Base leak deve ser > 0".into());
+        }
+        Ok(())
+    }
+
+    fn validate_leak_custom(&self) -> Result<(), String> {
+        if self.leak_custom.name.is_empty() {
+            return Err("Nome do circuito custom nao pode ser vazio".into());
+        }
+        if !(self.leak_custom.min_bar <= self.leak_custom.mean_bar
+            && self.leak_custom.mean_bar <= self.leak_custom.ideal_bar
+            && self.leak_custom.ideal_bar <= self.leak_custom.max_bar
+            && self.leak_custom.max_bar < self.leak_custom.rupture_bar)
+        {
+            return Err("Envelope custom invalido: requer min <= mean <= ideal <= max < rupture".into());
+        }
+        if self.leak_custom.base_leak_area_mm2 <= 0.0 {
+            return Err("Base leak custom deve ser > 0".into());
+        }
+        Ok(())
+    }
+
+    fn build_manual_leak_params(&self) -> ManualCircuitParams {
+        ManualCircuitParams {
+            oil_type: Some(Self::oil_type_from_idx(self.leak_manual.oil_type_idx)),
+            piston_pressure_bar: Some(self.leak_manual.piston_pressure_bar),
+            operation_pressure_bar: Some(self.leak_manual.operation_pressure_bar),
+            pressure_min_bar: Some(self.leak_manual.pressure_min_bar),
+            pressure_mean_bar: Some(self.leak_manual.pressure_mean_bar),
+            pressure_ideal_bar: Some(self.leak_manual.pressure_ideal_bar),
+            pressure_max_bar: Some(self.leak_manual.pressure_max_bar),
+            pressure_rupture_bar: Some(self.leak_manual.pressure_rupture_bar),
+            oring_squeeze_pct: Some(self.leak_manual.squeeze_pct),
+            compression_set_pct: Some(self.leak_manual.compression_set_pct),
+            base_leak_area_mm2: Some(self.leak_manual.base_leak_area_mm2),
+            max_supported_temp_c: None,
+        }
+    }
+
+    fn apply_manual_to_selected_circuit(&mut self) -> Result<String, String> {
+        self.validate_leak_manual()?;
+        let Some(c) = self.bench.leak_rig.circuits.get(self.leak_sel_idx) else {
+            return Err("Nenhum circuito selecionado".into());
+        };
+        let name = c.name.clone();
+        let ok = self
+            .bench
+            .apply_leak_manual_params(&name, self.build_manual_leak_params());
+        if ok {
+            Ok(name)
+        } else {
+            Err("Falha no backend ao aplicar parametros".into())
+        }
+    }
+
     fn can_bus_from_idx(idx: usize) -> auto_breaking::BusId {
         match idx {
             0 => auto_breaking::BusId::PowertrainHs,
@@ -583,6 +752,87 @@ impl App {
             3 => auto_breaking::BusId::IsoBus,
             _ => auto_breaking::BusId::Diagnostic,
         }
+    }
+
+    fn parse_u32_filter(input: &str) -> Option<u32> {
+        let s = input.trim().to_lowercase();
+        if let Some(hex) = s.strip_prefix("0x") {
+            u32::from_str_radix(hex, 16).ok()
+        } else {
+            s.parse::<u32>().ok()
+        }
+    }
+
+    fn can_filter_match_signal(filter: &str, pgn: u32, sa: u8, sig: &Signal) -> bool {
+        let filt = filter.trim().to_lowercase();
+        if filt.is_empty() {
+            return true;
+        }
+        if let Some(v) = filt.strip_prefix("sa:") {
+            return Self::parse_u32_filter(v) == Some(sa as u32);
+        }
+        if let Some(v) = filt.strip_prefix("pgn:") {
+            return Self::parse_u32_filter(v) == Some(pgn);
+        }
+        if let Some(v) = filt.strip_prefix("id:") {
+            return Self::parse_u32_filter(v) == Some(sig.raw_id);
+        }
+        sig.pgn_name.to_lowercase().contains(&filt)
+            || sig.sa_name.to_lowercase().contains(&filt)
+            || format!("{:02x}", sa).contains(&filt)
+            || format!("0x{:02x}", sa).contains(&filt)
+            || format!("{:05}", pgn).contains(&filt)
+            || format!("{:08x}", sig.raw_id).contains(&filt)
+            || sig
+                .decoded
+                .iter()
+                .any(|(name, _, _)| name.to_lowercase().contains(&filt))
+    }
+
+    fn can_filter_match_trace(filter: &str, row: &TraceRow) -> bool {
+        let filt = filter.trim().to_lowercase();
+        if filt.is_empty() {
+            return true;
+        }
+        let (_ts, raw_id, sa, _dlc, hex, pgn_sa, decoded) = row;
+        if let Some(v) = filt.strip_prefix("sa:") {
+            return Self::parse_u32_filter(v) == Some(*sa as u32);
+        }
+        if let Some(v) = filt.strip_prefix("id:") {
+            return Self::parse_u32_filter(v) == Some(*raw_id);
+        }
+        pgn_sa.to_lowercase().contains(&filt)
+            || decoded.to_lowercase().contains(&filt)
+            || hex.to_lowercase().contains(&filt)
+            || format!("{:02x}", sa).contains(&filt)
+            || format!("0x{:02x}", sa).contains(&filt)
+            || format!("{:08x}", raw_id).contains(&filt)
+    }
+
+    fn ema(prev: f64, value: f64, alpha: f64) -> f64 {
+        prev + alpha * (value - prev)
+    }
+
+    fn update_v2x_kpis(&mut self) {
+        self.v2x_range_ema = Self::ema(self.v2x_range_ema, self.bench.v2x.range_m, 0.10);
+        self.v2x_loss_ema = Self::ema(self.v2x_loss_ema, self.bench.v2x.packet_loss_pct, 0.12);
+        self.v2x_lat_ema = Self::ema(self.v2x_lat_ema, self.bench.v2x.latency_ms, 0.12);
+    }
+
+    fn approach_f32(current: f32, target: f32, max_step: f32) -> f32 {
+        if (target - current).abs() <= max_step {
+            target
+        } else if target > current {
+            current + max_step
+        } else {
+            current - max_step
+        }
+    }
+
+    fn shape_pedal(x: f32, deadzone: f32) -> f64 {
+        let n = ((x - deadzone) / (1.0 - deadzone)).clamp(0.0, 1.0);
+        let shaped = n * n * (3.0 - 2.0 * n); // smoothstep
+        shaped as f64
     }
 
     // ─ Execute all queued commands ─────────────────────────────────────────
@@ -595,14 +845,18 @@ impl App {
                     self.bench.key_off();
                     self.throttle = 0.0;
                     self.brake = 0.0;
+                    self.throttle_target = 0.0;
+                    self.brake_target = 0.0;
+                    self.throttle_cmd_last = 0.0;
+                    self.brake_cmd_last = 0.0;
+                    self.throttle_cmd_last_tick = self.ticks;
+                    self.brake_cmd_last_tick = self.ticks;
                 }
                 Cmd::SetThrottle(v) => {
-                    self.throttle = v;
-                    self.bench.throttle_pct = v as f64 * 100.0;
+                    self.throttle_target = v.clamp(0.0, 1.0);
                 }
                 Cmd::SetBrake(v) => {
-                    self.brake = v;
-                    self.bench.brake_pct = v as f64 * 100.0;
+                    self.brake_target = v.clamp(0.0, 1.0);
                 }
                 Cmd::SetDirection(d) => self.bench.tcm.set_direction(d),
                 Cmd::SetNeutral => self.bench.tcm.set_neutral(),
@@ -646,10 +900,13 @@ impl App {
                 Cmd::SetPtoMode(m) => {
                     self.bench.implement.pto_rear_enabled = m != PtoMode::Off;
                     self.bench.implement.pto_mode = m;
+                    self.implement_feedback = format!("Rear PTO mode -> {}", m);
                 }
                 Cmd::SetHitchTarget(v) => {
                     self.bench.implement.hitch_target_pct = v.clamp(0.0, 100.0);
                     self.hitch_target = v;
+                    self.implement_feedback =
+                        format!("Hitch target set -> {:.1}%", self.hitch_target);
                 }
                 Cmd::SetAuxValve(i, v) => {
                     if i < 4 {
@@ -663,19 +920,34 @@ impl App {
                         };
                         self.bench.implement.aux_banks[i].engaged = v.abs() > 0.05;
                         self.aux_cmds[i] = v;
+                        self.implement_feedback =
+                            format!("Aux bank {} command -> {:+.1}", i, self.aux_cmds[i]);
                     }
                 }
                 Cmd::SetLoaderLift(v) => {
                     self.bench.loader_lift_cmd = v;
+                    self.implement_feedback = format!("Loader lift cmd -> {:+.2}", v);
                 }
                 Cmd::SetLoaderTilt(v) => {
                     self.bench.loader_tilt_cmd = v;
+                    self.implement_feedback = format!("Loader tilt cmd -> {:+.2}", v);
                 }
                 Cmd::SetHitchJoystick(v) => {
                     self.bench.hitch_joystick = v;
+                    self.implement_feedback = format!("Hitch joystick -> {:+.1}", v);
                 }
                 // AD
-                Cmd::EngageAD => self.bench.ad.engage(self.bench.tcm.ground_speed_kmh),
+                Cmd::EngageAD => {
+                    self.bench.ad.engage(self.bench.tcm.ground_speed_kmh);
+                    if self.bench.tcm.direction == Direction::Neutral
+                        || self.bench.tcm.direction == Direction::Park
+                    {
+                        self.bench.tcm.set_direction(Direction::Forward);
+                    }
+                    if self.bench.tcm.auto_mode != AutoShiftMode::Auto {
+                        self.bench.tcm.toggle_auto();
+                    }
+                }
                 Cmd::DisengageAD => self.bench.ad.disengage(),
                 Cmd::ToggleLka => self.bench.ad.toggle_lka(),
                 Cmd::AccSpeedSet(v) => self.bench.ad.set_acc_speed(v),
@@ -686,9 +958,22 @@ impl App {
                 Cmd::SelectFault(i) => {
                     self.fault_idx = i.min(FAULT_TYPES.len().saturating_sub(1));
                     self.bench.selected_fault = FAULT_TYPES[self.fault_idx];
+                    self.fault_feedback =
+                        format!("Selected fault: {}", self.bench.selected_fault);
                 }
-                Cmd::InjectFault => self.bench.inject_fault(),
-                Cmd::ClearFaults => self.bench.clear_faults(),
+                Cmd::InjectFault => {
+                    self.bench.inject_fault();
+                    self.fault_last_dtc_count = self.bench.ecm.active_dtcs.len();
+                    self.fault_feedback = format!(
+                        "Injected {}. Waiting ECM/DM1 propagation...",
+                        self.bench.selected_fault
+                    );
+                }
+                Cmd::ClearFaults => {
+                    self.bench.clear_faults();
+                    self.fault_last_dtc_count = self.bench.ecm.active_dtcs.len();
+                    self.fault_feedback = "All injected faults cleared".into();
+                }
                 // Telematics
                 Cmd::StartOta => self.bench.telematics.start_ota(),
                 // Leak Lab
@@ -697,29 +982,10 @@ impl App {
                     self.sync_leak_manual_from_selected();
                 }
                 Cmd::LeakApplyManual => {
-                    if let Some(c) = self.bench.leak_rig.circuits.get(self.leak_sel_idx) {
-                        let name = c.name.clone();
-                        let params = ManualCircuitParams {
-                            oil_type: Some(Self::oil_type_from_idx(self.leak_manual.oil_type_idx)),
-                            piston_pressure_bar: Some(self.leak_manual.piston_pressure_bar),
-                            operation_pressure_bar: Some(self.leak_manual.operation_pressure_bar),
-                            pressure_min_bar: Some(self.leak_manual.pressure_min_bar),
-                            pressure_mean_bar: Some(self.leak_manual.pressure_mean_bar),
-                            pressure_ideal_bar: Some(self.leak_manual.pressure_ideal_bar),
-                            pressure_max_bar: Some(self.leak_manual.pressure_max_bar),
-                            pressure_rupture_bar: Some(self.leak_manual.pressure_rupture_bar),
-                            oring_squeeze_pct: Some(self.leak_manual.squeeze_pct),
-                            compression_set_pct: Some(self.leak_manual.compression_set_pct),
-                            base_leak_area_mm2: Some(self.leak_manual.base_leak_area_mm2),
-                            max_supported_temp_c: None,
-                        };
-                        let ok = self.bench.apply_leak_manual_params(&name, params);
-                        self.leak_note = if ok {
-                            "Parametros aplicados com sucesso".into()
-                        } else {
-                            "Falha ao aplicar parametros".into()
-                        };
-                    }
+                    self.leak_note = match self.apply_manual_to_selected_circuit() {
+                        Ok(name) => format!("Parametros aplicados com sucesso em {}", name),
+                        Err(e) => format!("Falha ao aplicar parametros: {}", e),
+                    };
                 }
                 Cmd::LeakPredictScenarios => {
                     self.leak_predictions = self.bench.predict_leak_scenarios(
@@ -729,6 +995,10 @@ impl App {
                     self.leak_note = format!("{} cenarios avaliados", self.leak_predictions.len());
                 }
                 Cmd::LeakAddCustomCircuit => {
+                    if let Err(e) = self.validate_leak_custom() {
+                        self.leak_note = format!("Falha ao adicionar circuito custom: {}", e);
+                        continue;
+                    }
                     let c = LeakCircuit::new(
                         &self.leak_custom.name,
                         &self.leak_custom.application,
@@ -873,6 +1143,55 @@ impl App {
                         self.leak_predictions.len()
                     );
                 }
+                Cmd::LeakClearScenarioOutputs => {
+                    self.leak_predictions.clear();
+                    self.leak_temporal_trace.clear();
+                    self.leak_note = "Saida de simulacao limpa. Pronto para nova rodada.".into();
+                }
+                Cmd::LeakResetSimulation => {
+                    self.bench.leak_rig.reset();
+                    self.bench.leak_reports.clear();
+                    self.leak_predictions.clear();
+                    self.leak_temporal_trace.clear();
+                    self.leak_calibration_report = None;
+                    self.leak_note =
+                        "Leak Lab resetado: estado fisico, alertas, historico e cenarios limpos."
+                            .into();
+                }
+                Cmd::LeakApplyAndPredict => {
+                    match self.apply_manual_to_selected_circuit() {
+                        Ok(_) => {
+                            self.leak_temporal_trace.clear();
+                            self.leak_predictions = self.bench.predict_leak_scenarios(
+                                self.leak_horizon_s,
+                                self.leak_scenario_dt.max(0.01),
+                            );
+                            self.leak_note =
+                                format!("Nova rodada: parametros aplicados + {} cenarios", self.leak_predictions.len());
+                        }
+                        Err(e) => {
+                            self.leak_note = format!("Nova rodada: falha ao aplicar parametros: {}", e);
+                        }
+                    }
+                }
+                Cmd::LeakApplyAndMonteCarlo => {
+                    match self.apply_manual_to_selected_circuit() {
+                        Ok(_) => {
+                            self.leak_temporal_trace.clear();
+                            self.leak_predictions = self.bench.monte_carlo_leak_predictions(
+                                120,
+                                self.leak_horizon_s,
+                                self.leak_scenario_dt.max(0.01),
+                                25.0,
+                            );
+                            self.leak_note =
+                                format!("Nova rodada MC: parametros aplicados + {} amostras", self.leak_predictions.len());
+                        }
+                        Err(e) => {
+                            self.leak_note = format!("Nova rodada MC: falha ao aplicar parametros: {}", e);
+                        }
+                    }
+                }
                 Cmd::CanInjectBitError(idx) => {
                     let bus = Self::can_bus_from_idx(idx);
                     self.bench
@@ -926,6 +1245,12 @@ impl App {
                     self.bench.tcm.set_direction(Direction::Forward);
                     self.throttle = 0.0;
                     self.brake = 0.0;
+                    self.throttle_target = 0.0;
+                    self.brake_target = 0.0;
+                    self.throttle_cmd_last = 0.0;
+                    self.brake_cmd_last = 0.0;
+                    self.throttle_cmd_last_tick = self.ticks;
+                    self.brake_cmd_last_tick = self.ticks;
                     self.sig_map.clear();
                     self.events.clear();
                     self.ticks = 0;
@@ -967,6 +1292,7 @@ impl App {
     // ─ Update CAN signal map ─────────────────────────────────────────────
     fn update_signals(&mut self) {
         let t = self.bench.elapsed;
+        self.can_trace_tick_counter = self.can_trace_tick_counter.saturating_add(1);
         if !self.can_freeze {
             for frame in self.bench.gateway.dispatched.clone() {
                 let e = self.sig_map.entry((frame.pgn, frame.sa)).or_insert(Signal {
@@ -998,19 +1324,19 @@ impl App {
                 sig.fresh = false;
             }
         }
-        if !self.can_freeze {
+        let trace_due = self
+            .can_trace_tick_counter
+            .is_multiple_of(self.can_trace_update_every_ticks.max(1));
+        if self.can_trace_pause_ticks_left > 0 {
+            self.can_trace_pause_ticks_left = self.can_trace_pause_ticks_left.saturating_sub(1);
+        }
+        if !self.can_freeze && trace_due && self.can_trace_pause_ticks_left == 0 {
             self.trace_snap = self
                 .bench
                 .gateway
                 .bus
                 .frames
                 .iter()
-                .filter(|f| {
-                    let filt = &self.can_filter;
-                    filt.is_empty()
-                        || f.pgn_name().to_lowercase().contains(filt.as_str())
-                        || f.sa_name().to_lowercase().contains(filt.as_str())
-                })
                 .map(|f| {
                     (
                         f.timestamp,
@@ -1312,10 +1638,35 @@ impl eframe::App for App {
         self.flush_cmds();
 
         // ── Simulation tick ────────────────────────────────────────────────
-        self.bench.throttle_pct = self.throttle as f64 * 100.0;
-        self.bench.brake_pct = self.brake as f64 * 100.0;
+        if !self.bench.ad.engaged {
+            let thr_step = (DT as f32) * 1.8; // ~0.56s 0->100%
+            let brk_step = (DT as f32) * 3.0; // brakes react faster
+            self.throttle = Self::approach_f32(self.throttle, self.throttle_target, thr_step);
+            self.brake = Self::approach_f32(self.brake, self.brake_target, brk_step);
+
+            let thr_eff = Self::shape_pedal(self.throttle, 0.03);
+            let brk_eff = Self::shape_pedal(self.brake, 0.02);
+            self.bench.throttle_pct = (thr_eff * 100.0).clamp(0.0, 100.0);
+            self.bench.brake_pct = (brk_eff * 100.0).clamp(0.0, 100.0);
+        }
         self.auto_sequence();
         self.bench.tick(DT);
+        if self.bench.ad.engaged {
+            // Mirror AD control outputs back into UI sliders while engaged.
+            self.throttle = (self.bench.throttle_pct / 100.0) as f32;
+            self.brake = (self.bench.brake_pct / 100.0) as f32;
+        }
+        if matches!(self.tab, Tab::CanBus)
+            && matches!(self.can_mode, CanMode::Trace)
+            && self.can_trace_pause_on_scroll
+            && !self.can_freeze
+        {
+            let scroll_delta = ctx.input(|i| i.raw_scroll_delta.length());
+            if scroll_delta > 0.0 {
+                let hold = (self.can_trace_update_every_ticks.max(1) * 4) as u32;
+                self.can_trace_pause_ticks_left = self.can_trace_pause_ticks_left.max(hold);
+            }
+        }
         if let Some(sel) = self.bench.leak_rig.circuits.get(self.leak_sel_idx) {
             if let Some(rep) = self.bench.leak_reports.iter().find(|r| r.name == sel.name) {
                 self.leak_temporal_trace.push_back((
@@ -1324,23 +1675,37 @@ impl eframe::App for App {
                     rep.rupture_probability_pct,
                     rep.leak_lpm,
                 ));
-                if self.leak_temporal_trace.len() > 240 {
+                if self.leak_temporal_trace.len() > 7200 {
                     self.leak_temporal_trace.pop_front();
                 }
             }
         }
         self.ticks += 1;
+        self.update_v2x_kpis();
         self.update_signals();
         self.detect_events();
         self.push_plots();
         self.sync_params_from_bench();
+        let mut clear_live_feed = false;
         if let Some(feed) = &self.ecm_live_feed {
             self.ecm_live_snapshot = feed.latest_snapshot();
             self.ecm_live_last_update_ms = feed.last_update_ms();
             self.ecm_live_frames_total = feed.frames_total();
+            if !feed.is_alive() {
+                if let Some(err) = feed.last_error() {
+                    self.ecm_live_status = format!("Retrieve stopped with error: {}", err);
+                } else {
+                    self.ecm_live_status = "Retrieve stopped.".into();
+                }
+                clear_live_feed = true;
+            }
         } else if matches!(self.hw_cfg.mode, io::hw::HwMode::Sim) {
             self.refresh_mock_ecm_live_from_sim();
             self.ecm_live_frames_total = self.ecm_live_frames_total.saturating_add(1);
+        }
+        if clear_live_feed {
+            self.ecm_live_feed = None;
+            self.ecm_connected = false;
         }
         ctx.request_repaint();
 
@@ -1349,28 +1714,36 @@ impl eframe::App for App {
             .min_height(56.0)
             .show(ctx, |ui| self.toolbar(ui));
         TopBottomPanel::top("tabs")
-            .exact_height(30.0)
+            .exact_height(58.0)
             .show(ctx, |ui| self.tab_bar(ui));
         TopBottomPanel::bottom("sb")
             .exact_height(22.0)
             .show(ctx, |ui| self.statusbar(ui));
-        CentralPanel::default().show(ctx, |ui| match self.tab {
-            Tab::Cluster => self.tab_cluster(ui),
-            Tab::CanBus => self.tab_can(ui),
-            Tab::Events => self.tab_events(ui),
-            Tab::EcuNet => self.tab_ecu_net(ui),
-            Tab::Engine => self.tab_engine(ui),
-            Tab::Faults => self.tab_faults(ui),
-            Tab::Boot => self.tab_boot(ui),
-            Tab::Implements => self.tab_implements(ui),
-            Tab::Params => self.tab_params(ui),
-            Tab::Sensors => self.tab_sensors(ui),
-            Tab::Autonomous => self.tab_autonomous(ui),
-            Tab::V2X => self.tab_v2x(ui),
-            Tab::Uds => self.tab_uds(ui),
-            Tab::EcmLiveData => self.tab_ecm_live_data(ui),
-            Tab::LeakLab => self.tab_leak_lab(ui),
-            Tab::Plots => self.tab_plots(ui),
+        CentralPanel::default().show(ctx, |ui| {
+            self.render_ux_guide(ui);
+            if self.ux_compact_mode {
+                ui.spacing_mut().item_spacing = Vec2::new(6.0, 5.0);
+            }
+            ui.separator();
+            match self.tab {
+                Tab::Help => ui.push_id("tab::help", |ui| self.tab_help(ui)),
+                Tab::Cluster => ui.push_id("tab::cluster", |ui| self.tab_cluster(ui)),
+                Tab::CanBus => ui.push_id("tab::can", |ui| self.tab_can(ui)),
+                Tab::Events => ui.push_id("tab::events", |ui| self.tab_events(ui)),
+                Tab::EcuNet => ui.push_id("tab::ecu_net", |ui| self.tab_ecu_net(ui)),
+                Tab::Engine => ui.push_id("tab::engine", |ui| self.tab_engine(ui)),
+                Tab::Faults => ui.push_id("tab::faults", |ui| self.tab_faults(ui)),
+                Tab::Boot => ui.push_id("tab::boot", |ui| self.tab_boot(ui)),
+                Tab::Implements => ui.push_id("tab::implements", |ui| self.tab_implements(ui)),
+                Tab::Params => ui.push_id("tab::params", |ui| self.tab_params(ui)),
+                Tab::Sensors => ui.push_id("tab::sensors", |ui| self.tab_sensors(ui)),
+                Tab::Autonomous => ui.push_id("tab::autonomous", |ui| self.tab_autonomous(ui)),
+                Tab::V2X => ui.push_id("tab::v2x", |ui| self.tab_v2x(ui)),
+                Tab::Uds => ui.push_id("tab::uds", |ui| self.tab_uds(ui)),
+                Tab::EcmLiveData => ui.push_id("tab::ecm_live", |ui| self.tab_ecm_live_data(ui)),
+                Tab::LeakLab => ui.push_id("tab::leak", |ui| self.tab_leak_lab(ui)),
+                Tab::Plots => ui.push_id("tab::plots", |ui| self.tab_plots(ui)),
+            }
         });
     }
 }
@@ -1378,51 +1751,422 @@ impl eframe::App for App {
 // ── Tab bar ──────────────────────────────────────────────────────────────────
 impl App {
     fn tab_bar(&mut self, ui: &mut Ui) {
-        ui.horizontal(|ui| {
+        ui.push_id("ui::tab_bar", |ui| {
             let dtcs = self.bench.ecm.active_dtcs.len();
-            let tabs = [
-                (Tab::Cluster, "🎛 CLUSTER"),
-                (Tab::CanBus, "📡 CAN BUS"),
-                (Tab::Events, "📋 EVENTS"),
-                (Tab::EcuNet, "🔌 ECU NET"),
-                (Tab::Engine, "⚙ ENGINE"),
-                (Tab::Faults, "⚠ FAULTS"),
-                (Tab::Boot, "🔑 BOOT"),
-                (Tab::Implements, "🌾 IMPL"),
-                (Tab::Params, "🎚 PARAMS"),
-                (Tab::Sensors, "🛰 SENSORS"),
-                (Tab::Autonomous, "🤖 AD"),
-                (Tab::V2X, "📶 V2X"),
-                (Tab::Uds, "🔧 UDS"),
-                (Tab::EcmLiveData, "🧲 ECM LIVE"),
-                (Tab::LeakLab, "🧪 LEAK LAB"),
-                (Tab::Plots, "📈 PLOTS"),
+            let nav_sections: [(&str, &[(Tab, &str)]); 2] = [
+                (
+                    "OPERACAO",
+                    &[
+                        (Tab::Help, "❓ HELP"),
+                        (Tab::Cluster, "🎛 CLUSTER"),
+                        (Tab::Engine, "⚙ ENGINE"),
+                        (Tab::Implements, "🌾 IMPL"),
+                        (Tab::Autonomous, "🤖 AD"),
+                        (Tab::LeakLab, "🧪 LEAK LAB"),
+                        (Tab::Plots, "📈 PLOTS"),
+                    ],
+                ),
+                (
+                    "DIAGNOSTICO",
+                    &[
+                        (Tab::CanBus, "📡 CAN"),
+                        (Tab::Events, "📋 EVENTS"),
+                        (Tab::EcuNet, "🔌 ECU NET"),
+                        (Tab::Faults, "⚠ FAULTS"),
+                        (Tab::Boot, "🔑 BOOT"),
+                        (Tab::Params, "🎚 PARAMS"),
+                        (Tab::Sensors, "🛰 SENSORS"),
+                        (Tab::V2X, "📶 V2X"),
+                        (Tab::Uds, "🔧 UDS"),
+                        (Tab::EcmLiveData, "🧲 ECM LIVE"),
+                    ],
+                ),
             ];
-            for (t, lbl) in tabs {
-                let sel = self.tab == t;
-                let fill = if sel {
-                    Color32::from_rgb(45, 105, 210)
-                } else {
-                    Color32::from_gray(30)
-                };
-                let label = if t == Tab::Faults && dtcs > 0 {
-                    format!("⚠ FAULTS({})", dtcs)
-                } else {
-                    lbl.into()
-                };
-                let col = if t == Tab::Faults && dtcs > 0 {
-                    Color32::RED
-                } else if sel {
-                    Color32::WHITE
-                } else {
-                    Color32::from_gray(160)
-                };
-                if ui
-                    .add(Button::new(RichText::new(label).size(11.0).color(col)).fill(fill))
-                    .clicked()
-                {
-                    self.tab = t;
+
+            for (section_name, tabs) in nav_sections {
+                ui.horizontal_wrapped(|ui| {
+                    ui.label(
+                        RichText::new(section_name)
+                            .size(9.6)
+                            .color(Color32::from_gray(145))
+                            .strong(),
+                    );
+                    ui.separator();
+                    for (t, lbl) in tabs {
+                        let sel = self.tab == *t;
+                        let fill = if sel {
+                            Color32::from_rgb(45, 105, 210)
+                        } else {
+                            Color32::from_gray(30)
+                        };
+                        let label = if *t == Tab::Faults && dtcs > 0 {
+                            format!("⚠ FAULTS({})", dtcs)
+                        } else {
+                            (*lbl).into()
+                        };
+                        let col = if *t == Tab::Faults && dtcs > 0 {
+                            Color32::RED
+                        } else if sel {
+                            Color32::WHITE
+                        } else {
+                            Color32::from_gray(160)
+                        };
+                        if ui
+                            .add(Button::new(RichText::new(label).size(10.8).color(col)).fill(fill))
+                            .clicked()
+                        {
+                            self.tab = *t;
+                        }
+                    }
+                });
+                if section_name == "OPERACAO" {
+                    ui.add_space(2.0);
                 }
+            }
+        });
+    }
+
+    fn ad_readiness_issues(&self) -> Vec<String> {
+        let mut issues = Vec::new();
+        if !self.bench.engine_running() {
+            issues.push("Motor desligado: o AD nao consegue acelerar nem sustentar velocidade.".to_string());
+        }
+        if matches!(self.bench.tcm.direction, Direction::Park) {
+            issues.push("Transmissao em Park: selecione Forward para permitir deslocamento.".to_string());
+        }
+        if self.bench.tcm.auto_mode != AutoShiftMode::Auto {
+            issues.push("Transmissao fora de AUTO: o AD perde previsibilidade de troca.".to_string());
+        }
+        if self.bench.ad.lane.confidence <= 0.4 {
+            issues.push("Lane confidence baixa: o LKA permanece em espera abaixo de 40%.".to_string());
+        }
+        if self.bench.tcm.ground_speed_kmh < 5.0 {
+            issues.push("Abaixo de 5 km/h o LKA ainda nao atua; o ACC pode acelerar a maquina.".to_string());
+        }
+        issues
+    }
+
+    fn ux_alerts(&self) -> Vec<(Color32, String)> {
+        let mut alerts = Vec::new();
+        match self.tab {
+            Tab::Cluster | Tab::Engine | Tab::Implements => {
+                if !self.bench.engine_running() {
+                    alerts.push((
+                        Color32::YELLOW,
+                        "Motor desligado: esta aba so reflete dinamica real depois de RUN.".to_string(),
+                    ));
+                }
+                if self.bench.ecm.red_lamp {
+                    alerts.push((
+                        Color32::RED,
+                        "RED STOP ativo: existe falha critica impactando a operacao.".to_string(),
+                    ));
+                }
+            }
+            Tab::Autonomous => {
+                if !self.bench.engine_running() {
+                    alerts.push((
+                        Color32::YELLOW,
+                        "Motor desligado: o AD nao consegue gerar tracao nem validar longitudinal.".to_string(),
+                    ));
+                }
+                if self.bench.ad.engaged {
+                    let msg = if let Some(reason) = self.bench.ad.degrade_reason {
+                        format!("AD engatado em modo degradado: {}.", reason)
+                    } else {
+                        "AD engatado: comandos manuais principais ficam travados para evitar disputa.".to_string()
+                    };
+                    alerts.push((Color32::from_rgb(90, 210, 130), msg));
+                }
+            }
+            Tab::CanBus | Tab::Events | Tab::EcuNet | Tab::Faults | Tab::Uds => {
+                if self.bench.gateway.bus_load_pct > 85.0 {
+                    alerts.push((
+                        Color32::YELLOW,
+                        format!("Carga CAN alta ({:.0}%): diagnostico pode ficar ruidoso nesta aba.", self.bench.gateway.bus_load_pct),
+                    ));
+                }
+                if matches!(self.tab, Tab::Faults | Tab::Uds) && self.bench.ecm.red_lamp {
+                    alerts.push((
+                        Color32::RED,
+                        "Falha critica ativa: compare Faults, Events e Engine antes de continuar.".to_string(),
+                    ));
+                }
+            }
+            Tab::EcmLiveData => {
+                if self.ecm_live_feed.as_ref().is_some_and(|feed| !feed.is_alive()) {
+                    alerts.push((
+                        Color32::YELLOW,
+                        "ECM Live sem stream valido: reconecte ou reinicie Retrieve Data.".to_string(),
+                    ));
+                }
+            }
+            Tab::Help | Tab::Boot | Tab::Params | Tab::Sensors | Tab::V2X | Tab::LeakLab | Tab::Plots => {}
+        }
+        alerts
+    }
+
+    fn ux_context_items(&self) -> Vec<(String, Color32)> {
+        match self.tab {
+            Tab::Help => vec![
+                (
+                    format!("Workspace {:.1}s", self.bench.elapsed),
+                    Color32::from_gray(180),
+                ),
+                (
+                    format!("{} abas operacionais", 17),
+                    Color32::from_rgb(110, 180, 255),
+                ),
+                (
+                    format!("{} DTC ativos", self.bench.ecm.active_dtcs.len()),
+                    if self.bench.ecm.active_dtcs.is_empty() {
+                        Color32::GREEN
+                    } else {
+                        Color32::YELLOW
+                    },
+                ),
+            ],
+            Tab::Cluster => vec![
+                (
+                    format!("RPM {:.0}", self.bench.ecm.rpm),
+                    Color32::GREEN,
+                ),
+                (
+                    format!("SPD {:.1} km/h", self.bench.tcm.ground_speed_kmh),
+                    Color32::LIGHT_BLUE,
+                ),
+                (
+                    format!("Gear {}", self.bench.tcm.gear_label),
+                    Color32::YELLOW,
+                ),
+            ],
+            Tab::CanBus => vec![
+                (
+                    format!("Bus load {:.0}%", self.bench.gateway.bus_load_pct),
+                    if self.bench.gateway.bus_load_pct > 85.0 {
+                        Color32::RED
+                    } else {
+                        Color32::GOLD
+                    },
+                ),
+                (
+                    format!("Signals {}", self.sig_map.len()),
+                    Color32::from_rgb(110, 180, 255),
+                ),
+                (
+                    format!("Trace {}", self.trace_snap.len()),
+                    Color32::from_gray(180),
+                ),
+            ],
+            Tab::Events => vec![
+                (
+                    format!("Eventos {}", self.events.len()),
+                    Color32::from_rgb(110, 180, 255),
+                ),
+                (
+                    format!("Filtro {}", if self.ev_filter.is_empty() { "livre" } else { "ativo" }),
+                    if self.ev_filter.is_empty() {
+                        Color32::from_gray(180)
+                    } else {
+                        Color32::YELLOW
+                    },
+                ),
+                (
+                    format!("Pause {}", if self.ev_pause { "on" } else { "off" }),
+                    if self.ev_pause { Color32::YELLOW } else { Color32::GREEN },
+                ),
+            ],
+            Tab::EcuNet => vec![
+                (
+                    format!(
+                        "Online {}/{}",
+                        self.bench.boot.ecus.iter().filter(|e| e.is_online()).count(),
+                        self.bench.boot.ecus.len()
+                    ),
+                    Color32::from_rgb(110, 180, 255),
+                ),
+                (
+                    format!("NM {}", self.bench.net_mgmt.bus_state),
+                    Color32::from_gray(180),
+                ),
+            ],
+            Tab::Engine => vec![
+                (
+                    format!("Load {:.0}%", self.bench.ecm.percent_load),
+                    Color32::YELLOW,
+                ),
+                (
+                    format!("Torque {:.0} Nm", self.bench.ecm.actual_torque_nm),
+                    Color32::from_rgb(80, 180, 255),
+                ),
+                (
+                    format!("Coolant {:.0} C", self.bench.ecm.coolant_temp_c),
+                    if self.bench.ecm.coolant_temp_c > 105.0 {
+                        Color32::RED
+                    } else {
+                        Color32::from_rgb(255, 130, 30)
+                    },
+                ),
+            ],
+            Tab::Faults => vec![
+                (
+                    format!("Active DTC {}", self.bench.ecm.active_dtcs.len()),
+                    if self.bench.ecm.active_dtcs.is_empty() {
+                        Color32::GREEN
+                    } else {
+                        Color32::RED
+                    },
+                ),
+                (
+                    format!("Selected {}", self.bench.selected_fault),
+                    Color32::from_rgb(110, 180, 255),
+                ),
+                (
+                    format!("Fault inject {}", if self.bench.fault_active { "armed" } else { "idle" }),
+                    if self.bench.fault_active { Color32::YELLOW } else { Color32::GREEN },
+                ),
+            ],
+            Tab::Boot => vec![
+                (
+                    format!("Ignition {}", self.bench.ignition()),
+                    Color32::from_rgb(110, 180, 255),
+                ),
+                (
+                    format!("Engine {}", if self.bench.engine_running() { "RUN" } else { "OFF" }),
+                    if self.bench.engine_running() { Color32::GREEN } else { Color32::YELLOW },
+                ),
+            ],
+            Tab::Implements => vec![
+                (
+                    format!("PTO {}", if self.bench.implement.pto_rear_enabled { "on" } else { "off" }),
+                    if self.bench.implement.pto_rear_enabled { Color32::GREEN } else { Color32::from_gray(170) },
+                ),
+                (
+                    format!("Hyd {:.0} bar", self.bench.hcm.system_pressure_bar),
+                    Color32::from_rgb(0, 210, 210),
+                ),
+            ],
+            Tab::Params => vec![
+                (
+                    "Live tuning panel".to_string(),
+                    Color32::from_rgb(110, 180, 255),
+                ),
+                (
+                    format!("Mode {}", if self.ux_compact_mode { "compact" } else { "full" }),
+                    Color32::from_gray(180),
+                ),
+            ],
+            Tab::Sensors => vec![
+                (
+                    format!("GPS {:.1} km/h", self.bench.gps.speed_kmh),
+                    Color32::LIGHT_BLUE,
+                ),
+                (
+                    format!("Radar TTC {:.1}s", self.bench.radar.ttc_front.min(99.9)),
+                    if self.bench.radar.ttc_front < 2.0 { Color32::RED } else { Color32::YELLOW },
+                ),
+                (
+                    format!("Lane conf {:.0}%", self.bench.ad.lane.confidence * 100.0),
+                    if self.bench.ad.lane.confidence > 0.7 { Color32::GREEN } else { Color32::YELLOW },
+                ),
+            ],
+            Tab::Autonomous => vec![
+                (
+                    format!("AD {}", if self.bench.ad.engaged { "engaged" } else { "standby" }),
+                    if self.bench.ad.engaged { Color32::GREEN } else { Color32::from_gray(180) },
+                ),
+                (
+                    format!("ACC set {:.0} km/h", self.bench.ad.acc_set_speed_kmh),
+                    Color32::LIGHT_BLUE,
+                ),
+                (
+                    format!("Lane {:.0}%", self.bench.ad.lane.confidence * 100.0),
+                    if self.bench.ad.lane.confidence > 0.7 { Color32::GREEN } else { Color32::YELLOW },
+                ),
+            ],
+            Tab::V2X => vec![
+                (
+                    format!("Link {:.0}%", self.v2x_range_ema.mul_add(0.0, (100.0 - (self.v2x_loss_ema * 2.0).clamp(0.0, 60.0) - ((self.v2x_lat_ema - 10.0) * 1.6).clamp(0.0, 40.0)).clamp(0.0, 100.0))),
+                    Color32::from_rgb(110, 180, 255),
+                ),
+                (
+                    format!("Nearby {}", self.bench.v2x.nearby_vehicles.len()),
+                    Color32::from_gray(180),
+                ),
+                (
+                    format!("OTA {}", if self.bench.telematics.ota_downloading { "downloading" } else if self.bench.telematics.ota_available { "available" } else { "idle" }),
+                    if self.bench.telematics.ota_downloading { Color32::YELLOW } else { Color32::GREEN },
+                ),
+            ],
+            Tab::Uds => vec![
+                (
+                    format!("Session {}", self.bench.uds_ecm.session),
+                    Color32::from_rgb(110, 180, 255),
+                ),
+                (
+                    format!("Security {:?}", self.bench.uds_ecm.security),
+                    Color32::YELLOW,
+                ),
+                (
+                    format!("UDS log {}", self.uds_log.len()),
+                    Color32::from_gray(180),
+                ),
+            ],
+            Tab::EcmLiveData => vec![
+                (
+                    format!("Mode {:?}", self.hw_cfg.mode),
+                    Color32::from_rgb(110, 180, 255),
+                ),
+                (
+                    format!("Detected {}", self.ecm_detected_sas.len()),
+                    Color32::from_gray(180),
+                ),
+                (
+                    format!("Feed {}", if self.ecm_live_feed.is_some() { "active" } else { "idle" }),
+                    if self.ecm_live_feed.is_some() { Color32::GREEN } else { Color32::YELLOW },
+                ),
+            ],
+            Tab::LeakLab => vec![
+                (
+                    format!("Circuitos {}", self.bench.leak_rig.circuits.len()),
+                    Color32::from_rgb(110, 180, 255),
+                ),
+                (
+                    format!("Predicoes {}", self.leak_predictions.len()),
+                    Color32::YELLOW,
+                ),
+                (
+                    format!("Calibrado {}", if self.leak_calibration_report.is_some() { "sim" } else { "nao" }),
+                    if self.leak_calibration_report.is_some() { Color32::GREEN } else { Color32::from_gray(180) },
+                ),
+            ],
+            Tab::Plots => vec![
+                (
+                    format!("Samples {}", self.pl_rpm.len()),
+                    Color32::from_rgb(110, 180, 255),
+                ),
+                (
+                    format!("SPD {:.1} km/h", self.bench.tcm.ground_speed_kmh),
+                    Color32::LIGHT_BLUE,
+                ),
+            ],
+        }
+    }
+
+    fn render_ux_context_strip(&self, ui: &mut Ui) {
+        let items = self.ux_context_items();
+        if items.is_empty() {
+            return;
+        }
+        ui.add_space(4.0);
+        ui.horizontal_wrapped(|ui| {
+            for (text, color) in items {
+                egui::Frame::group(ui.style())
+                    .fill(Color32::from_gray(20))
+                    .inner_margin(Margin::symmetric(8.0, 4.0))
+                    .show(ui, |ui| {
+                        ui.label(RichText::new(text).size(10.0).color(color));
+                    });
             }
         });
     }
@@ -1488,20 +2232,285 @@ impl App {
         });
     }
 
+    fn render_ux_guide(&mut self, ui: &mut Ui) {
+        let (title, guide, legend) = match self.tab {
+            Tab::Help => (
+                "Help",
+                "Use esta aba para fluxo rapido de operacao, diagnostico e leitura da Leak Lab.",
+                "Comece por Help -> Cluster -> Engine -> Leaks e depois avance para CAN/UDS.",
+            ),
+            Tab::Cluster => (
+                "Cluster",
+                "Use ignition -> throttle/brake -> direction to validate baseline vehicle response.",
+                "Lamps: RED=critical stop, AMBER=warning, ABS/ESP=assist active.",
+            ),
+            Tab::CanBus => (
+                "CAN Bus",
+                "Start in Signals, then Trace, then Network for RCA. Freeze before exporting evidence.",
+                "State colors: green=active, yellow=passive, red=bus-off/high error.",
+            ),
+            Tab::Events => (
+                "Events",
+                "Filter by severity and subsystem, then correlate timestamp with Faults/UDS actions.",
+                "Icon color maps to severity; pause freezes feed for reading.",
+            ),
+            Tab::EcuNet => (
+                "ECU Net",
+                "Check node online state and boot stage before deep diagnostics.",
+                "Degraded/offline nodes usually correlate with CAN or power faults.",
+            ),
+            Tab::Engine => (
+                "Engine",
+                "Validate thermal, pressure and torque limits under controlled load changes.",
+                "Watch red/yellow status first, then inspect numeric channels.",
+            ),
+            Tab::Faults => (
+                "Faults",
+                "Inject one fault at a time; observe Events/CAN/Engine and clear to compare recovery.",
+                "Use CLEAR after each test case to isolate cause/effect.",
+            ),
+            Tab::Boot => (
+                "Boot",
+                "Confirm startup sequence and timing before runtime validation.",
+                "Blocked stage means readiness is not complete for higher-level tests.",
+            ),
+            Tab::Implements => (
+                "Implements",
+                "Operate PTO/hitch/aux valves incrementally and monitor hydraulic limits.",
+                "Large jumps in commands can mask root cause of instability.",
+            ),
+            Tab::Params => (
+                "Params",
+                "Edit one family of parameters at a time; sync back before changing scenario.",
+                "Use Sync from simulation to avoid stale values.",
+            ),
+            Tab::Sensors => (
+                "Sensors",
+                "Validate GNSS/IMU/radar/lidar/camera consistency before AD validation.",
+                "Prioritize confidence/quality metrics before control metrics.",
+            ),
+            Tab::Autonomous => (
+                "AD",
+                "Engage only after sensors and base dynamics are stable; tune ACC/LKA gradually.",
+                "TTC/THW and lane confidence are primary safety indicators.",
+            ),
+            Tab::V2X => (
+                "V2X",
+                "Evaluate latency/loss first, then cooperative alerts impact on control.",
+                "Higher packet loss can invalidate AD cooperative assumptions.",
+            ),
+            Tab::Uds => (
+                "UDS",
+                "Follow sequence: session -> security -> read/write/routine -> transfer exit.",
+                "Negative response 0x7F indicates rejected service/subfunction/conditions.",
+            ),
+            Tab::EcmLiveData => (
+                "ECM Live",
+                "Detect -> Connect -> Retrieve -> Export. Keep mode and SA aligned.",
+                "In SIM mode, panels are mock; in LIVE mode, policy gates apply.",
+            ),
+            Tab::LeakLab => (
+                "Leak Lab",
+                "Select circuit, apply parameters, then run Scenario or Monte Carlo and review ranking.",
+                "Use ASCII legend and temporal map to interpret pressure/risk/flow quickly.",
+            ),
+            Tab::Plots => (
+                "Plots",
+                "Use for before/after comparison around faults, AD engagement or UDS actions.",
+                "Trend shape matters more than single-point values.",
+            ),
+        };
+
+        egui::Frame::group(ui.style())
+            .fill(Color32::from_gray(16))
+            .show(ui, |ui| {
+                ui.horizontal_wrapped(|ui| {
+                    ui.label(
+                        RichText::new(format!("UX Guide - {}", title))
+                            .size(11.6)
+                            .color(Color32::from_rgb(110, 180, 255))
+                            .strong(),
+                    );
+                    ui.separator();
+                    ui.checkbox(&mut self.ux_show_guide, "Show details");
+                    ui.checkbox(&mut self.ux_compact_mode, "Compact mode");
+                    ui.separator();
+                    self.render_ux_quick_actions(ui);
+                });
+
+                for (color, msg) in self.ux_alerts() {
+                    ui.add_space(4.0);
+                    ui.label(RichText::new(format!("• {}", msg)).size(10.3).color(color));
+                }
+
+                self.render_ux_context_strip(ui);
+
+                if self.ux_show_guide {
+                    ui.add_space(4.0);
+                    ui.label(RichText::new(format!("How to use: {}", guide)).size(10.2));
+                    ui.label(
+                        RichText::new(format!("Legend/Interpretation: {}", legend))
+                            .size(10.0)
+                            .color(Color32::from_gray(175)),
+                    );
+                }
+            });
+    }
+
+    fn render_ux_quick_actions(&mut self, ui: &mut Ui) {
+        match self.tab {
+            Tab::Help => {
+                if ui.button("Reset simulation").clicked() {
+                    self.cmds.push(Cmd::Reset);
+                }
+            }
+            Tab::Cluster => {
+                if ui.button("Key OFF").clicked() {
+                    self.cmds.push(Cmd::KeyOff);
+                }
+                if ui.button("Reset simulation").clicked() {
+                    self.cmds.push(Cmd::Reset);
+                }
+            }
+            Tab::Events => {
+                if ui.button("Clear events").clicked() {
+                    self.events.clear();
+                }
+            }
+            Tab::CanBus => {
+                if ui.button("Clear CAN views").clicked() {
+                    self.sig_map.clear();
+                    self.trace_snap.clear();
+                }
+                if ui.button("Clear CAN injections").clicked() {
+                    self.cmds.push(Cmd::CanClearAllInjections);
+                }
+            }
+            Tab::EcuNet => {
+                if ui.button("Key OFF").clicked() {
+                    self.cmds.push(Cmd::KeyOff);
+                }
+                if ui.button("Reset simulation").clicked() {
+                    self.cmds.push(Cmd::Reset);
+                }
+            }
+            Tab::Engine => {
+                if ui.button("Clear DTCs").clicked() {
+                    self.cmds.push(Cmd::ClearDtcs);
+                }
+                if ui.button("Reset simulation").clicked() {
+                    self.cmds.push(Cmd::Reset);
+                }
+            }
+            Tab::Faults => {
+                if ui.button("Inject selected").clicked() {
+                    self.cmds.push(Cmd::InjectFault);
+                }
+                if ui.button("Clear faults").clicked() {
+                    self.cmds.push(Cmd::ClearFaults);
+                }
+            }
+            Tab::Boot => {
+                if ui.button("Key advance").clicked() {
+                    self.cmds.push(Cmd::KeyAdvance);
+                }
+                if ui.button("Key OFF").clicked() {
+                    self.cmds.push(Cmd::KeyOff);
+                }
+            }
+            Tab::Implements => {
+                if ui.button("PTO OFF").clicked() {
+                    self.cmds.push(Cmd::SetPtoMode(PtoMode::Off));
+                }
+                if ui.button("Reset simulation").clicked() {
+                    self.cmds.push(Cmd::Reset);
+                }
+            }
+            Tab::Params => {
+                if ui.button("Reset simulation").clicked() {
+                    self.cmds.push(Cmd::Reset);
+                }
+            }
+            Tab::Sensors => {
+                if ui.button("Reset simulation").clicked() {
+                    self.cmds.push(Cmd::Reset);
+                }
+            }
+            Tab::Autonomous => {
+                if ui
+                    .button(if self.bench.ad.engaged { "Disengage AD" } else { "Engage AD" })
+                    .clicked()
+                {
+                    self.cmds.push(if self.bench.ad.engaged {
+                        Cmd::DisengageAD
+                    } else {
+                        Cmd::EngageAD
+                    });
+                }
+                if ui.button("Clear path").clicked() {
+                    self.cmds.push(Cmd::ClearWaypoints);
+                }
+            }
+            Tab::V2X => {
+                if ui
+                    .add_enabled(self.bench.telematics.ota_available, Button::new("Start OTA"))
+                    .clicked()
+                {
+                    self.cmds.push(Cmd::StartOta);
+                }
+                if ui.button("Reset simulation").clicked() {
+                    self.cmds.push(Cmd::Reset);
+                }
+            }
+            Tab::Uds => {
+                if ui.button("Clear UDS log").clicked() {
+                    self.uds_log.clear();
+                }
+                if ui.button("Default Session").clicked() {
+                    self.uds_input = "10 01".into();
+                }
+            }
+            Tab::EcmLiveData => {
+                if ui.button("Clear live snapshot").clicked() {
+                    self.ecm_live_snapshot = io::ecm_params::EcmSnapshot::default();
+                    self.ecm_live_frames_total = 0;
+                    self.ecm_live_last_update_ms = 0;
+                }
+            }
+            Tab::LeakLab => {
+                if ui.button("Clear leak outputs").clicked() {
+                    self.cmds.push(Cmd::LeakClearScenarioOutputs);
+                }
+                if ui.button("Reset leak sim").clicked() {
+                    self.cmds.push(Cmd::LeakResetSimulation);
+                }
+            }
+            Tab::Plots => {
+                if ui.button("Reset simulation").clicked() {
+                    self.cmds.push(Cmd::Reset);
+                }
+            }
+        }
+    }
+
     fn tab_ecm_live_data(&mut self, ui: &mut Ui) {
         ui.heading("ECM-Live Data");
         ui.add_space(6.0);
         let live_mode = matches!(self.hw_cfg.mode, io::hw::HwMode::Live);
 
-        if !live_mode {
-            ui.colored_label(
-                Color32::YELLOW,
-                "SIM mode active: showing mock ECM view. Switch to --hw-mode=live for hardware Detect/Connect/Retrieve.",
-            );
-            if self.ecm_detected_sas.is_empty() {
-                self.ecm_detected_sas = vec![0x00];
-            }
-        }
+        ScrollArea::vertical()
+            .auto_shrink([false, false])
+            .show(ui, |ui| {
+
+                if !live_mode {
+                    ui.colored_label(
+                        Color32::YELLOW,
+                        "SIM mode active: showing mock ECM view. Switch to --hw-mode=live for hardware Detect/Connect/Retrieve.",
+                    );
+                    if self.ecm_detected_sas.is_empty() {
+                        self.ecm_detected_sas = vec![0x00];
+                    }
+                }
 
         ui.horizontal(|ui| {
             if ui.add_enabled(live_mode, Button::new("Detect")).clicked() {
@@ -1613,7 +2622,7 @@ impl App {
                 ui.label("(none)");
             } else {
                 let mut selected = self.ecm_selected_idx.min(self.ecm_detected_sas.len() - 1);
-                ComboBox::from_id_salt("ecm_live_sa_combo")
+                ComboBox::from_id_salt("ecm_live::sa_combo")
                     .selected_text(format!("0x{:02X}", self.ecm_detected_sas[selected]))
                     .show_ui(ui, |ui| {
                         for (i, sa) in self.ecm_detected_sas.iter().enumerate() {
@@ -1661,7 +2670,7 @@ impl App {
                 }
 
                 ui.label("Post-analysis dashboard (rolling window)");
-                Grid::new("ecm_live_dashboard_grid").show(ui, |ui| {
+                Grid::new("ecm_live::dashboard_grid").show(ui, |ui| {
                     ui.label("Samples");
                     ui.label(format!("{}", points.len()));
                     ui.end_row();
@@ -1711,7 +2720,7 @@ impl App {
         }
 
         ui.label("Real-time ECM Snapshot:");
-        Grid::new("ecm_live_snapshot_grid").show(ui, |ui| {
+        Grid::new("ecm_live::snapshot_grid").show(ui, |ui| {
             ui.label("Engine Speed");
             ui.label(
                 self.ecm_live_snapshot
@@ -1769,10 +2778,12 @@ impl App {
             ui.end_row();
         });
 
-        self.ecm_treeview(ui, !live_mode);
+                self.ecm_treeview(ui, !live_mode);
+            });
     }
 
     fn toolbar(&mut self, ui: &mut Ui) {
+        ui.push_id("ui::toolbar", |ui| {
         ui.horizontal(|ui| {
             ui.add_space(6.0);
             ui.label(
@@ -1829,6 +2840,7 @@ impl App {
                 }
             }
             let run = self.bench.engine_running();
+            let ad_locked = self.bench.ad.engaged;
             ui.label(
                 RichText::new(if run { "● RUN" } else { "○ OFF" })
                     .size(11.0)
@@ -1845,18 +2857,26 @@ impl App {
                     .size(11.0)
                     .color(Color32::from_gray(145)),
             );
-            let mut thr = self.throttle;
-            ui.add_sized(
-                [110.0, 22.0],
+            let mut thr = self.throttle_target;
+            let thr_resp = ui.add_enabled(
+                !ad_locked,
                 Slider::new(&mut thr, 0.0..=1.0)
                     .show_value(false)
                     .trailing_fill(true),
             );
-            if thr != self.throttle {
-                self.cmds.push(Cmd::SetThrottle(thr));
+            if ad_locked {
+                let _ = thr_resp.on_disabled_hover_text("Throttle manual bloqueado enquanto o AD estiver ativo.");
+            } else {
+                let thr_changed = (thr - self.throttle_cmd_last).abs() > 0.01;
+                let thr_due = self.ticks.saturating_sub(self.throttle_cmd_last_tick) >= 2;
+                if thr != self.throttle_target && (thr_changed || thr_due) {
+                    self.cmds.push(Cmd::SetThrottle(thr));
+                    self.throttle_cmd_last = thr;
+                    self.throttle_cmd_last_tick = self.ticks;
+                }
             }
             ui.label(
-                RichText::new(format!("{:3.0}%", self.throttle * 100.0))
+                RichText::new(format!("cmd {:3.0}% / act {:3.0}%", self.throttle_target * 100.0, self.throttle * 100.0))
                     .size(11.0)
                     .monospace()
                     .color(Color32::YELLOW),
@@ -1868,18 +2888,26 @@ impl App {
                     .size(11.0)
                     .color(Color32::from_gray(145)),
             );
-            let mut brk = self.brake;
-            ui.add_sized(
-                [80.0, 22.0],
+            let mut brk = self.brake_target;
+            let brk_resp = ui.add_enabled(
+                !ad_locked,
                 Slider::new(&mut brk, 0.0..=1.0)
                     .show_value(false)
                     .trailing_fill(true),
             );
-            if brk != self.brake {
-                self.cmds.push(Cmd::SetBrake(brk));
+            if ad_locked {
+                let _ = brk_resp.on_disabled_hover_text("Freio manual bloqueado enquanto o AD estiver ativo.");
+            } else {
+                let brk_changed = (brk - self.brake_cmd_last).abs() > 0.01;
+                let brk_due = self.ticks.saturating_sub(self.brake_cmd_last_tick) >= 2;
+                if brk != self.brake_target && (brk_changed || brk_due) {
+                    self.cmds.push(Cmd::SetBrake(brk));
+                    self.brake_cmd_last = brk;
+                    self.brake_cmd_last_tick = self.ticks;
+                }
             }
             ui.label(
-                RichText::new(format!("{:3.0}%", self.brake * 100.0))
+                RichText::new(format!("cmd {:3.0}% / act {:3.0}%", self.brake_target * 100.0, self.brake * 100.0))
                     .size(11.0)
                     .monospace()
                     .color(Color32::RED),
@@ -1892,7 +2920,13 @@ impl App {
                 Direction::Neutral => "N",
                 Direction::Park => "P",
             };
-            if let Some(k) = direction_selector(ui, dir_s) {
+            let dir_resp = ui.add_enabled_ui(!ad_locked, |ui| direction_selector(ui, dir_s));
+            if ad_locked {
+                let _ = dir_resp
+                    .response
+                    .on_disabled_hover_text("Direcao bloqueada enquanto o AD estiver ativo.");
+            }
+            if let Some(k) = dir_resp.inner {
                 match k {
                     'F' => self.cmds.push(Cmd::SetDirection(Direction::Forward)),
                     'R' => self.cmds.push(Cmd::SetDirection(Direction::Reverse)),
@@ -1903,17 +2937,16 @@ impl App {
             ui.separator();
             // Auto-shift
             let auto = self.bench.tcm.auto_mode == AutoShiftMode::Auto;
-            if ui
-                .add(
-                    Button::new(RichText::new(if auto { "AUTO✓" } else { "MANUAL" }).size(11.0))
-                        .fill(if auto {
-                            Color32::from_rgb(20, 85, 35)
-                        } else {
-                            Color32::from_gray(35)
-                        }),
-                )
-                .clicked()
-            {
+            let auto_btn = Button::new(RichText::new(if auto { "AUTO✓" } else { "MANUAL" }).size(11.0))
+                .fill(if auto {
+                    Color32::from_rgb(20, 85, 35)
+                } else {
+                    Color32::from_gray(35)
+                });
+            let auto_resp = ui.add_enabled(!ad_locked, auto_btn);
+            if ad_locked {
+                let _ = auto_resp.on_disabled_hover_text("Modo da transmissao bloqueado enquanto o AD estiver ativo.");
+            } else if auto_resp.clicked() {
                 self.cmds.push(Cmd::ToggleAutoShift);
             }
             // PTO
@@ -1968,6 +3001,7 @@ impl App {
                 self.cmds.push(Cmd::Reset);
             }
         });
+        });
     }
 }
 
@@ -1975,6 +3009,88 @@ impl App {
 // TAB CLUSTER
 // ═════════════════════════════════════════════════════════════════════════════
 impl App {
+    fn tab_help(&mut self, ui: &mut Ui) {
+        ScrollArea::vertical()
+            .auto_shrink([false, false])
+            .show(ui, |ui| {
+                ui.heading("Help - Operacao Rapida e Guia de Diagnostico");
+                ui.add_space(6.0);
+
+                ui.group(|ui| {
+                    ui.label(
+                        RichText::new("Fluxo recomendado (conciso)")
+                            .size(12.0)
+                            .color(Color32::from_rgb(95, 170, 255))
+                            .strong(),
+                    );
+                    ui.label("1) BOOT: confirmar ignicao e readiness.");
+                    ui.label("2) CLUSTER/ENGINE: validar rpm, pressao, temperatura e marcha.");
+                    ui.label("3) LEAK LAB: aplicar parametros, rodar cenarios/MC e interpretar risco.");
+                    ui.label("4) CAN/EVENTS/UDS: fazer RCA e exportar evidencia.");
+                    ui.label("5) PLOTS: comparar antes/depois das mudancas.");
+                });
+
+                ui.add_space(8.0);
+                ui.group(|ui| {
+                    ui.label(
+                        RichText::new("Leak Lab - O que significa cada bloco")
+                            .size(12.0)
+                            .color(Color32::from_rgb(95, 170, 255))
+                            .strong(),
+                    );
+                    ui.label("Runtime Circuits: estado atual de cada circuito com alertas e leak L/min.");
+                    ui.label("Manual Engineering Input: parametros de pressao e vedacao para calibracao dirigida.");
+                    ui.label("Custom Circuit Builder: cria circuito novo para bancada/engenharia.");
+                    ui.label("Scenario Ranking: ordena cenarios por risco final e pressao de pico.");
+                    ui.label("Timeback/ASCII/Plot: historico temporal de pressao, risco e vazao.");
+                });
+
+                ui.add_space(8.0);
+                ui.group(|ui| {
+                    ui.label(
+                        RichText::new("Leak Lab - Envelope correto")
+                            .size(12.0)
+                            .color(Color32::from_rgb(95, 170, 255))
+                            .strong(),
+                    );
+                    ui.label("Regra obrigatoria: min <= mean <= ideal <= max < rupture");
+                    ui.label("Squeeze: tipico 10%~30%, Compression Set: menor tende a maior vida util.");
+                    ui.label("Base leak area: influencia vazao de fuga inicial (mm²)." );
+                    ui.label("Rupture bar define limite de falha catastrofica e o risco de burst.");
+                });
+
+                ui.add_space(8.0);
+                ui.group(|ui| {
+                    ui.label(
+                        RichText::new("Leak Lab - Como operar sem erro")
+                            .size(12.0)
+                            .color(Color32::from_rgb(95, 170, 255))
+                            .strong(),
+                    );
+                    ui.label("1) Selecione circuito.");
+                    ui.label("2) Ajuste parametros e valide (a UI bloqueia aplicacao invalida).");
+                    ui.label("3) APPLY MANUAL PARAMETERS.");
+                    ui.label("4) RUN SCENARIO PREDICTION ou RUN MONTE CARLO.");
+                    ui.label("5) Leia ranking + timeline + plot + alertas.");
+                    ui.label("6) Exporte CSV/JSON para rastreabilidade.");
+                });
+
+                ui.add_space(8.0);
+                ui.group(|ui| {
+                    ui.label(
+                        RichText::new("Atalhos de diagnostico")
+                            .size(12.0)
+                            .color(Color32::from_rgb(95, 170, 255))
+                            .strong(),
+                    );
+                    ui.label("- EVENTS: filtre por severidade e subsystem.");
+                    ui.label("- CAN: use Freeze antes de exportar snapshot.");
+                    ui.label("- UDS: siga Session -> Security -> Service -> Transfer Exit.");
+                    ui.label("- ECM LIVE: Detect -> Connect -> Retrieve -> Export.");
+                });
+            });
+    }
+
     fn tab_cluster(&self, ui: &mut Ui) {
         let ecm = &self.bench.ecm;
         let tcm = &self.bench.tcm;
@@ -2510,13 +3626,37 @@ impl App {
             }
             if ui.button("🗑 Clear").clicked() {
                 self.sig_map.clear();
+                self.trace_snap.clear();
             }
             ui.separator();
             ui.label(RichText::new("Filter:").size(11.0).color(Color32::GRAY));
             ui.add_sized(
-                [160.0, 20.0],
-                TextEdit::singleline(&mut self.can_filter).hint_text("PGN name / SA hex…"),
+                [220.0, 20.0],
+                TextEdit::singleline(&mut self.can_filter)
+                    .hint_text("text | sa:00 | pgn:61444 | id:18F00400"),
             );
+            ui.checkbox(&mut self.can_hide_stale, "Hide stale");
+            ui.separator();
+            ui.label(RichText::new("Rows").size(10.8).color(Color32::from_gray(145)));
+            ui.add(Slider::new(&mut self.can_signal_limit, 50..=1200).text("sig"));
+            ui.add(Slider::new(&mut self.can_trace_limit, 100..=2000).text("trace"));
+            if matches!(self.can_mode, CanMode::Trace) {
+                ui.separator();
+                ui.label(RichText::new("Trace tick").size(10.8).color(Color32::from_gray(145)));
+                ui.add(
+                    Slider::new(&mut self.can_trace_update_every_ticks, 1..=30)
+                        .text("every")
+                        .suffix("t"),
+                );
+                ui.checkbox(&mut self.can_trace_pause_on_scroll, "Pause on scroll");
+                if self.can_trace_pause_ticks_left > 0 {
+                    ui.label(
+                        RichText::new(format!("paused {}t", self.can_trace_pause_ticks_left))
+                            .size(10.8)
+                            .color(Color32::YELLOW),
+                    );
+                }
+            }
             ui.separator();
             let gw = &self.bench.gateway;
             let state_col = match gw.bus_state {
@@ -2533,6 +3673,11 @@ impl App {
                 .color(state_col),
             );
         });
+        ui.label(
+            RichText::new("Tip: use sa:XX / pgn:NNNN / id:XXXXXXXX for deterministic filtering")
+                .size(9.8)
+                .color(Color32::from_gray(125)),
+        );
         ui.separator();
         match self.can_mode {
             CanMode::Signals => self.can_signals(ui),
@@ -2567,7 +3712,7 @@ impl App {
         }
         ui.horizontal(|ui| {
             const BUS_NAMES: [&str; 5] = ["Powertrain", "Chassis", "Body", "ISOBUS", "Diagnostic"];
-            ComboBox::from_label("Target bus")
+            ComboBox::from_id_salt("can::target_bus")
                 .selected_text(BUS_NAMES[self.can_bus_idx.min(4)])
                 .show_ui(ui, |ui| {
                     for (i, n) in BUS_NAMES.iter().enumerate() {
@@ -2619,7 +3764,7 @@ impl App {
             ("Diag", &net.diagnostic),
         ];
 
-        egui::Grid::new("can_net_buses")
+        egui::Grid::new("can::net_buses")
             .num_columns(6)
             .striped(true)
             .show(ui, |ui| {
@@ -2743,9 +3888,9 @@ impl App {
     }
 
     fn can_signals(&self, ui: &mut Ui) {
-        let filt = self.can_filter.to_lowercase();
+        let filt = self.can_filter.clone();
         // Table headers
-        egui::Grid::new("sig_hdr")
+        egui::Grid::new("can::sig_hdr")
             .num_columns(6)
             .min_col_width(60.0)
             .show(ui, |ui| {
@@ -2764,19 +3909,27 @@ impl App {
         let mut sigs: Vec<(&(u32, u8), &Signal)> = self
             .sig_map
             .iter()
-            .filter(|(_, s)| {
-                filt.is_empty()
-                    || s.pgn_name.to_lowercase().contains(&filt)
-                    || s.sa_name.to_lowercase().contains(&filt)
-            })
+            .filter(|((pgn, sa), s)| Self::can_filter_match_signal(&filt, *pgn, *sa, s))
+            .filter(|(_, s)| !self.can_hide_stale || s.fresh)
             .collect();
-        sigs.sort_by_key(|((pgn, sa), _)| (*pgn, *sa));
+        sigs.sort_by_key(|((pgn, sa), _)| (*sa, *pgn));
+
+        let total = sigs.len();
+        ui.label(
+            RichText::new(format!(
+                "Showing {} / {} signals",
+                total.min(self.can_signal_limit),
+                total
+            ))
+            .size(10.2)
+            .color(Color32::from_gray(130)),
+        );
 
         ScrollArea::vertical()
             .auto_shrink([false, false])
             .max_height(ui.available_height())
             .show(ui, |ui| {
-                for (_, sig) in &sigs {
+                for ((pgn, sa), sig) in sigs.iter().take(self.can_signal_limit) {
                     let age = t - sig.last_ts;
                     let ac = if age < 0.05 {
                         Color32::GREEN
@@ -2801,43 +3954,54 @@ impl App {
                         })
                         .collect::<Vec<_>>()
                         .join("  ");
-                    egui::Grid::new(format!("s{:08X}", sig.raw_id))
-                        .num_columns(6)
-                        .min_col_width(60.0)
-                        .show(ui, |ui| {
-                            ui.label(
-                                RichText::new(format!("{:.2}", age))
-                                    .size(10.5)
+                    ui.horizontal(|ui| {
+                        ui.add_sized(
+                            [56.0, 18.0],
+                            Label::new(
+                                RichText::new(format!("{:>5.2}", age))
+                                    .size(10.2)
                                     .monospace()
                                     .color(ac),
-                            );
-                            ui.label(
-                                RichText::new(sig.pgn_name)
-                                    .size(10.5)
+                            ),
+                        );
+                        ui.add_sized(
+                            [190.0, 18.0],
+                            Label::new(
+                                RichText::new(format!("{:>5} {}", pgn, sig.pgn_name))
+                                    .size(10.2)
                                     .monospace()
                                     .color(Color32::GOLD),
-                            );
-                            ui.label(
-                                RichText::new(&sig.sa_name)
-                                    .size(10.5)
+                            ),
+                        );
+                        ui.add_sized(
+                            [125.0, 18.0],
+                            Label::new(
+                                RichText::new(format!("0x{:02X} {}", sa, sig.sa_name))
+                                    .size(10.2)
                                     .monospace()
                                     .color(Color32::from_rgb(120, 200, 255)),
-                            );
-                            ui.label(
-                                RichText::new(format!("{:.0}ms", sig.period_ms))
-                                    .size(10.5)
+                            ),
+                        );
+                        ui.add_sized(
+                            [76.0, 18.0],
+                            Label::new(
+                                RichText::new(format!("{:>5.0}ms", sig.period_ms))
+                                    .size(10.2)
                                     .monospace()
                                     .color(Color32::from_gray(150)),
-                            );
-                            ui.label(
-                                RichText::new(format!("{}", sig.count))
-                                    .size(10.5)
+                            ),
+                        );
+                        ui.add_sized(
+                            [74.0, 18.0],
+                            Label::new(
+                                RichText::new(format!("{:>7}", sig.count))
+                                    .size(10.2)
                                     .monospace()
                                     .color(Color32::from_gray(130)),
-                            );
-                            ui.label(RichText::new(&vals).size(10.5).color(ac));
-                            ui.end_row();
-                        });
+                            ),
+                        );
+                        ui.label(RichText::new(&vals).size(10.2).color(ac));
+                    });
                 }
             });
     }
@@ -2850,10 +4014,25 @@ impl App {
         });
         ui.separator();
 
+        let filtered_rows: Vec<&TraceRow> = self
+            .trace_snap
+            .iter()
+            .filter(|r| Self::can_filter_match_trace(&self.can_filter, r))
+            .collect();
+        ui.label(
+            RichText::new(format!(
+                "Rows after filter: {} (render limit {})",
+                filtered_rows.len(),
+                self.can_trace_limit
+            ))
+            .size(10.2)
+            .color(Color32::from_gray(130)),
+        );
+
         if self.can_trace_tree {
             let mut by_sa: BTreeMap<u8, Vec<TraceRow>> = BTreeMap::new();
-            for row in self.trace_snap.iter().rev().take(500) {
-                by_sa.entry(row.2).or_default().push(row.clone());
+            for row in filtered_rows.iter().rev().take(self.can_trace_limit) {
+                by_sa.entry(row.2).or_default().push((*row).clone());
             }
 
             ScrollArea::vertical()
@@ -2918,7 +4097,7 @@ impl App {
             return;
         }
 
-        egui::Grid::new("trace_hdr")
+        egui::Grid::new("can::trace_hdr")
             .num_columns(6)
             .min_col_width(50.0)
             .show(ui, |ui| {
@@ -2933,16 +4112,15 @@ impl App {
                 ui.end_row();
             });
         ui.separator();
-        let snap = &self.trace_snap;
         // stick_to_bottom only when live; when frozen the user can scroll freely
         ScrollArea::vertical()
             .auto_shrink([false, false])
             .max_height(ui.available_height())
             .stick_to_bottom(!self.can_freeze)
             .show(ui, |ui| {
-                for (ts, raw_id, sa, dlc, hex, pgn_sa, decoded) in snap.iter().rev().take(500).rev()
-                {
-                    let sc = match sa {
+                for row in filtered_rows.iter().rev().take(self.can_trace_limit).rev() {
+                    let (ts, raw_id, sa, dlc, hex, pgn_sa, decoded) = *row;
+                    let sc = match *sa {
                         0x00 => Color32::from_rgb(80, 220, 80),
                         0x03 => Color32::from_rgb(0, 210, 210),
                         0x27 => Color32::LIGHT_BLUE,
@@ -2950,42 +4128,46 @@ impl App {
                         0x0B => Color32::WHITE,
                         _ => Color32::from_gray(175),
                     };
-                    egui::Grid::new(format!("tr{:.3}{}", ts, raw_id))
-                        .num_columns(6)
-                        .min_col_width(50.0)
-                        .show(ui, |ui| {
-                            ui.label(
+                    ui.horizontal(|ui| {
+                        ui.add_sized(
+                            [68.0, 18.0],
+                            Label::new(
                                 RichText::new(format!("{:8.3}", ts))
                                     .size(10.0)
                                     .monospace()
                                     .color(Color32::from_gray(110)),
-                            );
-                            ui.label(
+                            ),
+                        );
+                        ui.add_sized(
+                            [84.0, 18.0],
+                            Label::new(
                                 RichText::new(format!("{:08X}", raw_id))
                                     .size(10.0)
                                     .monospace()
                                     .color(Color32::LIGHT_BLUE),
-                            );
-                            ui.label(
+                            ),
+                        );
+                        ui.add_sized(
+                            [32.0, 18.0],
+                            Label::new(
                                 RichText::new(format!("{}", dlc))
                                     .size(10.0)
                                     .monospace()
                                     .color(Color32::from_gray(130)),
-                            );
-                            ui.label(
+                            ),
+                        );
+                        ui.add_sized(
+                            [205.0, 18.0],
+                            Label::new(
                                 RichText::new(hex)
                                     .size(10.0)
                                     .monospace()
                                     .color(Color32::from_gray(195)),
-                            );
-                            ui.label(RichText::new(pgn_sa).size(10.0).color(sc));
-                            ui.label(
-                                RichText::new(decoded)
-                                    .size(10.0)
-                                    .color(Color32::from_gray(200)),
-                            );
-                            ui.end_row();
-                        });
+                            ),
+                        );
+                        ui.add_sized([180.0, 18.0], Label::new(RichText::new(pgn_sa).size(10.0).color(sc)));
+                        ui.label(RichText::new(decoded).size(10.0).color(Color32::from_gray(200)));
+                    });
                 }
             });
     }
@@ -3059,7 +4241,7 @@ impl App {
         ui.separator();
 
         // Column headers
-        egui::Grid::new("ev_hdr")
+        egui::Grid::new("events::hdr")
             .num_columns(4)
             .min_col_width(40.0)
             .show(ui, |ui| {
@@ -3092,7 +4274,7 @@ impl App {
             .auto_shrink([false, false])
             .stick_to_bottom(!self.ev_pause)
             .show(ui, |ui| {
-                for ev in self
+                for (idx, ev) in self
                     .events
                     .iter()
                     .rev()
@@ -3103,6 +4285,7 @@ impl App {
                             || e.source.to_lowercase().contains(&filt)
                     })
                     .take(300)
+                    .enumerate()
                 {
                     let (icon, col) = match ev.lvl {
                         EventLevel::Debug => ("·", Color32::from_gray(100)),
@@ -3111,26 +4294,33 @@ impl App {
                         EventLevel::Warn => ("⚠", Color32::YELLOW),
                         EventLevel::Critical => ("✗", Color32::RED),
                     };
-                    egui::Grid::new(format!("ev{:.3}{}", ev.ts, ev.source))
-                        .num_columns(4)
-                        .min_col_width(40.0)
-                        .show(ui, |ui| {
-                            ui.label(
-                                RichText::new(format!("{:7.2}", ev.ts))
-                                    .size(10.5)
-                                    .monospace()
-                                    .color(Color32::from_gray(115)),
+                    ui.push_id(format!("events::row_{}", idx), |ui| {
+                        ui.horizontal(|ui| {
+                            ui.add_sized(
+                                [56.0, 18.0],
+                                Label::new(
+                                    RichText::new(format!("{:7.2}", ev.ts))
+                                        .size(10.5)
+                                        .monospace()
+                                        .color(Color32::from_gray(115)),
+                                ),
                             );
-                            ui.label(RichText::new(format!("{} ", icon)).size(11.0).color(col));
-                            ui.label(
-                                RichText::new(format!("[{:<5}]", ev.source))
-                                    .size(10.5)
-                                    .monospace()
-                                    .color(Color32::from_gray(165)),
+                            ui.add_sized(
+                                [20.0, 18.0],
+                                Label::new(RichText::new(icon.to_string()).size(11.0).color(col)),
+                            );
+                            ui.add_sized(
+                                [78.0, 18.0],
+                                Label::new(
+                                    RichText::new(format!("[{:<5}]", ev.source))
+                                        .size(10.5)
+                                        .monospace()
+                                        .color(Color32::from_gray(165)),
+                                ),
                             );
                             ui.label(RichText::new(&ev.msg).size(10.5).color(col));
-                            ui.end_row();
                         });
+                    });
                 }
             });
     }
@@ -3142,28 +4332,56 @@ impl App {
 impl App {
     fn tab_ecu_net(&self, ui: &mut Ui) {
         let gw = &self.bench.gateway;
+        let online = self
+            .bench
+            .boot
+            .ecus
+            .iter()
+            .filter(|e| e.is_online())
+            .count();
+        let total = self.bench.boot.ecus.len();
+        let unhealthy_nodes = gw
+            .nodes
+            .iter()
+            .filter(|n| n.tec > 0 || n.rec > 0 || !matches!(n.state, BusState::ErrorActive))
+            .count();
+        let net_health = if matches!(gw.bus_state, BusState::BusOff) {
+            "CRITICAL"
+        } else if unhealthy_nodes > 0 || gw.total_errors > 0 {
+            "DEGRADED"
+        } else {
+            "HEALTHY"
+        };
+        let net_col = match net_health {
+            "CRITICAL" => Color32::RED,
+            "DEGRADED" => Color32::YELLOW,
+            _ => Color32::GREEN,
+        };
         ui.label(
             RichText::new(format!(
                 "J1939 HS-CAN 500kbps | Bus:{} | Nodes:{}/{} | TotalFrames:{}",
                 gw.bus_state,
-                self.bench
-                    .boot
-                    .ecus
-                    .iter()
-                    .filter(|e| e.is_online())
-                    .count(),
-                self.bench.boot.ecus.len(),
+                online,
+                total,
                 gw.total_tx
             ))
             .size(12.0)
             .color(Color32::from_gray(185)),
+        );
+        ui.label(
+            RichText::new(format!(
+                "Network health: {} | Unhealthy nodes: {} | Total errors: {}",
+                net_health, unhealthy_nodes, gw.total_errors
+            ))
+            .size(11.0)
+            .color(net_col),
         );
         ui.separator();
 
         ScrollArea::vertical()
             .auto_shrink([false, false])
             .show(ui, |ui| {
-                egui::Grid::new("ecu_grid")
+                egui::Grid::new("ecu_net::grid")
                     .num_columns(7)
                     .striped(true)
                     .show(ui, |ui| {
@@ -3248,11 +4466,33 @@ impl App {
                     });
                 ui.separator();
                 ui.label(
+                    RichText::new("CRITICAL NODES (TEC/REC or non-EA state):")
+                        .size(11.0)
+                        .color(Color32::from_gray(140)),
+                );
+                for n in gw
+                    .nodes
+                    .iter()
+                    .filter(|n| n.tec > 0 || n.rec > 0 || !matches!(n.state, BusState::ErrorActive))
+                    .take(8)
+                {
+                    ui.label(
+                        RichText::new(format!(
+                            "SA 0x{:02X}  TEC:{} REC:{}  State:{}",
+                            n.source_addr, n.tec, n.rec, n.state
+                        ))
+                        .size(10.5)
+                        .monospace()
+                        .color(Color32::YELLOW),
+                    );
+                }
+                ui.separator();
+                ui.label(
                     RichText::new("BUS ERROR LOG:")
                         .size(11.0)
                         .color(Color32::from_gray(140)),
                 );
-                for err in &gw.error_log {
+                for err in gw.error_log.iter().rev().take(40) {
                     let sa = err
                         .source_sa
                         .map_or("----".to_string(), |s| format!("0x{:02X}", s));
@@ -3627,7 +4867,63 @@ impl App {
 // TAB FAULTS
 // ═════════════════════════════════════════════════════════════════════════════
 impl App {
+    fn dtc_fault_storage_addr(spn: u32, fmi: u8) -> u32 {
+        // Virtualized NVM map for fault records in ECM region.
+        0x0802_0000u32 + (spn & 0xFFFF) * 0x20 + ((fmi as u32) * 0x2)
+    }
+
+    fn dtc_dm1_payload_hex(amber: bool, red: bool, mil: bool, spn: u32, fmi: u8) -> String {
+        let dm1 = auto_breaking::j1939::Builder::dm1(
+            0.0,
+            amber,
+            red,
+            mil,
+            spn,
+            fmi,
+            auto_breaking::j1939::addr::ECM_1,
+        );
+        dm1.data
+            .iter()
+            .map(|b| format!("{:02X}", b))
+            .collect::<Vec<_>>()
+            .join(" ")
+    }
+
+    fn fault_selection_hint(selected: auto_breaking::FaultType) -> Option<(u32, u8, &'static str)> {
+        match selected {
+            auto_breaking::FaultType::HighCoolantTemp => {
+                Some((110, 0, "Coolant temp above severe threshold"))
+            }
+            auto_breaking::FaultType::LowOilPressure => {
+                Some((100, 1, "Oil pressure below severe threshold"))
+            }
+            auto_breaking::FaultType::LowFuelPressure => {
+                Some((94, 1, "Fuel delivery pressure below threshold"))
+            }
+            auto_breaking::FaultType::CriticalDefLevel => {
+                Some((3361, 1, "DEF critically low (derate trigger)"))
+            }
+            auto_breaking::FaultType::HighDpfSoot => {
+                Some((3251, 16, "DPF soot above high threshold"))
+            }
+            _ => None,
+        }
+    }
+
     fn tab_faults(&mut self, ui: &mut Ui) {
+        let dtc_now = self.bench.ecm.active_dtcs.len();
+        let dtc_delta = dtc_now as isize - self.fault_last_dtc_count as isize;
+        if dtc_delta != 0 {
+            self.fault_feedback = format!(
+                "ECM DTC update observed: {} -> {} ({:+})",
+                self.fault_last_dtc_count, dtc_now, dtc_delta
+            );
+            self.fault_last_dtc_count = dtc_now;
+        }
+        ScrollArea::vertical()
+            .id_salt("faults::page_scroll")
+            .auto_shrink([false, false])
+            .show(ui, |ui| {
         ui.columns(2, |cols| {
             // Left: active DTCs
             let ui = &mut cols[0];
@@ -3650,6 +4946,7 @@ impl App {
                         );
                     } else {
                         ScrollArea::vertical()
+                            .id_salt("faults::active_dtcs_scroll")
                             .max_height(250.0)
                             .auto_shrink([false, false])
                             .show(ui, |ui| {
@@ -3691,9 +4988,59 @@ impl App {
                                                     .size(11.0)
                                                     .color(Color32::from_gray(200)),
                                             );
+                                            let mem_addr = Self::dtc_fault_storage_addr(dtc.spn, dtc.fmi);
+                                            let dm1_hex = Self::dtc_dm1_payload_hex(
+                                                matches!(dtc.severity, DtcSeverity::Amber),
+                                                matches!(dtc.severity, DtcSeverity::Red),
+                                                matches!(dtc.severity, DtcSeverity::Mil),
+                                                dtc.spn,
+                                                dtc.fmi,
+                                            );
+                                            ui.label(
+                                                RichText::new(format!(
+                                                    "ECM fault storage addr: 0x{mem_addr:08X} (NVM.FaultStorage)"
+                                                ))
+                                                .size(9.7)
+                                                .monospace()
+                                                .color(Color32::from_rgb(140, 210, 255)),
+                                            );
+                                            ui.label(
+                                                RichText::new(
+                                                    "Diagnostic request -> ECM SA 0x00: UDS 19 02 FF (ReadDTC by status mask)"
+                                                        .to_string(),
+                                                )
+                                                .size(9.6)
+                                                .monospace()
+                                                .color(Color32::from_gray(170)),
+                                            );
+                                            ui.label(
+                                                RichText::new(format!(
+                                                    "ECM recognition broadcast -> J1939 DM1 PGN 65226 DATA [{}]",
+                                                    dm1_hex
+                                                ))
+                                                .size(9.6)
+                                                .monospace()
+                                                .color(Color32::from_gray(170)),
+                                            );
                                         });
                                 }
                             });
+                    }
+                    ui.separator();
+                    ui.label(
+                        RichText::new(format!(
+                            "Fault pipeline: selected -> inject -> ECM evaluate -> DM1 broadcast | DTC now: {} ({:+})",
+                            dtc_now, dtc_delta
+                        ))
+                        .size(10.0)
+                        .color(Color32::from_gray(150)),
+                    );
+                    if !self.fault_feedback.is_empty() {
+                        ui.label(
+                            RichText::new(format!("Last action: {}", self.fault_feedback))
+                                .size(10.2)
+                                .color(Color32::LIGHT_BLUE),
+                        );
                     }
                     ui.separator();
                     // Warning lamps
@@ -3738,35 +5085,38 @@ impl App {
                     );
                     ui.separator();
                     ScrollArea::vertical()
+                        .id_salt("faults::selector_scroll")
                         .max_height(340.0)
                         .auto_shrink([false, false])
                         .show(ui, |ui| {
                             for (i, ft) in FAULT_TYPES.iter().enumerate() {
-                                let sel = i == self.fault_idx;
-                                let act =
-                                    self.bench.fault_active && self.bench.selected_fault == *ft;
-                                let fill = if act {
-                                    Color32::from_rgb(70, 15, 15)
-                                } else if sel {
-                                    Color32::from_rgb(25, 45, 75)
-                                } else {
-                                    Color32::TRANSPARENT
-                                };
-                                let col = if act {
-                                    Color32::RED
-                                } else if sel {
-                                    Color32::from_rgb(180, 220, 255)
-                                } else {
-                                    Color32::from_gray(155)
-                                };
-                                let btn = Button::new(
-                                    RichText::new(format!("{}", ft)).size(11.0).color(col),
-                                )
-                                .fill(fill)
-                                .min_size(Vec2::new(ui.available_width(), 22.0));
-                                if ui.add(btn).clicked() {
-                                    self.cmds.push(Cmd::SelectFault(i));
-                                }
+                                ui.push_id(format!("fault::selector::{}", i), |ui| {
+                                    let sel = i == self.fault_idx;
+                                    let act =
+                                        self.bench.fault_active && self.bench.selected_fault == *ft;
+                                    let fill = if act {
+                                        Color32::from_rgb(70, 15, 15)
+                                    } else if sel {
+                                        Color32::from_rgb(25, 45, 75)
+                                    } else {
+                                        Color32::TRANSPARENT
+                                    };
+                                    let col = if act {
+                                        Color32::RED
+                                    } else if sel {
+                                        Color32::from_rgb(180, 220, 255)
+                                    } else {
+                                        Color32::from_gray(155)
+                                    };
+                                    let btn = Button::new(
+                                        RichText::new(format!("{}", ft)).size(11.0).color(col),
+                                    )
+                                    .fill(fill)
+                                    .min_size(Vec2::new(ui.available_width(), 22.0));
+                                    if ui.add(btn).clicked() {
+                                        self.cmds.push(Cmd::SelectFault(i));
+                                    }
+                                });
                             }
                         });
                     ui.add_space(6.0);
@@ -3811,8 +5161,58 @@ impl App {
                                 .strong(),
                         );
                     }
+                    ui.separator();
+                    ui.label(
+                        RichText::new("ECM DTC RECOGNITION GUIDE")
+                            .size(11.0)
+                            .color(Color32::from_rgb(110, 180, 255))
+                            .strong(),
+                    );
+                    if let Some((spn, fmi, msg)) =
+                        Self::fault_selection_hint(self.bench.selected_fault)
+                    {
+                        let addr = Self::dtc_fault_storage_addr(spn, fmi);
+                        let dm1_hex = Self::dtc_dm1_payload_hex(true, false, false, spn, fmi);
+                        ui.label(
+                            RichText::new(format!(
+                                "Selected fault maps to SPN {spn} FMI {fmi} -> addr 0x{addr:08X}"
+                            ))
+                            .size(10.2)
+                            .monospace()
+                            .color(Color32::from_rgb(140, 210, 255)),
+                        );
+                        ui.label(
+                            RichText::new(format!("Trigger condition: {msg}"))
+                                .size(10.0)
+                                .color(Color32::from_gray(180)),
+                        );
+                        ui.label(
+                            RichText::new("Message to query/ack in diagnostics: UDS 19 02 FF -> ECM SA 0x00")
+                                .size(9.8)
+                                .monospace()
+                                .color(Color32::from_gray(170)),
+                        );
+                        ui.label(
+                            RichText::new(format!(
+                                "Expected ECM DM1 payload for this DTC: [{}]",
+                                dm1_hex
+                            ))
+                            .size(9.8)
+                            .monospace()
+                            .color(Color32::from_gray(170)),
+                        );
+                    } else {
+                        ui.label(
+                            RichText::new(
+                                "This selected fault is network/power domain and may not map to an ECM SPN/FMI DTC record.",
+                            )
+                            .size(9.8)
+                            .color(Color32::from_gray(155)),
+                        );
+                    }
                 });
         });
+            });
     }
 }
 
@@ -4229,36 +5629,38 @@ impl App {
                     );
                     for i in 0..4 {
                         let cmd_val = self.aux_cmds[i];
-                        ui.horizontal(|ui| {
-                            ui.label(
-                                RichText::new(format!("Bank{}:", i))
-                                    .size(11.0)
-                                    .color(Color32::from_gray(155)),
-                            );
-                            // - button
-                            if ui.small_button("◀").clicked() {
-                                self.cmds.push(Cmd::SetAuxValve(i, -1.0));
-                            }
-                            if ui.small_button("■").clicked() {
-                                self.cmds.push(Cmd::SetAuxValve(i, 0.0));
-                            }
-                            if ui.small_button("▶").clicked() {
-                                self.cmds.push(Cmd::SetAuxValve(i, 1.0));
-                            }
-                            let c = if cmd_val.abs() > 0.05 {
-                                Color32::GREEN
-                            } else {
-                                Color32::from_gray(80)
-                            };
-                            ui.label(
-                                RichText::new(format!(
-                                    "{} {:.0}L/m {:.0}bar",
-                                    aux_dirs[i], aux_flows[i], aux_pres[i]
-                                ))
-                                .size(10.5)
-                                .monospace()
-                                .color(c),
-                            );
+                        ui.push_id(format!("impl::aux::{}", i), |ui| {
+                            ui.horizontal(|ui| {
+                                ui.label(
+                                    RichText::new(format!("Bank{}:", i))
+                                        .size(11.0)
+                                        .color(Color32::from_gray(155)),
+                                );
+                                // - button
+                                if ui.small_button("◀").clicked() {
+                                    self.cmds.push(Cmd::SetAuxValve(i, -1.0));
+                                }
+                                if ui.small_button("■").clicked() {
+                                    self.cmds.push(Cmd::SetAuxValve(i, 0.0));
+                                }
+                                if ui.small_button("▶").clicked() {
+                                    self.cmds.push(Cmd::SetAuxValve(i, 1.0));
+                                }
+                                let c = if cmd_val.abs() > 0.05 {
+                                    Color32::GREEN
+                                } else {
+                                    Color32::from_gray(80)
+                                };
+                                ui.label(
+                                    RichText::new(format!(
+                                        "{} {:.0}L/m {:.0}bar",
+                                        aux_dirs[i], aux_flows[i], aux_pres[i]
+                                    ))
+                                    .size(10.5)
+                                    .monospace()
+                                    .color(c),
+                                );
+                            });
                         });
                     }
                 });
@@ -4340,6 +5742,11 @@ impl App {
                         .clicked()
                     {
                         self.bench.implement.pto_front_enabled = !fen;
+                        self.implement_feedback = if fen {
+                            "Front PTO -> OFF".into()
+                        } else {
+                            "Front PTO -> ON".into()
+                        };
                     }
                     ui.separator();
                     // Hitch control mode
@@ -4369,7 +5776,31 @@ impl App {
                             .clicked()
                         {
                             self.bench.implement.hitch_control_mode = *mode;
+                            self.implement_feedback =
+                                format!("Hitch control mode -> {}", mode_s);
                         }
+                    }
+                    ui.separator();
+                    let hitch_err = (self.hitch_target - hitch_pos).abs();
+                    let hitch_col = if hitch_err > 12.0 {
+                        Color32::YELLOW
+                    } else {
+                        Color32::GREEN
+                    };
+                    ui.label(
+                        RichText::new(format!(
+                            "Control tracking: Hitch target {:.1}% / actual {:.1}% (err {:.1}%)",
+                            self.hitch_target, hitch_pos, hitch_err
+                        ))
+                        .size(10.2)
+                        .color(hitch_col),
+                    );
+                    if !self.implement_feedback.is_empty() {
+                        ui.label(
+                            RichText::new(format!("Last command: {}", self.implement_feedback))
+                                .size(10.2)
+                                .color(Color32::LIGHT_BLUE),
+                        );
                     }
                 });
         });
@@ -4930,6 +6361,13 @@ impl App {
     }
 
     fn tab_leak_lab(&mut self, ui: &mut Ui) {
+        self.sanitize_leak_manual();
+        self.sanitize_leak_custom();
+        let manual_validation = self.validate_leak_manual();
+        let custom_validation = self.validate_leak_custom();
+        let manual_ok = manual_validation.is_ok();
+        let custom_ok = custom_validation.is_ok();
+
         let circuits: Vec<(usize, String, String, String, String)> = self
             .bench
             .leak_rig
@@ -4989,6 +6427,77 @@ impl App {
                 );
             }
         });
+        ui.group(|ui| {
+            ui.label(
+                RichText::new("Como ler esta aba (direto ao ponto)")
+                    .size(10.8)
+                    .color(Color32::from_rgb(110, 180, 255))
+                    .strong(),
+            );
+            ui.label("1) Runtime Circuits mostra estado atual (pressao, leak, risco, alerta).");
+            ui.label("2) Manual Input ajusta engenharia (envelope/oring/oil). A aplicacao invalida fica bloqueada.");
+            ui.label("3) Scenario Ranking ordena pior caso por risco e pico de pressao.");
+            ui.label("4) Timeback ASCII/Plot mostra evolucao temporal de pressao-risco-vazao.");
+            ui.label("5) Use export CSV/JSON para auditoria e rastreabilidade.");
+        });
+        ui.horizontal_wrapped(|ui| {
+            if ui
+                .add(Button::new("Nova rodada (limpar saidas)").fill(Color32::from_rgb(40, 50, 70)))
+                .clicked()
+            {
+                self.cmds.push(Cmd::LeakClearScenarioOutputs);
+            }
+            if ui
+                .add(Button::new("RESET Leak Sim (estado fisico)").fill(Color32::from_rgb(85, 35, 25)))
+                .clicked()
+            {
+                self.cmds.push(Cmd::LeakResetSimulation);
+            }
+            if ui
+                .add_enabled(
+                    manual_ok,
+                    Button::new("Aplicar + Rodar Cenario").fill(Color32::from_rgb(20, 70, 100)),
+                )
+                .clicked()
+            {
+                self.cmds.push(Cmd::LeakApplyAndPredict);
+            }
+            if ui
+                .add_enabled(
+                    manual_ok,
+                    Button::new("Aplicar + Rodar Monte Carlo").fill(Color32::from_rgb(70, 35, 90)),
+                )
+                .clicked()
+            {
+                self.cmds.push(Cmd::LeakApplyAndMonteCarlo);
+            }
+        });
+        ui.separator();
+        ui.group(|ui| {
+            ui.horizontal_wrapped(|ui| {
+                ui.label(
+                    RichText::new("TIMEBACK VIEW")
+                        .size(10.8)
+                        .color(Color32::from_rgb(110, 180, 255))
+                        .strong(),
+                );
+                ui.label("janela(s)");
+                ui.add(DragValue::new(&mut self.leak_timeback_window_s).speed(5.0).range(10.0..=7200.0));
+                ui.label("stride");
+                ui.add(DragValue::new(&mut self.leak_timeback_stride).speed(1.0).range(1..=60));
+                ui.checkbox(&mut self.leak_timeback_latest_first, "latest first");
+                ui.label(
+                    RichText::new(format!("hist: {} pontos", self.leak_temporal_trace.len()))
+                        .size(9.8)
+                        .color(Color32::from_gray(160)),
+                );
+            });
+            ui.label(
+                RichText::new("ASCII timeline ponto a ponto: [pressao][risco][vazao] com janela temporal configuravel")
+                    .size(9.6)
+                    .color(Color32::from_gray(155)),
+            );
+        });
         ui.separator();
 
         let mut do_apply = false;
@@ -5009,18 +6518,20 @@ impl App {
         let mut do_monte_carlo = false;
         let mut pending_select: Option<usize> = None;
 
-        ScrollArea::vertical().auto_shrink([false, false]).max_height(ui.available_height()).show(ui, |ui| {
+        ScrollArea::vertical().id_salt("leak::outer_scroll").auto_shrink([false, false]).max_height(ui.available_height()).show(ui, |ui| {
             ui.columns(3, |cols| {
                 // Left: circuit list + runtime status
                 egui::Frame::group(cols[0].style()).fill(Color32::from_gray(15)).show(&mut cols[0], |ui| {
                     ui.label(RichText::new("RUNTIME CIRCUITS").size(11.5).color(Color32::from_rgb(80,155,255)));
                     ui.separator();
                     for (i, name, app, comp, oil) in &circuits {
-                        let sel = *i == self.leak_sel_idx;
-                        let fill = if sel { Color32::from_rgb(30,60,100) } else { Color32::from_gray(25) };
-                        if ui.add(Button::new(RichText::new(format!("{} [{} / {}]", name, comp, oil)).size(10.5)).fill(fill).min_size(Vec2::new(ui.available_width()-8.0,22.0))).clicked() {
-                            pending_select = Some(*i);
-                        }
+                        ui.push_id(format!("leak::circuit_row_{}", i), |ui| {
+                            let sel = *i == self.leak_sel_idx;
+                            let fill = if sel { Color32::from_rgb(30,60,100) } else { Color32::from_gray(25) };
+                            if ui.add(Button::new(RichText::new(format!("{} [{} / {}]", name, comp, oil)).size(10.5)).fill(fill).min_size(Vec2::new(ui.available_width()-8.0,22.0))).clicked() {
+                                pending_select = Some(*i);
+                            }
+                        });
                         ui.label(RichText::new(app).size(9.8).color(Color32::from_gray(155)));
                     }
                     ui.separator();
@@ -5155,7 +6666,8 @@ impl App {
                     ui.separator();
 
                     let oil_types = OilType::all();
-                    ComboBox::from_label("Oil Type")
+                    ComboBox::from_id_salt("leak::manual_oil_type")
+                        .width(180.0)
                         .selected_text(
                             oil_types
                                 .get(self.leak_manual.oil_type_idx)
@@ -5168,6 +6680,7 @@ impl App {
                                 ui.selectable_value(&mut self.leak_manual.oil_type_idx, i, o.name());
                             }
                         });
+                    ui.label(RichText::new("Oil Type").size(9.6).color(Color32::from_gray(150)));
 
                     ui.horizontal(|ui| {
                         ui.label("Piston bar");
@@ -5193,7 +6706,14 @@ impl App {
                         ui.add(DragValue::new(&mut self.leak_manual.base_leak_area_mm2).speed(0.0001).range(0.0..=0.1).max_decimals(6));
                     });
 
-                    if ui.add(Button::new(RichText::new("APPLY MANUAL PARAMETERS").size(11.0)).fill(Color32::from_rgb(20,80,30)).min_size(Vec2::new(ui.available_width()-8.0,28.0))).clicked() {
+                    if let Err(msg) = &manual_validation {
+                        ui.label(RichText::new(format!("⚠ {}", msg)).size(9.8).color(Color32::YELLOW));
+                    }
+
+                    if ui.add_enabled(
+                        manual_ok,
+                        Button::new(RichText::new("APPLY MANUAL PARAMETERS").size(11.0)).fill(Color32::from_rgb(20,80,30)).min_size(Vec2::new(ui.available_width()-8.0,28.0)),
+                    ).clicked() {
                         do_apply = true;
                     }
 
@@ -5214,11 +6734,34 @@ impl App {
 
                     ui.separator();
                     ui.label(RichText::new("O-RING / SEAL ENGINEERING RENDER (ASCII CAD)").size(11.0).color(Color32::from_rgb(80,155,255)));
+                    egui::CollapsingHeader::new("ASCII legend guide")
+                        .default_open(false)
+                        .show(ui, |ui| {
+                            ui.label(RichText::new("CAD symbols:").size(9.4).color(Color32::from_gray(180)));
+                            ui.label(RichText::new("P = ponto de maior pressao local").size(9.2).color(Color32::from_gray(170)));
+                            ui.label(RichText::new("T = ponto de maior fragilidade (tear-up)").size(9.2).color(Color32::from_gray(170)));
+                            ui.label(RichText::new("X/!/*/:/. = criticidade decrescente da fragilidade").size(9.2).color(Color32::from_gray(170)));
+                            ui.separator();
+                            ui.label(RichText::new("Timeline symbols:").size(9.4).color(Color32::from_gray(180)));
+                            ui.label(RichText::new("1o char = pressao: ^ alto, : medio, . baixo").size(9.2).color(Color32::from_gray(170)));
+                            ui.label(RichText::new("2o char = risco: ! alto, * medio, . baixo").size(9.2).color(Color32::from_gray(170)));
+                            ui.label(RichText::new("3o char = vazao: ~ alta, - media, . baixa").size(9.2).color(Color32::from_gray(170)));
+                        });
                     if let (Some(c), Some(r)) = (&selected_circuit, &selected_report) {
                         let (cad, points) = Self::leak_ascii_cad(c, r);
-                        ScrollArea::vertical().max_height(205.0).show(ui, |ui| {
-                            ui.label(RichText::new(cad).size(8.8).monospace().color(Color32::from_gray(190)));
-                        });
+                        ui.label(
+                            RichText::new("Use scroll horizontal para ver o desenho ASCII completo sem corte.")
+                                .size(9.2)
+                                .color(Color32::from_gray(150)),
+                        );
+                        ScrollArea::both()
+                            .id_salt("leak::ascii_cad_scroll")
+                            .max_height(245.0)
+                            .auto_shrink([false, false])
+                            .show(ui, |ui| {
+                                ui.set_min_width(360.0);
+                                ui.label(RichText::new(cad).size(8.8).monospace().color(Color32::from_gray(190)));
+                            });
                         for p in points {
                             ui.label(RichText::new(p).size(9.2).color(Color32::from_gray(170)));
                         }
@@ -5244,9 +6787,39 @@ impl App {
                                 .size(10.6)
                                 .color(Color32::from_rgb(80, 155, 255)),
                         );
+                        let t_now = self.bench.elapsed;
+                        let t_min = (t_now - self.leak_timeback_window_s).max(0.0);
+                        let stride = self.leak_timeback_stride.max(1);
+                        let mut tb: Vec<(f64, f64, f64, f64)> = self
+                            .leak_temporal_trace
+                            .iter()
+                            .copied()
+                            .filter(|(t, _, _, _)| *t >= t_min)
+                            .step_by(stride)
+                            .collect();
+                        if self.leak_timeback_latest_first {
+                            tb.reverse();
+                        }
+
+                        ui.label(
+                            RichText::new(format!(
+                                "window {:.0}s | samples {} | order {}",
+                                self.leak_timeback_window_s,
+                                tb.len(),
+                                if self.leak_timeback_latest_first {
+                                    "new->old"
+                                } else {
+                                    "old->new"
+                                }
+                            ))
+                            .size(9.6)
+                            .color(Color32::from_gray(160)),
+                        );
+
                         let mut timeline = String::new();
-                        timeline.push_str("legend: ^=pressure high  !=risk high  ~=flow high  .=low\n");
-                        for (i, (_, p, risk, leak)) in self.leak_temporal_trace.iter().enumerate() {
+                        timeline.push_str("legend [P][R][F]: P(^ high, : mid, . low) | R(! high, * mid, . low) | F(~ high, - mid, . low)\n");
+                        timeline.push_str("idx | time(s) | ascii\n");
+                        for (i, (tt, p, risk, leak)) in tb.iter().enumerate() {
                             let p_ratio = (p / c.pressure.rupture_bar.max(1e-6)).clamp(0.0, 1.0);
                             let r_ratio = (risk / 100.0).clamp(0.0, 1.0);
                             let f_ratio = (leak / 1.5).clamp(0.0, 1.0);
@@ -5271,16 +6844,56 @@ impl App {
                             } else {
                                 '.'
                             };
-                            timeline.push_str(&format!("{:03}: {}{}{}\n", i, pch, rch, fch));
+                            timeline.push_str(&format!("{:03} | {:7.2} | {}{}{}\n", i, tt, pch, rch, fch));
                         }
-                        ScrollArea::vertical().max_height(130.0).show(ui, |ui| {
-                            ui.label(
-                                RichText::new(timeline)
-                                    .size(8.9)
-                                    .monospace()
-                                    .color(Color32::from_gray(178)),
-                            );
-                        });
+                        ScrollArea::both()
+                            .id_salt("leak::timeback_ascii_scroll")
+                            .max_height(155.0)
+                            .auto_shrink([false, false])
+                            .show(ui, |ui| {
+                                ui.set_min_width(340.0);
+                                ui.label(
+                                    RichText::new(timeline)
+                                        .size(8.9)
+                                        .monospace()
+                                        .color(Color32::from_gray(178)),
+                                );
+                            });
+
+                        let p_points: Vec<[f64; 2]> = tb.iter().map(|(t, p, _, _)| [*t, *p]).collect();
+                        let r_points: Vec<[f64; 2]> = tb.iter().map(|(t, _, r, _)| [*t, *r]).collect();
+                        let f_points: Vec<[f64; 2]> = tb.iter().map(|(t, _, _, f)| [*t, *f]).collect();
+                        ui.label(
+                            RichText::new("TIMEBACK VISUAL AID (P/R/F)")
+                                .size(10.4)
+                                .color(Color32::from_rgb(110, 180, 255)),
+                        );
+                        Plot::new("leak::timeback_plot")
+                            .height(150.0)
+                            .allow_drag(false)
+                            .allow_zoom(false)
+                            .allow_scroll(false)
+                            .show_axes([true, true])
+                            .show(ui, |plot_ui| {
+                                let lp = PlotPoints::from_iter(p_points.iter().copied());
+                                let lr = PlotPoints::from_iter(r_points.iter().copied());
+                                let lf = PlotPoints::from_iter(f_points.iter().copied());
+                                plot_ui.line(
+                                    Line::new(lp)
+                                        .color(Color32::from_rgb(255, 170, 60))
+                                        .name("Pressure bar"),
+                                );
+                                plot_ui.line(
+                                    Line::new(lr)
+                                        .color(Color32::from_rgb(255, 80, 80))
+                                        .name("Risk %"),
+                                );
+                                plot_ui.line(
+                                    Line::new(lf)
+                                        .color(Color32::from_rgb(90, 220, 180))
+                                        .name("Leak LPM"),
+                                );
+                            });
                     } else {
                         ui.label(RichText::new("Select a circuit with runtime data to render O-ring CAD").size(9.8).color(Color32::from_gray(145)));
                     }
@@ -5289,21 +6902,25 @@ impl App {
                 // Right: custom circuit + scenario table
                 egui::Frame::group(cols[2].style()).fill(Color32::from_gray(15)).show(&mut cols[2], |ui| {
                     ui.label(RichText::new("CUSTOM CIRCUIT BUILDER").size(11.5).color(Color32::from_rgb(80,155,255)));
+                    ui.push_id("leak::custom_name_row", |ui| {
                     ui.horizontal(|ui| {
                         ui.label("Name");
                         ui.add_sized([120.0, 20.0], TextEdit::singleline(&mut self.leak_custom.name));
                     });
+                    });
+                    ui.push_id("leak::custom_app_row", |ui| {
                     ui.horizontal(|ui| {
                         ui.label("App");
                         ui.add_sized([180.0, 20.0], TextEdit::singleline(&mut self.leak_custom.application));
                     });
+                    });
                     const COMP_NAMES: [&str; 3] = ["O-ring", "Seal", "A/C Hose"];
                     let oil_types = OilType::all();
                     let materials = OringMaterial::all();
-                    ComboBox::from_label("Component").selected_text(COMP_NAMES[self.leak_custom.component_idx.min(2)]).show_ui(ui, |ui| {
+                    ComboBox::from_id_salt("leak::custom_component").selected_text(COMP_NAMES[self.leak_custom.component_idx.min(2)]).show_ui(ui, |ui| {
                         for (i, n) in COMP_NAMES.iter().enumerate() { ui.selectable_value(&mut self.leak_custom.component_idx, i, *n); }
                     });
-                    ComboBox::from_label("Oil").selected_text(
+                    ComboBox::from_id_salt("leak::custom_oil").selected_text(
                         oil_types
                             .get(self.leak_custom.oil_type_idx)
                             .copied()
@@ -5312,7 +6929,7 @@ impl App {
                     ).show_ui(ui, |ui| {
                         for (i, o) in oil_types.iter().enumerate() { ui.selectable_value(&mut self.leak_custom.oil_type_idx, i, o.name()); }
                     });
-                    ComboBox::from_label("Material").selected_text(
+                    ComboBox::from_id_salt("leak::custom_material").selected_text(
                         materials
                             .get(self.leak_custom.material_idx)
                             .copied()
@@ -5355,13 +6972,21 @@ impl App {
                         ui.label("Reservoir L"); ui.add(DragValue::new(&mut self.leak_custom.reservoir_volume_l).speed(0.5));
                         ui.label("Support LPM"); ui.add(DragValue::new(&mut self.leak_custom.support_lpm).speed(0.5));
                     });
-                    if ui.add(Button::new(RichText::new("ADD CUSTOM CIRCUIT").size(11.0)).fill(Color32::from_rgb(60,40,10)).min_size(Vec2::new(ui.available_width()-8.0,26.0))).clicked() {
+
+                    if let Err(msg) = &custom_validation {
+                        ui.label(RichText::new(format!("⚠ {}", msg)).size(9.8).color(Color32::YELLOW));
+                    }
+
+                    if ui.add_enabled(
+                        custom_ok,
+                        Button::new(RichText::new("ADD CUSTOM CIRCUIT").size(11.0)).fill(Color32::from_rgb(60,40,10)).min_size(Vec2::new(ui.available_width()-8.0,26.0)),
+                    ).clicked() {
                         do_add_custom = true;
                     }
 
                     ui.separator();
                     ui.label(RichText::new("SCENARIO RANKING").size(11.0).color(Color32::from_rgb(80,155,255)));
-                    ScrollArea::vertical().max_height(190.0).auto_shrink([false, false]).show(ui, |ui| {
+                    ScrollArea::vertical().id_salt("leak::scenario_ranking_scroll").max_height(190.0).auto_shrink([false, false]).show(ui, |ui| {
                         for p in predictions.iter().take(50) {
                             let c = match p.final_alert {
                                 auto_breaking::LeakAlertLevel::Normal => Color32::GREEN,
@@ -5437,27 +7062,37 @@ impl App {
                     );
                     ui.separator();
                     ui.label(RichText::new("EXPORT REPORTS").size(11.0).color(Color32::from_rgb(80,155,255)));
+                    ui.push_id("leak::export_reports_row", |ui| {
                     ui.horizontal_wrapped(|ui| {
                         if ui.button("CSV Runtime").clicked() { do_export_report_csv = true; }
                         if ui.button("JSON Runtime").clicked() { do_export_report_json = true; }
                         if ui.button("CSV Prediction").clicked() { do_export_pred_csv = true; }
                         if ui.button("JSON Prediction").clicked() { do_export_pred_json = true; }
                     });
+                    });
                     ui.label(RichText::new("ENGINEERING CATALOG EXPORT").size(11.0).color(Color32::from_rgb(80,155,255)));
+                    ui.push_id("leak::export_catalog_row", |ui| {
                     ui.horizontal_wrapped(|ui| {
                         if ui.button("CSV Materials").clicked() { do_export_catalog_mat_csv = true; }
                         if ui.button("JSON Materials").clicked() { do_export_catalog_mat_json = true; }
                         if ui.button("CSV Oils").clicked() { do_export_catalog_oil_csv = true; }
                         if ui.button("JSON Oils").clicked() { do_export_catalog_oil_json = true; }
                     });
+                    });
 
                     ui.separator();
                     ui.label(RichText::new("CALIBRATION MODE (BENCH CSV)").size(11.0).color(Color32::from_rgb(80,155,255)));
+                    ui.push_id("leak::calib_controls", |ui| {
                     ui.horizontal(|ui| {
                         if ui.button("Select CSV").clicked() { do_pick_calibration_csv = true; }
-                        if ui.add_enabled(!self.leak_calibration_csv_path.is_empty(), Button::new("Run Auto Calibration")).clicked() {
+                        let mut run_cal = ui.add_enabled(!self.leak_calibration_csv_path.is_empty(), Button::new("Run Auto Calibration"));
+                        if self.leak_calibration_csv_path.is_empty() {
+                            run_cal = run_cal.on_disabled_hover_text("Selecione um CSV de bancada antes de calibrar");
+                        }
+                        if run_cal.clicked() {
                             do_run_calibration = true;
                         }
+                    });
                     });
                     if self.leak_calibration_csv_path.is_empty() {
                         ui.label(RichText::new("No CSV selected").size(9.8).color(Color32::from_gray(145)));
@@ -5475,9 +7110,11 @@ impl App {
                                 r.circuit_name, r.rmse_leak_lpm, r.mape_leak_pct, r.rupture_accuracy_pct
                             )).size(9.4).color(Color32::from_gray(165)));
                         }
+                        ui.push_id("leak::export_calibration_row", |ui| {
                         ui.horizontal_wrapped(|ui| {
                             if ui.button("CSV Calibration Report").clicked() { do_export_calibration_csv = true; }
                             if ui.button("JSON Calibration Report").clicked() { do_export_calibration_json = true; }
+                        });
                         });
                     }
                 });
@@ -5487,13 +7124,13 @@ impl App {
         if let Some(i) = pending_select {
             self.cmds.push(Cmd::LeakSelectCircuit(i));
         }
-        if do_apply {
+        if do_apply && manual_ok {
             self.cmds.push(Cmd::LeakApplyManual);
         }
         if do_predict {
             self.cmds.push(Cmd::LeakPredictScenarios);
         }
-        if do_add_custom {
+        if do_add_custom && custom_ok {
             self.cmds.push(Cmd::LeakAddCustomCircuit);
         }
         if do_export_report_csv {
@@ -5588,6 +7225,49 @@ impl App {
 // ═════════════════════════════════════════════════════════════════════════════
 impl App {
     fn tab_sensors(&self, ui: &mut Ui) {
+        let gps_ok = !matches!(
+            self.bench.gps.fix_quality,
+            auto_breaking::gps::GpsFixQuality::NoFix
+        );
+        let imu_ok = !self.bench.imu.accel_fault && !self.bench.imu.gyro_fault;
+        let radar_ok = self.bench.radar.total_targets() > 0;
+        let lidar_ok = self.bench.lidar.points_per_scan > 0;
+        let healthy_count = [gps_ok, imu_ok, radar_ok, lidar_ok]
+            .into_iter()
+            .filter(|v| *v)
+            .count();
+        let sys_col = if healthy_count >= 4 {
+            Color32::GREEN
+        } else if healthy_count >= 3 {
+            Color32::YELLOW
+        } else {
+            Color32::RED
+        };
+        ui.horizontal_wrapped(|ui| {
+            ui.label(
+                RichText::new(format!("Sensor health {}/4", healthy_count))
+                    .size(12.0)
+                    .color(sys_col)
+                    .strong(),
+            );
+            for (name, ok) in [
+                ("GPS", gps_ok),
+                ("IMU", imu_ok),
+                ("RADAR", radar_ok),
+                ("LIDAR", lidar_ok),
+            ] {
+                ui.label(
+                    RichText::new(format!(
+                        "{}:{}",
+                        name,
+                        if ok { "OK" } else { "CHECK" }
+                    ))
+                    .size(10.8)
+                    .color(if ok { Color32::GREEN } else { Color32::YELLOW }),
+                );
+            }
+        });
+        ui.separator();
         ScrollArea::vertical()
             .auto_shrink([false, false])
             .show(ui, |ui| {
@@ -5981,6 +7661,10 @@ impl App {
         let mut do_lka = false;
         let mut do_acc_up = false;
         let mut do_acc_dn = false;
+        let mut do_hdw_up = false;
+        let mut do_hdw_dn = false;
+        let readiness = self.ad_readiness_issues();
+        let can_engage_ad = self.bench.engine_running() && !matches!(self.bench.tcm.direction, Direction::Park);
 
         ScrollArea::vertical()
             .auto_shrink([false, false])
@@ -6009,28 +7693,58 @@ impl App {
                                     .color(lc)
                                     .strong(),
                             );
+                            if !readiness.is_empty() {
+                                ui.add_space(4.0);
+                                ui.label(
+                                    RichText::new("READINESS / WHY IT MAY LOOK INACTIVE")
+                                        .size(10.5)
+                                        .color(Color32::from_rgb(255, 190, 90))
+                                        .strong(),
+                                );
+                                for item in &readiness {
+                                    ui.label(
+                                        RichText::new(format!("• {}", item))
+                                            .size(10.0)
+                                            .color(Color32::from_gray(210)),
+                                    );
+                                }
+                                ui.separator();
+                            }
                             let fill = if eng {
                                 Color32::from_rgb(100, 20, 20)
                             } else {
                                 Color32::from_rgb(20, 80, 20)
                             };
-                            if ui
-                                .add(
-                                    Button::new(
-                                        RichText::new(if eng {
-                                            "⏹ DISENGAGE AD"
-                                        } else {
-                                            "▶ ENGAGE AD"
-                                        })
-                                        .size(13.0),
-                                    )
-                                    .fill(fill)
-                                    .min_size(Vec2::new(180.0, 34.0)),
+                            let mut engage_resp = ui.add_enabled(
+                                eng || can_engage_ad,
+                                Button::new(
+                                    RichText::new(if eng {
+                                        "⏹ DISENGAGE AD"
+                                    } else {
+                                        "▶ ENGAGE AD"
+                                    })
+                                    .size(13.0),
                                 )
-                                .clicked()
-                            {
+                                .fill(fill)
+                                .min_size(Vec2::new(180.0, 34.0)),
+                            );
+                            if !eng && !can_engage_ad {
+                                engage_resp = engage_resp.on_disabled_hover_text(
+                                    "Para engatar o AD, deixe o motor em RUN e saia de Park.",
+                                );
+                            }
+                            if engage_resp.clicked() {
                                 do_engage = true;
                             }
+                            ui.label(
+                                RichText::new(if lead.is_finite() {
+                                    "ACC esta usando alvo frontal e TTC/THW para modular torque/freio."
+                                } else {
+                                    "Sem alvo frontal: ACC acelera ate a velocidade configurada e LKA depende de lane confidence."
+                                })
+                                .size(10.0)
+                                .color(Color32::from_gray(175)),
+                            );
                             ui.separator();
                             // ACC
                             let ac = match acc_s {
@@ -6050,6 +7764,15 @@ impl App {
                                 }
                                 if ui.small_button("-5").clicked() {
                                     do_acc_dn = true;
+                                }
+                            });
+                            ui.horizontal(|ui| {
+                                ui.label(RichText::new("Headway").size(11.0).color(Color32::GREEN));
+                                if ui.small_button("-0.2s").clicked() {
+                                    do_hdw_dn = true;
+                                }
+                                if ui.small_button("+0.2s").clicked() {
+                                    do_hdw_up = true;
                                 }
                             });
                             bar_gauge(
@@ -6102,6 +7825,13 @@ impl App {
                                 &format!("{:+.2}°", lka_st),
                                 Color32::YELLOW,
                             );
+                            if !det_s {
+                                ui.label(
+                                    RichText::new("LKA em espera: nao ha faixa confiavel detectada.")
+                                        .size(10.0)
+                                        .color(Color32::YELLOW),
+                                );
+                            }
                             let tj = match tja_s {
                                 FeatureState::Active => Color32::GREEN,
                                 _ => Color32::from_gray(80),
@@ -6428,6 +8158,12 @@ impl App {
         if do_acc_dn {
             self.cmds.push(Cmd::AccSpeedSet(acc_spd - 5.0));
         }
+        if do_hdw_up {
+            self.cmds.push(Cmd::AccHeadwaySet(acc_hdw + 0.2));
+        }
+        if do_hdw_dn {
+            self.cmds.push(Cmd::AccHeadwaySet(acc_hdw - 0.2));
+        }
     }
 }
 
@@ -6441,6 +8177,14 @@ impl App {
         let v_rng = self.bench.v2x.range_m;
         let v_loss = self.bench.v2x.packet_loss_pct;
         let v_lat = self.bench.v2x.latency_ms;
+        let v_rng_s = self.v2x_range_ema;
+        let v_loss_s = self.v2x_loss_ema;
+        let v_lat_s = self.v2x_lat_ema;
+        let mut link_score = 100.0;
+        link_score -= (v_loss_s * 2.0).clamp(0.0, 60.0);
+        link_score -= ((v_lat_s - 10.0) * 1.6).clamp(0.0, 40.0);
+        link_score -= ((180.0 - v_rng_s) * 0.15).clamp(0.0, 20.0);
+        let link_score = link_score.clamp(0.0, 100.0);
         let v_tx = self.bench.v2x.bsm_tx_count;
         let v_rx = self.bench.v2x.rx_count;
         let fca = self.bench.v2x.forward_collision_alert;
@@ -6527,6 +8271,10 @@ impl App {
         let elapsed = self.bench.elapsed;
         let mut do_ota = false;
 
+        ScrollArea::vertical()
+            .id_salt("v2x::page_scroll")
+            .auto_shrink([false, false])
+            .show(ui, |ui| {
         ui.columns(2, |cols| {
             let ui = &mut cols[0];
             egui::Frame::group(ui.style())
@@ -6567,6 +8315,21 @@ impl App {
                             .color(Color32::from_gray(180)),
                         );
                     });
+                    let link_col = if link_score >= 80.0 {
+                        Color32::GREEN
+                    } else if link_score >= 60.0 {
+                        Color32::YELLOW
+                    } else {
+                        Color32::RED
+                    };
+                    ui.label(
+                        RichText::new(format!(
+                            "Smoothed link: {:.0}% | range {:.0}m | loss {:.1}% | latency {:.1}ms",
+                            link_score, v_rng_s, v_loss_s, v_lat_s
+                        ))
+                        .size(10.6)
+                        .color(link_col),
+                    );
                     digital_readout(
                         ui,
                         "TX/RX",
@@ -6591,6 +8354,7 @@ impl App {
                             .color(Color32::from_gray(130)),
                     );
                     ScrollArea::vertical()
+                        .id_salt("v2x::nearby_scroll")
                         .max_height(130.0)
                         .auto_shrink([false, false])
                         .show(ui, |ui| {
@@ -6780,6 +8544,7 @@ impl App {
                             .color(Color32::from_gray(140)),
                     );
                     ScrollArea::vertical()
+                        .id_salt("v2x::events_scroll")
                         .max_height(200.0)
                         .auto_shrink([false, false])
                         .stick_to_bottom(true)
@@ -6811,6 +8576,7 @@ impl App {
                         });
                 });
         });
+            });
         if do_ota {
             self.cmds.push(Cmd::StartOta);
         }
@@ -6853,6 +8619,10 @@ impl App {
         let mut do_flash = false;
         let mut do_clean = false;
 
+        ScrollArea::vertical()
+            .id_salt("uds::page_scroll")
+            .auto_shrink([false, false])
+            .show(ui, |ui| {
         ui.columns(2, |cols| {
             let ui = &mut cols[0];
             ui.label(
@@ -6963,6 +8733,7 @@ impl App {
             }
             ui.separator();
             ScrollArea::vertical()
+                .id_salt("uds::txrx_scroll")
                 .max_height(200.0)
                 .auto_shrink([false, false])
                 .stick_to_bottom(true)
@@ -7024,6 +8795,7 @@ impl App {
                     .color(Color32::from_gray(140)),
             );
             ScrollArea::vertical()
+                .id_salt("uds::event_log_scroll")
                 .max_height(160.0)
                 .auto_shrink([false, false])
                 .stick_to_bottom(true)
@@ -7045,6 +8817,7 @@ impl App {
                     }
                 });
         });
+            });
 
         // Execute UDS send AFTER column closure released borrows
         if let Some((bytes, sa)) = send_bytes {
@@ -7170,7 +8943,7 @@ impl App {
             .map(|(v, l, c, m)| ((*v).clone(), *l, *c, *m))
             .collect();
         ui.columns(2, |cols| {
-            for (v, lbl, c, y_max) in &ld {
+            for (i, (v, lbl, c, y_max)) in ld.iter().enumerate() {
                 let last = v.last().map(|p| p[1]).unwrap_or(0.0);
                 cols[0].horizontal(|ui| {
                     ui.label(RichText::new(*lbl).size(11.0).color(*c));
@@ -7184,7 +8957,7 @@ impl App {
                 });
                 let pts_c = v.clone();
                 let cc = *c;
-                Plot::new(*lbl)
+                Plot::new(format!("plots::left::{}::{}", i, lbl))
                     .height(h)
                     .include_y(0.0)
                     .include_y(*y_max)
@@ -7198,7 +8971,7 @@ impl App {
                     });
                 cols[0].add_space(4.0);
             }
-            for (v, lbl, c, y_max) in &rd {
+            for (i, (v, lbl, c, y_max)) in rd.iter().enumerate() {
                 let last = v.last().map(|p| p[1]).unwrap_or(0.0);
                 cols[1].horizontal(|ui| {
                     ui.label(RichText::new(*lbl).size(11.0).color(*c));
@@ -7212,7 +8985,7 @@ impl App {
                 });
                 let pts_c = v.clone();
                 let cc = *c;
-                Plot::new(*lbl)
+                Plot::new(format!("plots::right::{}::{}", i, lbl))
                     .height(h)
                     .include_y(0.0)
                     .include_y(*y_max)
