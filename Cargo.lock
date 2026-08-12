@@ -469,6 +469,7 @@ dependencies = [
  "egui_plot",
  "flate2",
  "proptest",
+ "rand 0.8.7",
  "rfd",
  "serde",
  "serde_json",

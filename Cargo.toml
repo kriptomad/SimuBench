@@ -23,6 +23,7 @@ thiserror = "2.0"
 flate2 = "1.0"
 serialport = "4.5"
 rfd = "0.15"
+rand = "0.8"
 # crossterm removed — replaced by egui desktop GUI
 
 [target.'cfg(target_os = "linux")'.dependencies]

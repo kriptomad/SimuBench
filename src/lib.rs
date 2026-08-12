@@ -530,7 +530,17 @@ impl HeavyMachinery {
             dt,
         );
         // AD overrides apply back to vehicle (if engaged)
-        let _ = (ad_thr, ad_brk, ad_str); // commands available for main.rs to use
+        if self.ad.engaged {
+            if let Some(v) = ad_thr {
+                self.throttle_pct = (v * 100.0).clamp(0.0, 100.0);
+            }
+            if let Some(v) = ad_brk {
+                self.brake_pct = (v * 100.0).clamp(0.0, 100.0);
+            }
+            if let Some(v) = ad_str {
+                self.ad.steer_cmd_deg = v;
+            }
+        }
 
         // V2X
         self.v2x.update(

@@ -1,2666 +1,518 @@
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Manual Técnico — SimuBench ECU Platform</title>
-<style>
-  body { font-family: Calibri, Arial, sans-serif; font-size: 11pt; margin: 3cm; line-height: 1.5; color: #1a1a1a; }
-  h1 { font-size: 22pt; color: #003366; border-bottom: 3px solid #003366; padding-bottom: 8px; margin-top: 40px; }
-  h2 { font-size: 16pt; color: #0055a0; border-bottom: 1px solid #aad4ff; padding-bottom: 4px; margin-top: 30px; }
-  h3 { font-size: 13pt; color: #005522; margin-top: 20px; }
-  h4 { font-size: 11pt; color: #550055; margin-top: 16px; }
-  code, pre { font-family: Consolas, "Courier New", monospace; background: #f4f4f8; border: 1px solid #d0d0e0; border-radius: 4px; }
-  code { font-size: 10pt; padding: 1px 5px; }
-  pre { font-size: 9.5pt; padding: 12px 16px; overflow-x: auto; line-height: 1.4; white-space: pre-wrap; }
-  .line-comment { background: #fffde7; border-left: 4px solid #f0c040; padding: 8px 12px; margin: 6px 0; font-size: 10.5pt; }
-  .arch-box { background: #e8f4e8; border: 1px solid #4caf50; border-radius: 6px; padding: 12px 16px; margin: 10px 0; }
-  .warn-box { background: #fff3e0; border: 1px solid #ff9800; border-radius: 6px; padding: 10px 14px; margin: 10px 0; }
-  .info-box { background: #e3f2fd; border: 1px solid #1976d2; border-radius: 6px; padding: 10px 14px; margin: 10px 0; }
-  table { border-collapse: collapse; width: 100%; margin: 10px 0; font-size: 10pt; }
-  th { background: #003366; color: white; padding: 7px 10px; text-align: left; }
-  td { border: 1px solid #c0c8d8; padding: 6px 10px; vertical-align: top; }
-  tr:nth-child(even) td { background: #f0f4fb; }
-  .toc { background: #f8f8ff; border: 1px solid #c0c8d8; border-radius: 6px; padding: 16px 20px; margin: 20px 0; }
-  .toc li { margin: 4px 0; }
-  .toc a { color: #0055a0; text-decoration: none; }
-  .page-break { page-break-before: always; }
-  .module-header { background: linear-gradient(135deg, #003366, #0055a0); color: white; padding: 12px 20px; border-radius: 8px; margin: 24px 0 12px 0; }
-  .module-header h2 { color: white; border: none; margin: 0; }
-  .module-header p { color: #cce0ff; margin: 4px 0 0 0; font-size: 10pt; }
-  .field-table th { background: #005522; }
-  .field-table tr:nth-child(even) td { background: #f0fff4; }
-  .fn-box { background: #fafafa; border: 1px solid #d0d8e8; border-radius: 4px; padding: 10px 14px; margin: 8px 0; }
-  .fn-name { color: #0055a0; font-weight: bold; font-family: Consolas, monospace; font-size: 11pt; }
-  ul li { margin: 3px 0; }
-  .badge { display: inline-block; background: #003366; color: white; padding: 2px 8px; border-radius: 10px; font-size: 9pt; font-family: Consolas, monospace; }
-  .badge-green { background: #005522; }
-  .badge-red   { background: #8b0000; }
-  .badge-orange{ background: #a05000; }
-  .sn { color: #888; font-size: 9pt; }
-</style>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>SimuBench - Manual Tecnico Completo</title>
+  <style>
+    :root {
+      --bg: #0b1220;
+      --panel: #111a2e;
+      --panel2: #1a2642;
+      --text: #e7eefc;
+      --muted: #a9b7d3;
+      --accent: #4fc3f7;
+      --ok: #58d68d;
+      --warn: #f5b041;
+      --danger: #f1948a;
+      --code: #0e1728;
+      --line: #233455;
+    }
+
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+      background: linear-gradient(180deg, #08101d 0%, #0b1220 100%);
+      color: var(--text);
+      line-height: 1.45;
+    }
+
+    .wrap {
+      max-width: 1220px;
+      margin: 0 auto;
+      padding: 22px;
+    }
+
+    header {
+      background: linear-gradient(135deg, #12213d 0%, #1f355f 100%);
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      padding: 22px;
+      margin-bottom: 18px;
+    }
+
+    h1, h2, h3 { margin: 0 0 10px; }
+    h1 { font-size: 30px; }
+    h2 { font-size: 24px; margin-top: 24px; }
+    h3 { font-size: 18px; margin-top: 18px; }
+
+    .muted { color: var(--muted); }
+    .grid {
+      display: grid;
+      grid-template-columns: 280px 1fr;
+      gap: 16px;
+      align-items: start;
+    }
+
+    nav {
+      position: sticky;
+      top: 12px;
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      padding: 14px;
+      max-height: calc(100vh - 30px);
+      overflow: auto;
+    }
+
+    nav a {
+      display: block;
+      color: var(--text);
+      text-decoration: none;
+      padding: 6px 8px;
+      border-radius: 8px;
+      font-size: 14px;
+    }
+
+    nav a:hover { background: #1b2b4b; }
+
+    section {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      padding: 18px;
+      margin-bottom: 16px;
+    }
+
+    .kpi {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(120px, 1fr));
+      gap: 10px;
+      margin-top: 12px;
+    }
+
+    .card {
+      background: var(--panel2);
+      border: 1px solid #2e4672;
+      border-radius: 10px;
+      padding: 10px;
+      font-size: 14px;
+    }
+
+    code, pre {
+      font-family: Consolas, "Courier New", monospace;
+      background: var(--code);
+      color: #d1f2ff;
+      border: 1px solid #223353;
+      border-radius: 8px;
+    }
+
+    code { padding: 2px 6px; }
+    pre {
+      padding: 12px;
+      overflow: auto;
+      white-space: pre-wrap;
+      margin: 10px 0;
+    }
+
+    .pill {
+      display: inline-block;
+      border-radius: 999px;
+      padding: 2px 10px;
+      font-size: 12px;
+      border: 1px solid;
+      margin-right: 6px;
+    }
+    .ok { color: var(--ok); border-color: #2e8b57; }
+    .warn { color: var(--warn); border-color: #9e6b17; }
+    .danger { color: var(--danger); border-color: #8f3d34; }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 14px;
+      margin-top: 10px;
+    }
+    th, td {
+      border: 1px solid #2a3d63;
+      padding: 8px;
+      text-align: left;
+      vertical-align: top;
+    }
+    th { background: #1a2948; }
+
+    .top {
+      position: fixed;
+      right: 14px;
+      bottom: 14px;
+      background: #2a66c9;
+      color: #fff;
+      text-decoration: none;
+      border-radius: 999px;
+      padding: 8px 12px;
+      font-size: 13px;
+      border: 1px solid #4b7fd3;
+    }
+  </style>
 </head>
 <body>
-
-<!-- ═══════════════════════ CAPA ═══════════════════════════════════════════ -->
-<div style="text-align:center; margin-top:100px; margin-bottom:80px;">
-  <h1 style="font-size:28pt; border:none; color:#003366;">Manual Técnico</h1>
-    <h2 style="font-size:20pt; border:none; color:#0055a0;">SimuBench ECU Platform (Simulation + ECM-Live + Safety IO)</h2>
-    <p style="font-size:13pt; color:#555;">Documentação técnica completa do sistema atual</p>
-    <p style="font-size:11pt; color:#888; margin-top:60px;">Versão 3.0 — 2026-08-12</p>
-  <p style="font-size:10pt; color:#aaa;">Rust · J1939 · CAN Multi-Bus · UDS ISO 14229 · OSEK NM · LIDAR · RADAR · GPS · IMU · AD SAE L2/L3 · V2X · Telematics · egui</p>
-</div>
-
-<!-- ═══════════════════════ ÍNDICE ═══════════════════════════════════════════ -->
-<div class="page-break"></div>
-<h1>Índice</h1>
-<div class="toc">
-<ol>
-  <li><a href="#intro">Introdução e Arquitetura Geral</a></li>
-  <li><a href="#cargo">Cargo.toml — Configuração do Projeto</a></li>
-  <li><a href="#j1939">j1939.rs — Protocol Stack J1939/CAN</a></li>
-  <li><a href="#can_gateway">can_gateway.rs — Gateway CAN (ISO 11898-1)</a></li>
-  <li><a href="#can_network">can_network.rs — Rede CAN Multi-Bus ⭐ NOVO</a></li>
-  <li><a href="#boot">boot_sequence.rs — Sequência de Boot</a></li>
-  <li><a href="#ecm">ecu_ecm.rs — Engine Control Module (ECM)</a></li>
-  <li><a href="#tcm">ecu_tcm.rs — Transmission Control Module (TCM)</a></li>
-  <li><a href="#bcm">ecu_bcm.rs — Body Control Module (BCM)</a></li>
-  <li><a href="#icm">ecu_icm.rs — Instrument Cluster Module (ICM)</a></li>
-  <li><a href="#hcm">ecu_hcm.rs — Hydraulic Control Module (HCM)</a></li>
-  <li><a href="#abs">ecu_abs.rs — ABS / ESP / TCS</a></li>
-  <li><a href="#vcm">ecu_vcm.rs — Vehicle Control Module (VCM) ⭐ NOVO</a></li>
-  <li><a href="#uds">uds.rs — UDS ISO 14229 (Diagnóstico)</a></li>
-  <li><a href="#nm">network_mgmt.rs — Network Management (OSEK NM)</a></li>
-  <li><a href="#nvm">nvm.rs — Memória Não-Volátil (EEPROM)</a></li>
-  <li><a href="#implement">implement.rs — Controle de Implementos</a></li>
-  <li><a href="#gps">gps.rs — GPS/GNSS (u-blox ZED-F9P) ⭐ NOVO</a></li>
-  <li><a href="#imu">imu.rs — IMU 9-DOF + Madgwick AHRS ⭐ NOVO</a></li>
-  <li><a href="#radar">radar.rs — RADAR 77GHz Multi-Sensor ⭐ NOVO</a></li>
-  <li><a href="#lidar">lidar.rs — LIDAR Velodyne VLP-16 ⭐ NOVO</a></li>
-  <li><a href="#camera">camera.rs — Visão Computacional + Sensor Fusion ⭐ NOVO</a></li>
-  <li><a href="#autonomous">autonomous.rs — Controlador AD SAE L2/L3 ⭐ NOVO</a></li>
-  <li><a href="#v2x">v2x_telematics.rs — V2X + Fleet Telematics ⭐ NOVO</a></li>
-  <li><a href="#lib">lib.rs — Orquestrador Central (HeavyMachinery)</a></li>
-  <li><a href="#widgets">widgets.rs — Widgets de GUI</a></li>
-  <li><a href="#main">main.rs — Aplicação Desktop (eframe/egui)</a></li>
-    <li><a href="#code_breakdown">Code Break-Down — Módulos e Fluxo Linha a Linha</a></li>
-  <li><a href="#fluxo">Fluxo Completo de Dados</a></li>
-  <li><a href="#glossario">Glossário Técnico</a></li>
-</ol>
-</div>
-
-<!-- ═══════════════════════ 1. INTRODUÇÃO ══════════════════════════════════ -->
-<div class="page-break"></div>
-<h1 id="intro">1. Introdução e Arquitetura Geral — v3.0</h1>
-
-<div class="info-box">
-<strong>Versão 3.0</strong> — O sistema evoluiu de um bench focado em dinâmica/ABS para uma plataforma completa com simulação multi-ECU, ECM-Live Data operacional (Detect/Connect/Retrieve/Stop/Export CSV), camada de IO real (serial, SocketCAN, vendor template Cat Comm), allowlist/rate-limit e trilha de auditoria JSONL.
-</div>
-
-<p>
-Este projeto é um <strong>simulador de bancada de ECU</strong> (Electronic Control Unit) para maquinário pesado agrícola/industrial e veículos autônomos, desenvolvido em Rust. Ele replica o comportamento real de um sistema eletrônico completo, incluindo:
-</p>
-
-<ul>
-  <li>Rede CAN Bus multi-barramento: HS-CAN Powertrain (500kbps), HS-CAN Chassis (500kbps), MS-CAN Body (250kbps), ISOBUS (250kbps), CAN Diagnóstico (500kbps), LIN (20kbps)</li>
-  <li>Protocolo J1939 completo com Transport Protocol (BAM + CMDT), 35+ PGNs, SPNs</li>
-  <li>Múltiplos ECUs: ECM, TCM, BCM, ICM, HCM, ABS/ESP/TCS, VCM (gateway)</li>
-  <li>Sequência completa de boot (chave → ACC → ON → CRANK → RUN) com Address Claiming</li>
-  <li>Diagnóstico via UDS (ISO 14229): seed/key, freeze frame, DID read/write, rotinas</li>
-  <li>Gerenciamento de rede OSEK NM / AUTOSAR NM (sleep/wake coordenado)</li>
-  <li>Memória não-volátil (NVM/EEPROM) com wear levelling e adaptações aprendidas</li>
-  <li><strong>NOVO:</strong> GPS/GNSS com NMEA real (GGA, RMC, GSA) — u-blox ZED-F9P</li>
-  <li><strong>NOVO:</strong> IMU 9-DOF com filtro Madgwick AHRS (roll/pitch/yaw)</li>
-  <li><strong>NOVO:</strong> Radar 77GHz (6 sensores: front/rear/4 corners) com Kalman tracking</li>
-  <li><strong>NOVO:</strong> LIDAR Velodyne VLP-16 — ray casting, 360°, point cloud, occupancy grid</li>
-  <li><strong>NOVO:</strong> Câmera com lane detection (Hough), TSR, object detection (YOLOv8-style)</li>
-  <li><strong>NOVO:</strong> Controlador AD SAE Level 2/3 (ACC, AEB, LKA, TJA, ISO 26262)</li>
-  <li><strong>NOVO:</strong> V2X — DSRC 5.9GHz + C-V2X, SAE J2735 BSM, SPaT, work zones</li>
-  <li><strong>NOVO:</strong> Fleet Telematics — 4G/5G, OTA update, geofencing, remote commands</li>
-  <li>Dashboard desktop interativo com 12 abas, gauges visuais, CAN monitor multi-bus</li>
-</ul>
-
-<div class="arch-box">
-<strong>📐 Arquitetura em Camadas — v2.0:</strong>
-<pre>
-┌────────────────────────────────────────────────────────────────────────────────┐
-│  main.rs + widgets.rs  — GUI Desktop (eframe/egui) — 12 abas                 │
-├────────────────────────────────────────────────────────────────────────────────┤
-│  lib.rs  — HeavyMachinery (orquestrador central)                              │
-├───────────────────────┬──────────────────────────┬────────────────────────────┤
-│  ECUs individuais:     │  Sensores Autônomos:      │  Sistemas transversais:    │
-│  ecu_ecm.rs (ECM)     │  gps.rs (GNSS)            │  uds.rs (ISO 14229)        │
-│  ecu_tcm.rs (TCM)     │  imu.rs (Madgwick)        │  network_mgmt.rs (OSEK NM) │
-│  ecu_bcm.rs (BCM)     │  radar.rs (77GHz)         │  nvm.rs (EEPROM)           │
-│  ecu_icm.rs (ICM)     │  lidar.rs (VLP-16)        │  implement.rs (ISOBUS)     │
-│  ecu_hcm.rs (HCM)     │  camera.rs (Vision+Fusion)│  v2x_telematics.rs         │
-│  ecu_abs.rs (ABS/ESP) │  autonomous.rs (L2/L3 AD) │  boot_sequence.rs          │
-│  ecu_vcm.rs (VCM/GW)  │                           │                            │
-├───────────────────────┴──────────────────────────┴────────────────────────────┤
-│  can_network.rs — NOVO: 6 barramentos CAN, TP BAM+CMDT, message scheduling    │
-│  can_gateway.rs — ISO 11898-1: TEC/REC, BusOff, arbitração por prioridade     │
-├────────────────────────────────────────────────────────────────────────────────┤
-│  j1939.rs — Protocol Stack (frames, 35+ PGNs, SPNs, DTCs, Address Claim)      │
-└────────────────────────────────────────────────────────────────────────────────┘
-</pre>
-</div>
-
-<h2>Relação com o Mundo Real — Módulos Completos</h2>
-<table>
-  <tr><th>Arquivo .rs</th><th>Equivalente Real</th><th>Função Principal</th></tr>
-  <tr><td><code>ecu_ecm.rs</code></td><td>ECM Tier4 Final / Stage V</td><td>Motor diesel 6-cil, CRDI, VGT, EGR, DPF, SCR, DEF, DTCs</td></tr>
-  <tr><td><code>ecu_tcm.rs</code></td><td>TCM Powershift / IVT</td><td>Câmbio 16F/16R, clutch fill/modulate/lock, auto-shift</td></tr>
-  <tr><td><code>ecu_bcm.rs</code></td><td>BCM / Body Controller</td><td>Luzes, fusíveis, bateria 88Ah, limpadores, HVAC</td></tr>
-  <tr><td><code>ecu_icm.rs</code></td><td>Instrument Cluster / Display</td><td>Gauges, lâmpadas de alerta, auto-teste, trip computer</td></tr>
-  <tr><td><code>ecu_hcm.rs</code></td><td>HCM / EHSC</td><td>Load-sensing pump, engate 3 pontos, 4 válvulas aux</td></tr>
-  <tr><td><code>ecu_abs.rs</code></td><td>EBS / ABS / ESP / TCS</td><td>Ciclo ABS 10Hz por roda, ESP yaw-rate, hill hold</td></tr>
-  <tr><td><code>ecu_vcm.rs</code></td><td>VCM / ECU Gateway</td><td>Coordena torque ECM+ABS+AD, bridge multi-bus, load shedding</td></tr>
-  <tr><td><code>can_network.rs</code></td><td>Multi-bus CAN Controller</td><td>6 buses físicos, TP BAM/CMDT, scheduling matrix, babbling idiot</td></tr>
-  <tr><td><code>can_gateway.rs</code></td><td>CAN Bus (ISO 11898-1)</td><td>Arbitração, TEC/REC, bus-off recovery timer</td></tr>
-  <tr><td><code>gps.rs</code></td><td>u-blox ZED-F9P GNSS</td><td>NMEA real (GGA/RMC/GSA), 17 satélites, RTK/DGPS, HDOP</td></tr>
-  <tr><td><code>imu.rs</code></td><td>9-DOF IMU (Bosch BMI088)</td><td>Madgwick AHRS, roll/pitch/yaw, g-forces, vibração motor</td></tr>
-  <tr><td><code>radar.rs</code></td><td>Bosch SRR2+ / Continental ARS540</td><td>6 sensores 77GHz, Kalman tracking, TTC, BSM, RCS model</td></tr>
-  <tr><td><code>lidar.rs</code></td><td>Velodyne VLP-16</td><td>360° 10Hz, 16 canais, ray casting, clustering, occupancy grid</td></tr>
-  <tr><td><code>camera.rs</code></td><td>Mobileye Q4 / Conti MFC</td><td>Lane detection Hough, YOLOv8 objects, TSR, sensor fusion JPDA</td></tr>
-  <tr><td><code>autonomous.rs</code></td><td>AD Domain Controller</td><td>ACC/AEB/LKA/TJA SAE L2/L3, ISO 26262 ASIL safety monitor</td></tr>
-  <tr><td><code>v2x_telematics.rs</code></td><td>V2X + TCU (Telematics)</td><td>SAE J2735 BSM, SPaT, C-V2X, OTA update, geofencing 4G/5G</td></tr>
-</table>
-  <tr><td><code>ecu_hcm.rs</code></td><td>HCM / EHSC</td><td>Controla bomba hidráulica, engate 3 pontos</td></tr>
-  <tr><td><code>ecu_abs.rs</code></td><td>EBS / ABS / ESP</td><td>Anti-travamento, estabilidade, tração</td></tr>
-  <tr><td><code>uds.rs</code></td><td>ISO 14229 server</td><td>Interface com ferramentas de diagnóstico</td></tr>
-  <tr><td><code>can_gateway.rs</code></td><td>CAN Gateway / VCG</td><td>Roteamento de mensagens entre ECUs</td></tr>
-  <tr><td><code>j1939.rs</code></td><td>SAE J1939 stack</td><td>Codec de frames CAN</td></tr>
-</table>
-
-<!-- ═══════════════════════ 2. CARGO.TOML ════════════════════════════════= -->
-<div class="page-break"></div>
-<h1 id="cargo">2. Cargo.toml — Configuração do Projeto</h1>
-
-<pre>
-[package]
-name    = "auto_breaking"      ← nome da crate (identificador Rust)
-version = "0.3.0"              ← versão semântica (v2.0 do bench, v0.3 do pacote)
-edition = "2021"               ← edição do compilador Rust
-
-[dependencies]
-eframe    = { version = "0.29" }  ← framework de janela desktop (wraps egui + OS)
-egui_plot = "0.29"                ← gráficos em tempo real (tab Plots)
-chrono    = "0.4"                 ← datas/horas (timestamps, NVM date)
-serde     = { version = "1.0", features = ["derive"] }  ← serialização
-serde_json = "1.0"                ← formato JSON
-
-# Dependências removidas:
-# crossterm — foi a UI de terminal da v1.0, substituída pelo egui (GUI desktop)
-</pre>
-
-<h3>Módulos Rust — 32 arquivos .rs</h3>
-<table>
-  <tr><th>Arquivo</th><th>Linhas (aprox.)</th><th>Propósito</th></tr>
-  <tr><td><code>j1939.rs</code></td><td>~500</td><td>Protocol stack completo: frames, PGNs, SPNs, DTCs, TP</td></tr>
-  <tr><td><code>can_gateway.rs</code></td><td>~400</td><td>ISO 11898-1: TEC/REC, bus-off, arbitração</td></tr>
-  <tr><td><code>can_network.rs</code></td><td>~650</td><td>⭐ NOVO: 6 buses, TP BAM/CMDT, scheduling matrix</td></tr>
-  <tr><td><code>boot_sequence.rs</code></td><td>~400</td><td>Key-on sequence, address claiming, safety interlocks</td></tr>
-  <tr><td><code>ecu_ecm.rs</code></td><td>~600</td><td>ECM Tier4/Stage V: CRDI, VGT, DPF, SCR, governador</td></tr>
-  <tr><td><code>ecu_tcm.rs</code></td><td>~500</td><td>TCM Powershift 16F/16R + IVT, clutch 3 fases</td></tr>
-  <tr><td><code>ecu_bcm.rs</code></td><td>~220</td><td>BCM: luzes, fusíveis, bateria, limpadores</td></tr>
-  <tr><td><code>ecu_icm.rs</code></td><td>~350</td><td>ICM: gauges, lâmpadas, trip computer, self-test</td></tr>
-  <tr><td><code>ecu_hcm.rs</code></td><td>~400</td><td>HCM: load-sensing pump, hitch, 4 aux valves</td></tr>
-  <tr><td><code>ecu_abs.rs</code></td><td>~450</td><td>ABS/ESP/TCS: ciclo 10Hz, yaw-rate, hill hold</td></tr>
-  <tr><td><code>ecu_vcm.rs</code></td><td>~350</td><td>⭐ NOVO: VCM/Gateway, torque coord, power distribution</td></tr>
-  <tr><td><code>uds.rs</code></td><td>~500</td><td>UDS ISO 14229: seed/key, DID, freeze frame, download</td></tr>
-  <tr><td><code>network_mgmt.rs</code></td><td>~300</td><td>OSEK NM: sleep/wake coordenado</td></tr>
-  <tr><td><code>nvm.rs</code></td><td>~350</td><td>EEPROM: wear levelling, adaptações, DTC persistence</td></tr>
-  <tr><td><code>implement.rs</code></td><td>~500</td><td>ISOBUS: PTO, hitch 3 pontos, aux valves, loader</td></tr>
-  <tr><td><code>gps.rs</code></td><td>~350</td><td>⭐ NOVO: GNSS com NMEA real, constelação, RTK</td></tr>
-  <tr><td><code>imu.rs</code></td><td>~250</td><td>⭐ NOVO: IMU 9-DOF, Madgwick AHRS, quaternion</td></tr>
-  <tr><td><code>radar.rs</code></td><td>~400</td><td>⭐ NOVO: 77GHz 6 sensores, Kalman tracking, TTC</td></tr>
-  <tr><td><code>lidar.rs</code></td><td>~350</td><td>⭐ NOVO: VLP-16, ray casting, occupancy grid</td></tr>
-  <tr><td><code>camera.rs</code></td><td>~450</td><td>⭐ NOVO: Lane detection, YOLO objects, TSR, fusion</td></tr>
-  <tr><td><code>autonomous.rs</code></td><td>~400</td><td>⭐ NOVO: ACC/AEB/LKA/TJA, SAE L2/L3, ISO 26262</td></tr>
-  <tr><td><code>v2x_telematics.rs</code></td><td>~500</td><td>⭐ NOVO: SAE J2735 BSM, SPaT, 4G/5G, OTA, geofencing</td></tr>
-  <tr><td><code>lib.rs</code></td><td>~500</td><td>Orquestrador HeavyMachinery, tick() 17 passos</td></tr>
-  <tr><td><code>main.rs</code></td><td>~1700</td><td>GUI egui: 12 abas, snapshots, deferred mutations</td></tr>
-  <tr><td><code>widgets.rs</code></td><td>~250</td><td>arc_gauge, bar_gauge, warning_lamp, direction_selector</td></tr>
-  <tr><td colspan="2"><em>+ 7 módulos legacy (vehicle, engine, transmission, chassis, sensors, adas, can_bus)</em></td><td>~1000 total</td></tr>
-  <tr><td><strong>TOTAL</strong></td><td><strong>~15.000</strong></td><td>linhas de Rust funcional</td></tr>
-</table>
-
-<!-- ═══════════════════════ 3. J1939.RS ═════════════════════════════════== -->
-<div class="page-break"></div>
-<div class="module-header">
-  <h2 id="j1939">3. j1939.rs — Protocol Stack J1939/CAN</h2>
-  <p>Fundação do sistema. Codifica/decodifica frames CAN de 29 bits segundo SAE J1939 / ISO 11783.</p>
-</div>
-
-<h3>3.1 Estrutura do CAN ID de 29 bits</h3>
-<div class="info-box">
-O J1939 usa CAN 2.0B com identificadores estendidos de 29 bits. Cada bit tem um significado preciso:
-</div>
-<pre>
-Bits: [28:26] [25] [24] [23:16] [15:8]      [7:0]
-       PRI    RES  DP    PF      PS           SA
-       3bits  1b   1b   8bits   8bits        8bits
-
-PRI = Prioridade (0=mais alta, 7=mais baixa)
-RES = Reservado (sempre 0)
-DP  = Data Page (0 ou 1 — seleciona banco de PGNs)
-PF  = PDU Format:
-      PF &lt; 0xF0 → PDU1 (peer-to-peer):  PS = Destino (DA)
-      PF ≥ 0xF0 → PDU2 (broadcast):     PS = Group Extension (parte do PGN)
-SA  = Source Address (endereço do remetente, 0x00-0xFD)
-</pre>
-
-<h3>3.2 Módulo <code>addr</code> — Endereços de Fonte</h3>
-<pre>
-pub mod addr {
-    pub const ECM_1:        u8 = 0x00; // Motor #1 — reservado SAE J1939
-    pub const ECM_2:        u8 = 0x01; // Motor #2 (máquinas com motor duplo)
-    pub const TURBOCHARGER: u8 = 0x02; // Turbocompressor eletrônico
-    pub const TRANSMISSION: u8 = 0x03; // TCM (Transmission Control Module)
-    pub const BRAKES:       u8 = 0x0B; // ABS/EBS (Electronic Brake System)
-    pub const TASK_CTRL:    u8 = 0x0D; // ISOBUS Task Controller (precision farming)
-    pub const IMPLEMENT:    u8 = 0x25; // Implemento ISOBUS (arado, plantadeira...)
-    pub const ISOBUS_VT:    u8 = 0x26; // Virtual Terminal ISOBUS (display)
-    pub const CAB:          u8 = 0x27; // BCM — Body Control Module da cabine
-    pub const ARMREST:      u8 = 0x28; // Joystick / controle do apoio de braço
-    pub const INSTRUMENT:   u8 = 0x1C; // Cluster / painel de instrumentos
-    pub const HITCH:        u8 = 0x1E; // HCM — Hydraulic Control Module
-    pub const NULL:         u8 = 0xFE; // Endereço nulo (durante address claiming)
-    pub const BROADCAST:    u8 = 0xFF; // Broadcast — todos os nós recebem
-}
-</pre>
-
-<div class="line-comment">
-<strong>Por que endereços fixos?</strong> O J1939 define endereços fixos para tipos comuns de ECU na especificação SAE J1939-71. Isso permite interoperabilidade entre fabricantes diferentes. Um display de outro fabricante pode se comunicar com o ECM porque ambos conhecem o endereço <code>0x00</code> como "motor #1".
-</div>
-
-<h3>3.3 Módulo <code>pgn</code> — Parameter Group Numbers</h3>
-<p>Um PGN é um número que identifica o <em>tipo</em> da mensagem CAN. Cada PGN carrega um conjunto específico de parâmetros (SPNs):</p>
-
-<table>
-  <tr><th>Constante</th><th>Valor</th><th>Nome</th><th>Conteúdo principal</th><th>Período TX</th></tr>
-  <tr><td><code>EEC1</code></td><td>61444</td><td>Electronic Engine Control 1</td><td>RPM do motor, torque atual</td><td>10 ms</td></tr>
-  <tr><td><code>EEC2</code></td><td>61445</td><td>Electronic Engine Control 2</td><td>Posição do acelerador, carga</td><td>50 ms</td></tr>
-  <tr><td><code>ET1</code></td><td>65262</td><td>Engine Temperature 1</td><td>Temperatura do líquido de arrefecimento, óleo</td><td>1000 ms</td></tr>
-  <tr><td><code>EFL_P1</code></td><td>65263</td><td>Engine Fluid Level/Pressure 1</td><td>Pressão do óleo, pressão do combustível</td><td>500 ms</td></tr>
-  <tr><td><code>IC1</code></td><td>65270</td><td>Inlet/Exhaust Conditions 1</td><td>Pressão de boost, temperatura de admissão, escape</td><td>500 ms</td></tr>
-  <tr><td><code>LFE</code></td><td>65266</td><td>Fuel Economy</td><td>Taxa de consumo de combustível, economia instantânea</td><td>100 ms</td></tr>
-  <tr><td><code>DM1</code></td><td>65226</td><td>Diagnostic Message 1</td><td>Códigos de falha ativos (DTCs), lâmpadas de alerta</td><td>1000 ms ou em mudança</td></tr>
-  <tr><td><code>ETC1</code></td><td>61442</td><td>Electronic Transmission Ctrl 1</td><td>RPM do eixo de saída, engrenagem atual</td><td>20 ms</td></tr>
-  <tr><td><code>PTO</code></td><td>65093</td><td>Power Take-Off</td><td>Estado e RPM da TDP</td><td>100 ms</td></tr>
-  <tr><td><code>ECAN</code></td><td>60928</td><td>Address Claim</td><td>NAME de 64 bits do ECU durante o boot</td><td>Na inicialização</td></tr>
-</table>
-
-<h3>3.4 Estrutura <code>SpnDef</code> — Definição de SPN</h3>
-<pre>
-pub struct SpnDef {
-    pub spn:         u32,   // Número único global do parâmetro (ex: 190 = Engine Speed)
-    pub name:        &amp;'static str, // Nome legível ("Engine Speed", "Coolant Temp"...)
-    pub byte_offset: usize, // Posição inicial dentro dos 8 bytes de payload
-    pub bit_offset:  u8,    // Bit de início dentro do byte (LSB = 0)
-    pub bit_length:  u8,    // Comprimento em bits (1-32 tipicamente)
-    pub factor:      f64,   // Multiplicador: valor_físico = raw × factor + offset
-    pub offset:      f64,   // Offset: ex: -40.0 para temperatura
-    pub unit:        &amp;'static str, // Unidade de engenharia: "rpm", "°C", "kPa"...
-}
-</pre>
-
-<div class="line-comment">
-<strong>Exemplo prático — SPN 190 (Engine Speed):</strong><br>
-<code>byte_offset=3, bit_offset=0, bit_length=16, factor=0.125, offset=0.0, unit="rpm"</code><br>
-Se os bytes 3-4 do frame EEC1 contém <code>0x20 0x44</code> (LE → 0x4420 = 17440 decimal):<br>
-<strong>RPM = 17440 × 0.125 = 2200 rpm</strong>
-</div>
-
-<h3>3.5 Registry estático <code>REGISTRY</code></h3>
-<pre>
-static REGISTRY: &amp;[PgnDef] = &amp;[
-    // Cada entrada define um PGN completo com todos os seus SPNs
-    PgnDef { pgn: 61444, name: "EEC1", desc: "Electronic Engine Control 1",
-             rate_ms: 10,    // transmitido a cada 10 ms
-             spns: &amp;[...] }, // lista de SpnDef para os parâmetros deste PGN
-    ...
-];
-
-pub fn find_pgn(pgn: u32) -&gt; Option&lt;&amp;'static PgnDef&gt; {
-    // Busca linear pelo número do PGN — O(n) mas n é pequeno (~20 PGNs)
-    REGISTRY.iter().find(|p| p.pgn == pgn)
-}
-</pre>
-
-<h3>3.6 Struct <code>J1939Frame</code> — Frame CAN Decodificado</h3>
-<pre>
-pub struct J1939Frame {
-    pub timestamp: f64,      // Tempo da simulação em segundos
-    pub raw_id:    u32,      // CAN ID bruto de 29 bits (ex: 0x0CF00400)
-    pub priority:  u8,       // Prioridade extraída dos bits 28:26 (0-7)
-    pub pgn:       u32,      // PGN calculado a partir do CAN ID
-    pub sa:        u8,       // Source Address (quem enviou)
-    pub da:        u8,       // Destination Address (0xFF = broadcast)
-    pub data:      [u8; 8],  // Payload de 8 bytes (CAN clássico)
-    pub dlc:       u8,       // Data Length Code (0-8, normalmente 8)
-    pub decoded:   Vec&lt;SpnValue&gt;, // SPNs decodificados automaticamente
-}
-</pre>
-
-<h3>3.7 Função <code>J1939Frame::from_raw()</code> — Decodificação</h3>
-<pre>
-pub fn from_raw(ts: f64, raw_id: u32, data: &amp;[u8]) -&gt; Self {
-    // 1. Extrair Priority dos bits 28:26
-    let priority = ((raw_id &gt;&gt; 26) &amp; 0x7) as u8;
-
-    // 2. Extrair Data Page do bit 24
-    let dp = (raw_id &gt;&gt; 24) &amp; 0x1;
-
-    // 3. Extrair PDU Format dos bits 23:16
-    let pf = ((raw_id &gt;&gt; 16) &amp; 0xFF) as u8;
-
-    // 4. Extrair PDU Specific dos bits 15:8
-    let ps = ((raw_id &gt;&gt;  8) &amp; 0xFF) as u8;
-
-    // 5. Extrair Source Address dos bits 7:0
-    let sa = (raw_id &amp; 0xFF) as u8;
-
-    // 6. Calcular PGN conforme tipo PDU:
-    let (pgn, da) = if pf &lt; 0xF0 {
-        // PDU1: peer-to-peer — PS é o Destination Address
-        // PGN NÃO inclui PS (seria diferente para cada destinatário)
-        (((dp &lt;&lt; 17) | ((pf as u32) &lt;&lt; 8)) as u32, ps)
-    } else {
-        // PDU2: broadcast — PS é Group Extension, PARTE do PGN
-        (((dp &lt;&lt; 17) | ((pf as u32) &lt;&lt; 8) | (ps as u32)) as u32, 0xFF)
-    };
-
-    // 7. Inicializar payload com 0xFF ("not available")
-    let mut arr = [0xFFu8; 8];
-    arr[..data.len().min(8)].copy_from_slice(&amp;data[..data.len().min(8)]);
-
-    // 8. Criar frame e decodificar SPNs automaticamente
-    let mut f = J1939Frame { timestamp:ts, raw_id, priority, pgn, sa, da,
-                             data:arr, dlc:data.len() as u8, decoded:Vec::new() };
-    f.decode(); // extrai valores físicos de todos os SPNs conhecidos
-    f
-}
-</pre>
-
-<h3>3.8 Função <code>bits()</code> — Extração de Bits</h3>
-<pre>
-fn bits(data: &amp;[u8], byte_off: usize, bit_off: u8, len: u8) -&gt; u64 {
-    let mut v = 0u64;
-    for i in 0..len as usize {
-        // Posição absoluta do bit no payload
-        let abs = byte_off * 8 + bit_off as usize + i;
-        let b = abs / 8;   // índice do byte
-        let k = abs % 8;   // índice do bit dentro do byte (LSB-first)
-        // Se o bit está em 1, setar o bit i do resultado
-        if b &lt; data.len() &amp;&amp; (data[b] &gt;&gt; k) &amp; 1 == 1 { v |= 1 &lt;&lt; i; }
-    }
-    v
-}
-</pre>
-<div class="line-comment">
-J1939 usa <strong>Little-Endian Byte Order</strong> e <strong>LSB-first bit numbering</strong>. O bit de menor peso (LSB) está no bit 0 do primeiro byte. Esta função implementa exatamente essa convenção.
-</div>
-
-<h3>3.9 Struct <code>Builder</code> — Construtores de Frames</h3>
-<p>Contém funções estáticas que criam frames J1939 prontos para envio:</p>
-
-<table>
-  <tr><th>Função</th><th>Frame gerado</th><th>Parâmetros encodados</th></tr>
-  <tr><td><code>Builder::eec1()</code></td><td>EEC1 (PGN 61444)</td><td>RPM (SPN 190), torques (512, 513)</td></tr>
-  <tr><td><code>Builder::eec2()</code></td><td>EEC2 (PGN 61445)</td><td>Acelerador (SPN 91), carga (SPN 92)</td></tr>
-  <tr><td><code>Builder::et1()</code></td><td>ET1 (PGN 65262)</td><td>Temp. arrefecimento, combustível, óleo</td></tr>
-  <tr><td><code>Builder::efl_p1()</code></td><td>EFL/P1 (PGN 65263)</td><td>Pressão de combustível, nível/pressão de óleo</td></tr>
-  <tr><td><code>Builder::ic1()</code></td><td>IC1 (PGN 65270)</td><td>Boost (SPN 102), temp. admissão, escape</td></tr>
-  <tr><td><code>Builder::lfe()</code></td><td>LFE (PGN 65266)</td><td>Taxa de consumo (SPN 183)</td></tr>
-  <tr><td><code>Builder::pto()</code></td><td>PTO (PGN 65093)</td><td>RPM da TDP, estado de engajamento</td></tr>
-  <tr><td><code>Builder::dm1()</code></td><td>DM1 (PGN 65226)</td><td>Lâmpadas MIL/Amber/Red, SPN+FMI do DTC</td></tr>
-</table>
-
-<h3>3.10 Struct <code>Dtc</code> — Diagnostic Trouble Code</h3>
-<pre>
-pub struct Dtc {
-    pub spn:   u32,          // SPN do parâmetro com defeito (ex: 110 = Coolant Temp)
-    pub fmi:   u8,           // Failure Mode Identifier (0-31):
-                             //   FMI 0 = acima do normal (mais severo)
-                             //   FMI 1 = abaixo do normal (mais severo)
-                             //   FMI 3 = tensão alta / curto para +
-                             //   FMI 4 = tensão baixa / curto para -
-                             //   FMI 9 = taxa de atualização anormal (timeout CAN)
-    pub count: u8,           // Número de ocorrências (0-126)
-    pub active:bool,         // true = falha ativa agora
-    pub desc:  &amp;'static str, // Descrição legível (para display no UDS/ICM)
-    pub severity: DtcSeverity, // Qual lâmpada acende: Red, Amber, MIL ou Protect
-}
-</pre>
-
-<h3>3.11 Enum <code>DtcSeverity</code> — Gravidade da Falha</h3>
-<pre>
-pub enum DtcSeverity {
-    Protect, // Lâmpada PROTECT (azul) — proteger o motor, reduzir carga
-    Amber,   // Lâmpada AMBER (amarela) — atenção, verificar em breve
-    Red,     // Lâmpada RED STOP (vermelha) — parar imediatamente!
-    Mil,     // Lâmpada MIL (amarela, check) — emissões comprometidas
-}
-</pre>
-
-<h3>3.12 Struct <code>J1939Bus</code> — Buffer do Barramento</h3>
-<pre>
-pub struct J1939Bus {
-    pub frames: VecDeque&lt;J1939Frame&gt;, // Ring buffer dos últimos 200 frames
-    pub total_frames: u64,             // Contador total desde o início
-    pub fps: u32,                      // Frames/segundo (calculado a cada 1s)
-    pub bus_load_pct: f64,             // Carga do barramento em %
-    // campos privados: frame_count, frame_timer, filter_pgn, filter_sa
-}
-</pre>
-
-<!-- ═══════════════════════ 4. CAN_GATEWAY.RS ════════════════════════════= -->
-<div class="page-break"></div>
-<div class="module-header">
-  <h2 id="can_gateway">4. can_gateway.rs — Barramento CAN Central</h2>
-  <p>Simula o barramento físico CAN HS 500 kbps com arbitração, contadores de erro ISO 11898 e injeção de falhas.</p>
-</div>
-
-<h3>4.1 Enum <code>BusState</code> — Estado do Barramento</h3>
-<pre>
-pub enum BusState {
-    ErrorActive,   // TEC &lt; 128 E REC &lt; 128 → operação normal
-    ErrorPassive,  // TEC ≥ 128 OU REC ≥ 128 → envia "passive error flags"
-    BusOff,        // TEC ≥ 256 → nó desconecta do barramento!
-}
-</pre>
-<div class="info-box">
-<strong>ISO 11898-1 Error Confinement:</strong><br>
-Cada nó mantém dois contadores: TEC (transmit) e REC (receive).<br>
-• Erro de transmissão: TEC += 8<br>
-• Erro de recepção: REC += 1<br>
-• Frame bem-sucedido: TEC -= 1, REC -= 1<br>
-Quando TEC ≥ 256, o nó vai para BusOff e para de transmitir — proteção automática do barramento.
-</div>
-
-<h3>4.2 Struct <code>CanNode</code> — Nó Registrado</h3>
-<pre>
-pub struct CanNode {
-    pub source_addr: u8,   // SA (Source Address) do ECU
-    pub name: &amp;'static str,// Nome legível ("ECM #1", "TCM"...)
-    pub tec: u16,          // Transmit Error Counter (0-255+)
-    pub rec: u16,          // Receive Error Counter
-    pub state: BusState,   // Estado atual do nó
-    pub online: bool,      // true após address claim bem-sucedido
-    pub last_tx_ts: f64,   // Timestamp do último frame transmitido
-}
-</pre>
-
-<h3>4.3 Struct <code>CanGateway</code> — Gateway Principal</h3>
-<pre>
-pub struct CanGateway {
-    pub bus: J1939Bus,              // Buffer de frames para análise
-    tx_queue: Vec&lt;J1939Frame&gt;,     // Fila de frames aguardando transmissão
-    pub dispatched: Vec&lt;J1939Frame&gt;,// Frames do ciclo atual — visíveis a todos ECUs
-    pub nodes: Vec&lt;CanNode&gt;,        // ECUs registrados no barramento
-    pub total_tx: u64,              // Total de frames transmitidos
-    pub total_errors: u64,          // Total de erros de barramento
-    pub bus_state: BusState,        // Estado atual do barramento
-    pub error_log: VecDeque&lt;BusError&gt;, // Log dos últimos 64 erros
-    pub bus_load_pct: f64,          // Carga em %: frames/s ÷ 4166 × 100
-    // campos de injeção de falha:
-    pub inject_bit_error: bool,     // Corrompe 1 frame a cada 100
-    pub inject_bus_off: bool,       // Força estado BusOff imediatamente
-    pub inject_missing_ack: bool,   // Simula nó sem ACK a cada 50 frames
-}
-</pre>
-
-<h3>4.4 Método <code>transmit()</code> — Enfileirar Frame</h3>
-<pre>
-pub fn transmit(&amp;mut self, frame: J1939Frame) {
-    self.tx_queue.push(frame); // Adiciona à fila — será processado em tick()
-}
-</pre>
-
-<h3>4.5 Método <code>tick()</code> — Arbitração e Despacho</h3>
-<pre>
-pub fn tick(&amp;mut self, dt: f64) {
-    // 1. Verificar injeção de falhas
-    if self.inject_bus_off { self.bus_state = BusState::BusOff; }
-
-    // 2. ARBITRAÇÃO: ordenar por CAN ID (menor ID = maior prioridade)
-    self.tx_queue.sort_by_key(|f| f.raw_id);
-    // Isso replica a arbitração bitwise real do CAN:
-    // nós com ID menor "vencem" automaticamente sem destruir o frame
-
-    self.dispatched.clear();
-
-    let frames: Vec&lt;J1939Frame&gt; = self.tx_queue.drain(..).collect();
-    for frame in frames {
-        // 3. Aplicar injeção de falha (descarta frame ocasionalmente)
-        if self.inject_bit_error &amp;&amp; self.total_tx % 100 == 0 { continue; }
-        if self.inject_missing_ack &amp;&amp; self.total_tx % 50 == 0 {
-            // Nó registra erro de transmissão
-            if let Some(n) = self.nodes.iter_mut().find(|n| n.source_addr == frame.sa) {
-                n.record_tx_error(); // TEC += 8
-            }
-            continue;
-        }
-
-        // 4. Atualizar estatísticas do nó transmissor
-        if let Some(n) = self.nodes.iter_mut().find(|n| n.source_addr == frame.sa) {
-            n.last_tx_ts = frame.timestamp;
-            n.record_success(); // TEC -= 1
-        }
-
-        // 5. Armazenar no log para análise e no buffer de despacho
-        self.bus.push(frame.clone());    // para o CAN Monitor
-        self.dispatched.push(frame);      // para os ECUs lerem no próximo tick
-        self.total_tx += 1;
-    }
-
-    // 6. Calcular carga do barramento (amostrado a cada segundo)
-    // 500 kbps, ~120 bits/frame → máx ~4166 frames/s
-}
-</pre>
-
-<h3>4.6 Método <code>receive_for()</code> — Filtro por Destinatário</h3>
-<pre>
-pub fn receive_for(&amp;self, sa: u8) -&gt; impl Iterator&lt;Item = &amp;J1939Frame&gt; {
-    // Retorna apenas frames que este ECU deve processar:
-    // 1. Frames broadcast (DA = 0xFF) de qualquer SA diferente do próprio
-    // 2. Frames peer-to-peer endereçados especificamente para este SA
-    self.dispatched.iter().filter(move |f| {
-        f.sa != sa &amp;&amp; (f.da == 0xFF || f.da == sa)
-    })
-}
-</pre>
-
-<!-- ═══════════════════════ 5. BOOT_SEQUENCE.RS ══════════════════════════= -->
-<div class="page-break"></div>
-<div class="module-header">
-  <h2 id="boot">5. boot_sequence.rs — Sequência de Boot</h2>
-  <p>Simula toda a inicialização desde o giro da chave até o funcionamento pleno, incluindo Address Claiming J1939-81.</p>
-</div>
-
-<h3>5.1 Enum <code>IgnitionState</code> — Estado da Chave</h3>
-<pre>
-pub enum IgnitionState {
-    Off,        // Chave removida — sem alimentação nos ECUs
-    Accessory,  // ACC — BCM e display recebem energia
-    On,         // Posição ON — todos ECUs ligam, auto-diagnóstico
-    Cranking,   // Posição START (momentânea) — motor de arranque ativo
-    Running,    // Motor funcionando (>400 RPM detectado)
-}
-</pre>
-
-<h3>5.2 Enum <code>EcuBootStage</code> — Estágio de Boot por ECU</h3>
-<pre>
-pub enum EcuBootStage {
-    Unpowered,           // Sem energia
-    HardwareInit,        // ~50 ms: teste de RAM, CRC da ROM, watchdog
-    LoadingCalibration,  // ~80 ms: leitura de parâmetros da EEPROM/NVM
-    AddressClaiming,     // Enviando NAME, aguardando 250 ms (J1939-81 §4.2)
-    Handshaking,         // ~150 ms: confirmando presença de outros ECUs
-    PreOperational,      // ~200 ms: verificação de sensores, atuadores
-    Running,             // Operacional — envia heartbeats J1939
-    Fault,               // Falha irrecuperável no boot
-}
-</pre>
-
-<div class="info-box">
-<strong>Address Claiming — J1939-81:</strong><br>
-1. ECU transmite frame PGN 60928 com SA=0xFE e dados = NAME (64 bits único)<br>
-2. Aguarda 250 ms monitorando o barramento por conflitos<br>
-3. Se outro nó reivindicar o mesmo SA: NAME menor (numericamente) vence<br>
-4. Perdedor tenta SA alternativo ou fica em SA=0xFE (null) — sem comunicação<br>
-5. Vencedor retransmite o Address Claim confirmando posse do SA
-</div>
-
-<h3>5.3 Struct <code>BootSequence</code> — Gerenciador do Boot</h3>
-<pre>
-pub struct BootSequence {
-    pub ignition: IgnitionState,
-    pub ecus: Vec&lt;EcuBootRecord&gt;,      // Um registro por ECU
-    pub event_log: Vec&lt;BootEvent&gt;,     // Log cronológico de todos os eventos
-    pub safety_interlocks: Vec&lt;SafetyInterlock&gt;, // Trava de segurança
-    pub all_critical_online: bool,     // ECM + TCM online?
-    pub crank_inhibited: bool,         // true = não permite cranking
-    pub crank_inhibit_reason: Option&lt;&amp;'static str&gt;, // Qual interlock bloqueou?
-    pub engine_running: bool,          // Sinalizado pelo ECM quando RPM &gt; 400
-    pub elapsed: f64,                  // Tempo de simulação
-}
-</pre>
-
-<h3>5.4 Safety Interlocks</h3>
-<pre>
-// Exemplos de interlocks criados em new():
-SafetyInterlock {
-    id: "TRANS_NEUTRAL",           // Identificador
-    description: "Transmission in neutral/park",
-    satisfied: false,              // Estado atual
-    blocks_start: true,            // Se false → não bloqueia a partida
-}
-// Outros interlocks: PARK_BRAKE, SEAT_OCCUPIED, DOOR_CLOSED, PTO_OFF...
-</pre>
-<div class="line-comment">
-Em uma máquina real, o ECM verifica esses interlocks antes de permitir que o starter motor seja acionado. Isso previne partida com câmbio em marcha, operador fora do assento, etc.
-</div>
-
-<h3>5.5 Método <code>tick()</code> — Máquina de Estado do Boot</h3>
-<p>Para cada ECU, a progressão de estágios é cronometrada com timers:</p>
-<pre>
-HardwareInit    → (50 ms) → LoadingCalibration
-LoadingCalibration → (80 ms) → AddressClaiming  [envia AC frame]
-AddressClaiming → (250 ms) → Handshaking        [sem conflitos = OK]
-Handshaking     → (150 ms) → PreOperational
-PreOperational  → (200 ms) → Running            [ECU está online]
-                                   ↓
-                    Total: ~730 ms desde ligação até operacional
-</pre>
-
-<!-- ═══════════════════════ 6. ECU_ECM.RS ═══════════════════════════════= -->
-<div class="page-break"></div>
-<div class="module-header">
-  <h2 id="ecm">6. ecu_ecm.rs — Engine Control Module (ECM)</h2>
-  <p>Motor diesel Tier 4 Final / Stage V, 6 cilindros, 220 kW / 1050 Nm, com CRDI, VGT, EGR, DPF e SCR.</p>
-</div>
-
-<h3>6.1 Constantes do Motor</h3>
-<pre>
-const IDLE_RPM:            f64 = 800.0;  // Marcha lenta normal
-const LO_IDLE_RPM:         f64 = 700.0;  // Marcha lenta baixa (poupança)
-const HI_IDLE_RPM:         f64 = 2300.0; // Rotação máxima em modo L/H
-const RATED_RPM:           f64 = 2200.0; // RPM nominal (plena carga)
-const MAX_RPM:             f64 = 2600.0; // Máximo absoluto (além do governador)
-const PEAK_TORQUE_NM:      f64 = 1050.0; // Torque de pico (platô turbo)
-const PEAK_TORQUE_RPM:     f64 = 1400.0; // RPM onde o torque é máximo
-const ENGINE_INERTIA_KGM2: f64 = 3.2;   // Inércia do motor (volante + eixo)
-const FUEL_TANK_L:         f64 = 200.0;  // Tanque de 200 litros
-const DEF_TANK_L:          f64 = 25.0;   // Tanque de DEF/AdBlue de 25 L
-const DPF_REGEN_SOOT:      f64 = 75.0;   // % de fuligem que dispara regeneração
-</pre>
-
-<h3>6.2 Enum <code>GovernorMode</code> — Modo do Governador</h3>
-<pre>
-pub enum GovernorMode {
-    LowHighIdle, // Switch on/off: só duas velocidades (baixa ou alta)
-                 // Uso: trabalho com TDP onde RPM fixo é crítico
-    AllSpeed,    // Isocrônico: mantém RPM definido sob qualquer carga
-                 // O governador compensa variações de carga automaticamente
-    Droop,       // Queda proporcional: RPM cai ~100 rpm em plena carga
-                 // Melhor estabilidade quando múltiplas fontes de carga
-}
-</pre>
-
-<h3>6.3 Curva de Torque do Motor</h3>
-<pre>
-pub fn torque_at_rpm(&amp;self, rpm: f64, throttle: f64) -&gt; f64 {
-    // Normaliza throttle para 0-1
-    let t = throttle / 100.0;
-
-    // Multiplicador do mapa de combustível
-    let fuel_mult = match self.fuel_map {
-        FuelMap::Economy  =&gt; 0.88,  // -12% de potência, -15% de consumo
-        FuelMap::Standard =&gt; 1.00,  // Padrão de fábrica
-        FuelMap::Power    =&gt; 1.08,  // +8% de potência, +10% de consumo
-    };
-
-    // Formato da curva de torque diesel com turbo:
-    let shape = if rpm &lt; 800.0 { 0.0 }        // Antes da marcha lenta
-           else if rpm &lt; 1400.0 {              // Rampa de subida
-               0.65 + 0.35 * (rpm - 800.0) / (1400.0 - 800.0)
-           }
-           else if rpm &lt;= 2100.0 { 0.95.. }   // PLATÔ de torque (característica turbo)
-           else { 0.95 - ... };                // Queda acima do RPM nominal
-
-    PEAK_TORQUE_NM * shape * t * fuel_mult
-    // RPM 1400-2100: platô plano — aqui o diesel turbo é mais eficiente
-}
-</pre>
-
-<h3>6.4 Método <code>tick()</code> — Loop Principal do ECM</h3>
-<pre>
-pub fn tick(&amp;mut self, throttle_pct: f64, load_nm: f64, dt: f64) -&gt; Vec&lt;J1939Frame&gt; {
-
-    // ─ PASSO 1: Governador ─────────────────────────────────────────────────
-    // Converte posição do acelerador em RPM alvo
-    let throttle_demand_rpm = IDLE_RPM + (throttle / 100.0) * (rpm_limit - IDLE_RPM);
-    let target_rpm = match governor_mode {
-        AllSpeed =&gt; throttle_demand_rpm,
-        Droop    =&gt; throttle_demand_rpm - (load_nm / PEAK_TORQUE_NM) * 100.0,
-        // Em modo Droop: quanto maior a carga, mais o RPM cai
-    };
-
-    // ─ PASSO 2: Dinâmica do Motor (PI controller) ──────────────────────────
-    let available_torque = self.torque_at_rpm(self.rpm, throttle);
-    let net_torque = available_torque - load_nm;  // torque disponível - carga
-    // a = torque / inércia → variação de RPM
-    let rpm_accel = (net_torque / ENGINE_INERTIA_KGM2) * (60.0 / (2.0 * PI));
-    // Integral do erro de RPM para eliminar offset estático
-    self.rpm_error_integral += (target_rpm - self.rpm) * dt;
-    self.rpm += (rpm_accel + governador_correction) * dt;
-    self.rpm = self.rpm.clamp(0.0, MAX_RPM);
-
-    // ─ PASSO 3: Pressão do Rail (CRDI) ────────────────────────────────────
-    // Common Rail: pressão varia de 300 a 2000 bar conforme RPM e carga
-    self.fuel_rail_pressure_mpa = 30.0 + rpm_norm * (throttle / 100.0) * 170.0;
-
-    // ─ PASSO 4: Consumo de Combustível ────────────────────────────────────
-    let power_kw = torque * rpm * PI / 30000.0;
-    // BSFC (Brake Specific Fuel Consumption) ~210 g/kWh no ponto ótimo
-    self.fuel_rate_lph = (power_kw * bsfc / 840.0 / 1000.0 * 3_600_000.0).max(1.5);
-
-    // ─ PASSO 5: Modelo Térmico ────────────────────────────────────────────
-    // Arrefecimento: aquece com carga, esfria gradualmente
-    let tgt_coolant = 88.0 + load_heat * 6.0;
-    self.coolant_temp_c += (tgt_coolant - self.coolant_temp_c) * dt * 0.015;
-    self.oil_temp_c = self.coolant_temp_c + 12.0; // óleo ~12°C mais quente
-
-    // ─ PASSO 6: Pós-Tratamento (DPF/SCR/EGR) ─────────────────────────────
-    self.update_aftertreatment(dt);
-
-    // ─ PASSO 7: Diagnóstico → Gera DTCs ──────────────────────────────────
-    self.run_diagnostics();
-
-    // ─ PASSO 8: Transmissão J1939 periódica ───────────────────────────────
-    // EEC1 a cada 10ms, ET1 a cada 1s, etc.
-    let mut frames = Vec::new();
-    if self.t_eec1 &gt;= 0.010 { frames.push(Builder::eec1(...)); }
-    if self.t_et1  &gt;= 1.000 { frames.push(Builder::et1(...));  }
-    // ...
-    frames
-}
-</pre>
-
-<h3>6.5 Pós-Tratamento (Aftertreatment)</h3>
-<pre>
-fn update_aftertreatment(&amp;mut self, dt: f64) {
-    // DPF soot: acumula com carga, queima durante regeneração ativa
-    if self.aftertreatment == DpfRegen {
-        self.dpf_soot_pct -= 3.0 * dt; // queima ~3% por segundo
-    } else {
-        self.dpf_soot_pct += 0.0008 * load_factor * dt; // acúmulo normal
-    }
-
-    // Consumo de DEF: ~4% do volume de diesel
-    self.def_level_pct -= fuel_rate_lph * 0.04 * dt / DEF_TANK_L * 100.0;
-
-    // Eficiência do SCR (redução catalítica seletiva de NOx)
-    self.scr_efficiency_pct = if self.def_level_pct &gt; 5.0 &amp;&amp; temp_ok {
-        94.0 + load * 3.0  // &gt;94% de eficiência em condições normais
-    } else if self.def_level_pct &gt; 2.0 {
-        40.0               // DEF baixo: eficiência degradada
-    } else {
-        5.0                // Praticamente sem DEF = NOx alto = derate!
-    };
-
-    // NOx no escape (antes × eficiência do SCR)
-    self.nox_tailpipe_ppm = self.nox_raw_ppm * (1.0 - self.scr_efficiency_pct / 100.0);
-
-    // Transições de estado do aftertreatment
-    if self.dpf_soot_pct &gt; 75.0 &amp;&amp; !self.regen_inhibited {
-        self.aftertreatment = AftertreatmentState::DpfRegen; // regenerar!
-    } else if self.def_level_pct &lt; 2.0 {
-        self.aftertreatment = AftertreatmentState::Derating; // derate!
-    }
-}
-</pre>
-
-<h3>6.6 Diagnóstico Automático</h3>
-<pre>
-fn run_diagnostics(&amp;mut self) {
-    // SPN 110, FMI 0 — Temperatura do arrefecimento acima do normal (crítico)
-    if self.coolant_temp_c &gt; 107.0 {
-        self.add_dtc(110, 0, DtcSeverity::Red, "Coolant temp — Red Stop");
-        self.red_lamp = true; // Lâmpada vermelha = PARAR IMEDIATAMENTE
-    }
-
-    // SPN 100, FMI 1 — Pressão do óleo abaixo do normal (crítico)
-    if self.rpm &gt; 600.0 &amp;&amp; self.oil_pressure_kpa &lt; 80.0 {
-        self.add_dtc(100, 1, DtcSeverity::Red, "Oil pressure — Red Stop");
-    }
-
-    // SPN 3361, FMI 1 — Nível DEF crítico → derate de potência
-    if self.def_level_pct &lt; 2.0 {
-        self.add_dtc(3361, 1, DtcSeverity::Red, "DEF critical — 60% power derate");
-        self.rpm_limit = RATED_RPM * 0.60; // Limita RPM a 60%!
-    }
-
-    // SPN 3251, FMI 16 — DPF com fuligem alta (atenção)
-    if self.dpf_soot_pct &gt; 80.0 {
-        self.add_dtc(3251, 16, DtcSeverity::Amber, "DPF soot high — regen required");
-        self.amber_lamp = true;
-    }
-}
-</pre>
-
-<!-- ═══════════════════════ 7. ECU_TCM.RS ═══════════════════════════════= -->
-<div class="page-break"></div>
-<div class="module-header">
-  <h2 id="tcm">7. ecu_tcm.rs — Transmission Control Module (TCM)</h2>
-  <p>Câmbio Powershift 16F/16R com 4 ranges (A-D), embreagens molhadas e alternativa IVT/CVT.</p>
-</div>
-
-<h3>7.1 Configuração de Marchas (Gear Ratios)</h3>
-<pre>
-// Relações de transmissão para cada range e velocidade:
-// [range][speed 1-4] = relação total (inclui transmissão final ×3.06 + pneu R=0.8m)
-const GEAR_RATIOS: [[f64; 4]; 4] = [
-    [120.0, 85.0, 60.0, 42.0],  // Range A: 0.3–4 km/h (lavoura profunda)
-    [ 32.0, 22.0, 16.0, 11.0],  // Range B: 4–8 km/h (lavoura normal)
-    [  9.0,  6.5,  4.8,  3.5],  // Range C: 8–18 km/h (transporte leve)
-    [  2.8,  2.1,  1.6,  1.2],  // Range D: 18–50 km/h (estrada)
-];
-</pre>
-
-<h3>7.2 Lógica de Auto-Troca</h3>
-<pre>
-fn auto_shift_logic(&amp;mut self, engine_rpm: f64, throttle_pct: f64, _dt: f64) {
-    // RPM de troca varia com o modo:
-    let upshift_rpm = match self.mode {
-        DriveMode::Sport =&gt; 5800.0, // SPORT: troca bem tarde (RPM alto)
-        DriveMode::Eco   =&gt; 2100.0, // ECO: troca cedo (RPM baixo = economia)
-        _                =&gt; 3100.0, // DRIVE: intermediário
-    };
-
-    // Subir marcha: RPM alto E não está com acelerador fundo
-    if engine_rpm &gt; upshift_rpm &amp;&amp; throttle_pct &lt; 95.0 {
-        self.request_upshift();
-    }
-    // Descer marcha: RPM baixo demais (risco de enguiço)
-    else if engine_rpm &lt; 1300.0 &amp;&amp; throttle_pct &gt; 0.1 {
-        self.request_downshift();
-    }
-}
-</pre>
-
-<h3>7.3 Dinâmica da Embreagem</h3>
-<pre>
-fn update_clutch(&amp;mut self, _engine_rpm: f64, torque_nm: f64, dt: f64) {
-    match self.clutch_state {
-        ClutchState::Filling =&gt; {
-            // Fase de enchimento: pistão da embreagem enche com óleo
-            // Duração: 80-150 ms (depende da temperatura — óleo quente = mais rápido)
-            let fill_time = (0.15 - temp_factor).max(0.05);
-            self.clutch_fill_pres += 10.0 / fill_time * dt; // Aumenta até 10 bar
-            if timer &gt;= fill_time { transition to Modulating }
-        }
-        ClutchState::Modulating =&gt; {
-            // Fase de modulação: pressão sobe gradualmente de 10 → 25 bar
-            // Isso permite transição suave sem solavanco
-            self.clutch_fill_pres = 10.0 + ramp * 15.0;
-            self.clutch_slip_pct  = (80.0 * (1.0 - ramp)).max(0.0);
-            // Aquecimento da embreagem pelo deslizamento:
-            self.clutch_temp_c += slip_pct * torque_nm * 0.00005;
-            if timer &gt;= 250ms { transition to Locked }
-        }
-        ClutchState::Locked =&gt; {
-            self.clutch_fill_pres = 25.0; // pressão máxima de hold
-            self.clutch_slip_pct  = 0.0;  // zero deslizamento
-            // Resfriamento gradual da embreagem
-            self.clutch_temp_c = (temp - 5.0 * dt).max(oil_temp);
-        }
-    }
-}
-</pre>
-
-<!-- ═══════════════════════ 8-10. BCM, ICM, HCM ══════════════════════════ -->
-<div class="page-break"></div>
-<div class="module-header">
-  <h2 id="bcm">8. ecu_bcm.rs — Body Control Module</h2>
-  <p>Gerencia toda a parte elétrica da cabine: iluminação, fusíveis, bateria, limpadores, buzina.</p>
-</div>
-
-<h3>8.1 Struct <code>Fuse</code> — Fusível</h3>
-<pre>
-pub struct Fuse {
-    pub id:       &amp;'static str, // Identificador ("WORK_LT_F", "WIPER"...)
-    pub rating_a: f64,           // Amperagem nominal (5A, 10A, 15A, 25A...)
-    pub blown:    bool,          // true = fundido (circuito aberto)
-    pub load_a:   f64,           // Corrente atual passando pelo fusível
-}
-
-pub fn check(&amp;mut self) {
-    // Fusível funde se corrente exceder 115% da nominal
-    if self.load_a &gt; self.rating_a * 1.15 { self.blown = true; }
-}
-</pre>
-
-<h3>8.2 Modelo de Bateria/Alternador</h3>
-<pre>
-// Alternador fornece 80A quando motor acima de 900 RPM
-self.alternator_amps = if alternator_v &gt; 13.5 { 80.0 } else { 0.0 };
-
-// Balanço de corrente: carga elétrica total vs. carga do alternador
-self.battery_current_a = self.alternator_amps - self.total_load_amps;
-//  positivo = carregando, negativo = descarregando
-
-// SoC (State of Charge) da bateria de 88 Ah:
-self.battery_soc_pct += self.battery_current_a * dt / 3600.0 * 100.0 / 88.0;
-
-// Tensão varia com SoC e carga do alternador:
-self.battery_voltage = 11.5 + soc/100.0 * 1.8 + (if alternator_ok { 0.5 } else { 0.0 });
-</pre>
-
-<div class="module-header">
-  <h2 id="icm">9. ecu_icm.rs — Instrument Cluster Module</h2>
-  <p>Recebe dados de todos os ECUs via CAN, atualiza gauges e lâmpadas de alerta. Auto-teste de instrumentos no boot.</p>
-</div>
-
-<h3>9.1 Struct <code>Gauge</code></h3>
-<pre>
-pub struct Gauge {
-    pub name:        &amp;'static str, // "Engine RPM", "Speed", "Coolant Temp"...
-    pub value:       f64,           // Valor atual (atualizado por CAN)
-    pub min:         f64,           // Mínimo da escala
-    pub max:         f64,           // Máximo da escala
-    pub unit:        &amp;'static str, // "rpm", "km/h", "°C", "kPa"...
-    pub warn_hi:     Option&lt;f64&gt;,  // Limiar de alerta superior (None = sem alerta)
-    pub crit_hi:     Option&lt;f64&gt;,  // Limiar crítico superior
-    pub warn_lo:     Option&lt;f64&gt;,  // Limiar de alerta inferior (ex: óleo baixo)
-    pub in_warning:  bool,          // true = na faixa de atenção
-    pub in_critical: bool,          // true = na faixa crítica
-}
-</pre>
-
-<h3>9.2 Processamento de Frames CAN</h3>
-<pre>
-pub fn tick(&amp;mut self, received: &amp;[J1939Frame], dt: f64) -&gt; Vec&lt;J1939Frame&gt; {
-    for frame in received {
-        match frame.pgn {
-            pgn::EEC1 =&gt; {
-                // Extrair RPM (SPN 190) do frame EEC1
-                for v in &amp;frame.decoded {
-                    if v.spn == 190 { self.engine_rpm = v.physical; }
-                    // v.physical já está em RPM (convertido por factor×offset)
-                }
-            }
-            pgn::ET1 =&gt; {
-                for v in &amp;frame.decoded {
-                    if v.spn == 110 { self.coolant_temp = v.physical; }
-                }
-            }
-            pgn::DM1 =&gt; {
-                // Byte 0 contém o estado das lâmpadas:
-                // bits 7-6: MIL, bits 5-4: Red, bits 3-2: Amber
-                let b0 = frame.data[0];
-                self.mil_active   = (b0 &amp; 0x40) != 0;
-                self.red_active   = (b0 &amp; 0x10) != 0;
-                self.amber_active = (b0 &amp; 0x04) != 0;
-            }
-        }
-    }
-}
-</pre>
-
-<div class="module-header">
-  <h2 id="hcm">10. ecu_hcm.rs — Hydraulic Control Module</h2>
-  <p>Controla a bomba hidráulica de pistão axial com load-sensing, 3 atuadores físicos e 4 válvulas auxiliares.</p>
-</div>
-
-<h3>10.1 Bomba Load-Sensing</h3>
-<pre>
-// Load-sensing: a bomba só produz a pressão que o circuito precisa + margem
-// Isso economiza energia e reduz aquecimento do fluido
-
-// Sinal LS = maior pressão entre todos os atuadores ativos
-self.ls_signal_bar = max(pressão_da_colheitadeira, pressão_do_carregador, ...);
-
-// A bomba tenta manter: sistema = LS + 25 bar (margem ΔP do load-sensing)
-let target_sys_pres = (self.ls_signal_bar + 25.0).min(self.relief_pressure_bar);
-
-// Deslocamento varia para atingir a pressão alvo:
-self.pump_actual_cc += (target_disp - self.pump_actual_cc) * dt * 8.0;
-// (Resposta dinâmica: constante de tempo ~125ms)
-</pre>
-
-<h3>10.2 Struct <code>HydActuator</code> — Cilindro Hidráulico</h3>
-<pre>
-pub struct HydActuator {
-    pub bore_mm:      f64,  // Diâmetro do êmbolo (ex: 100mm para engate 3 pontos)
-    pub rod_mm:       f64,  // Diâmetro da haste (ex: 50mm)
-    pub stroke_mm:    f64,  // Curso máximo (ex: 400mm)
-    pub position_mm:  f64,  // Posição atual (0=recolhido, stroke=estendido)
-    pub pres_a_bar:   f64,  // Pressão no lado A (capacete)
-    pub pres_b_bar:   f64,  // Pressão no lado B (haste)
-    pub force_kn:     f64,  // Força resultante: F = P_A × A_A - P_B × A_B
-    pub valve_cmd:    f64,  // Comando da válvula (-1=recolher, 0=hold, +1=estender)
-}
-</pre>
-
-<!-- ═══════════════════════ 11. ECU_ABS.RS ══════════════════════════════= -->
-<div class="page-break"></div>
-<div class="module-header">
-  <h2 id="abs">11. ecu_abs.rs — ABS / ESP / TCS</h2>
-  <p>Sistema de segurança ativa: Anti-lock Braking, Electronic Stability Program, Traction Control.</p>
-</div>
-
-<h3>11.1 Ciclo ABS (10 Hz)</h3>
-<pre>
-// O ABS opera em 3 fases cicladas a ~10 Hz para cada roda individualmente:
-
-fn run_abs(&amp;mut self, dt: f64) {
-    for w in &amp;mut self.wheels {
-        // DETECÇÃO: deslizamento &gt; 20% com velocidade suficiente
-        let slip_exceeded = w.slip_ratio &gt; 0.20 &amp;&amp; v_ref &gt; 5.0;
-
-        if slip_exceeded { w.abs_active = true; w.abs_cycles += 1; }
-
-        if w.abs_active {
-            w.abs_phase += dt * 10.0; // incrementa fase a 10 Hz
-            if w.abs_phase &gt; 1.0 { w.abs_phase -= 1.0; } // reset periódico
-
-            w.valve_state = if w.abs_phase &lt; 0.30 {
-                // DUMP (0-30%): abre válvula de alívio, reduz pressão
-                // Fluido volta ao reservatório, roda acelera de volta
-                w.brake_pres_bar -= 40.0 * dt;
-                AbsValveState::Dump
-            } else if w.abs_phase &lt; 0.55 {
-                // HOLD (30-55%): isola o cilindro, pressão não muda
-                // Roda recupera velocidade sem perder frenagem
-                AbsValveState::Hold
-            } else {
-                // APPLY (55-100%): aplica pressão de volta controladamente
-                w.brake_pres_bar += 60.0 * dt;
-                AbsValveState::Apply
-            };
-
-            // Saída do ABS quando slip se recupera:
-            if w.slip_ratio &lt; 0.05 &amp;&amp; w.speed &gt; v_ref * 0.95 {
-                w.abs_active = false;
-                w.valve_state = AbsValveState::Normal;
-            }
-        }
-    }
-}
-</pre>
-
-<h3>11.2 ESP — Electronic Stability Program</h3>
-<pre>
-fn run_esp(&amp;mut self, speed: f64, steer_deg: f64, yaw_actual: f64, ...) {
-    // MODELO DE BICICLETA: calcula yaw rate desejado para a trajetória
-    // Equação do modelo de bicicleta linear (subesterçado):
-    // yaw_desejado = v × δ / (L × (1 + Kus × v²))
-    // onde: v = velocidade, δ = ângulo de esterço, L = entre-eixos, Kus = gradiente
-    let yaw_desired = v_ms * steer_rad / (2.7 * (1.0 + 0.005 * v_ms * v_ms));
-
-    // ERRO DE YAW: diferença entre o que o veículo faz e o que deveria fazer
-    self.esp_yaw_error = yaw_actual - yaw_desired_degs;
-
-    if self.esp_yaw_error &gt; 8.0 {
-        // SOBREESTERÇAMENTO: traseira escorrega para fora
-        // Correção: freia a roda dianteira externa para empurrar a frente
-        self.esp_condition = EspCondition::Oversteer;
-    } else if self.esp_yaw_error &lt; -8.0 {
-        // SUBESTERÇAMENTO: frente lava para fora
-        // Correção: freia a roda traseira interna
-        self.esp_condition = EspCondition::Understeer;
-    }
-
-    // RISCO DE CAPOTAMENTO: aceleração lateral &gt; 0.8g
-    if lat_g.abs() &gt; 0.8 { self.esp_condition = EspCondition::RolloverRisk; }
-}
-</pre>
-
-<!-- ═══════════════════════ 12. UDS.RS ══════════════════════════════════= -->
-<div class="page-break"></div>
-<div class="module-header">
-  <h2 id="uds">12. uds.rs — UDS ISO 14229 (Diagnóstico Unificado)</h2>
-  <p>Protocolo padrão para diagnóstico de ECUs. Qualquer scanner (CAT ET, Deere SA, Launch) usa UDS.</p>
-</div>
-
-<h3>12.1 Serviços UDS Implementados</h3>
-<table>
-  <tr><th>Código</th><th>Nome</th><th>Função</th></tr>
-  <tr><td><code>0x10</code></td><td>DiagnosticSessionControl</td><td>Muda entre Default / Extended / Programming session</td></tr>
-  <tr><td><code>0x11</code></td><td>ECUReset</td><td>Reinicia o ECU (Hard/Soft/KeyOff)</td></tr>
-  <tr><td><code>0x14</code></td><td>ClearDiagnosticInfo</td><td>Apaga todos os DTCs (requer Extended session)</td></tr>
-  <tr><td><code>0x19</code></td><td>ReadDTCInformation</td><td>Lê DTCs ativos/armazenados/todos</td></tr>
-  <tr><td><code>0x22</code></td><td>ReadDataByIdentifier</td><td>Lê parâmetro por DID (2 bytes): RPM, temperatura, versão SW...</td></tr>
-  <tr><td><code>0x27</code></td><td>SecurityAccess</td><td>Seed/Key: unlock para escrita de calibração</td></tr>
-  <tr><td><code>0x2E</code></td><td>WriteDataByIdentifier</td><td>Escreve calibração (requer security unlock)</td></tr>
-  <tr><td><code>0x31</code></td><td>RoutineControl</td><td>Executa rotinas: regen DPF, teste de injetores, reset adaptações</td></tr>
-  <tr><td><code>0x34</code></td><td>RequestDownload</td><td>Inicia download de firmware/calibração</td></tr>
-  <tr><td><code>0x36</code></td><td>TransferData</td><td>Transfere bloco de dados</td></tr>
-  <tr><td><code>0x37</code></td><td>RequestTransferExit</td><td>Finaliza download</td></tr>
-  <tr><td><code>0x3E</code></td><td>TesterPresent</td><td>Keep-alive: evita timeout da sessão (enviar a cada &lt;5s)</td></tr>
-</table>
-
-<h3>12.2 Sessões e Segurança</h3>
-<pre>
-// SESSÕES:
-DiagSession::Default     // Sub=0x01: sempre disponível, só leitura
-DiagSession::Extended    // Sub=0x02: limpeza de DTCs, escrita, rotinas
-DiagSession::Programming // Sub=0x03: reflash de firmware, NVM total
-
-// AUTENTICAÇÃO (Security Access — Seed/Key):
-// 1. Scanner envia 0x27 0x01 (request seed, sub-function ímpar)
-// 2. ECU gera seed aleatório: self.security_seed = LFSR(old_seed)
-// 3. ECU responde: 0x67 0x01 [seed: 4 bytes]
-// 4. Scanner calcula key = seed XOR 0xDEADBEEF  (simplificado; real usa AES)
-// 5. Scanner envia 0x27 0x02 [key: 4 bytes]
-// 6. ECU compara: se correto → SecurityLevel::Level1 (unlocked)
-// 7. 3 tentativas falhas → lockout 10 segundos
-
-fn svc_security_access(&amp;mut self, req: &amp;[u8], ts: f64) -&gt; Vec&lt;u8&gt; {
-    if req[1] % 2 == 1 {  // sub-function ímpar = request seed
-        self.security_seed = self.security_seed.wrapping_mul(1664525).wrapping_add(1013904223);
-        // Gerador de números pseudo-aleatório (LCG)
-        vec![0x67, req[1], seed_bytes...]
-    } else {               // sub-function par = send key
-        let expected_key = self.security_seed ^ 0xDEADBEEF;
-        if received_key == expected_key {
-            self.security = SecurityLevel::Level1;
-            vec![0x67, req[1]]  // positivo
-        } else {
-            self.security_attempts += 1;
-            if self.security_attempts &gt;= 3 {
-                self.lockout_timer = 10.0; // 10 segundos de lockout!
-                nrc(0x36) // ExceededNumberOfAttempts
-            } else {
-                nrc(0x35) // InvalidKey
-            }
-        }
-    }
-}
-</pre>
-
-<h3>12.3 DIDs (Data Identifiers) Implementados</h3>
-<pre>
-pub mod did {
-    // Identificação do ECU
-    pub const VIN:            u16 = 0xF190; // Vehicle Identification Number (17 chars)
-    pub const SW_VERSION:     u16 = 0xF189; // Versão do software ("SW_01.23.004")
-    pub const CAL_ID:         u16 = 0xF180; // ID do mapa de calibração ativo
-    // Dados em tempo real (range OEM 0xDD00-0xDDFF)
-    pub const ENGINE_RPM:     u16 = 0xDD01; // RPM atual
-    pub const COOLANT_TEMP:   u16 = 0xDD03; // Temperatura do arrefecimento
-    pub const DPF_SOOT:       u16 = 0xDD08; // Carga de fuligem do DPF (%)
-    // Calibrações (escrita requer Security Level 1)
-    pub const IDLE_RPM_CAL:   u16 = 0xCA01; // Setpoint de marcha lenta
-    pub const DPF_REGEN_TH:   u16 = 0xCA05; // Limiar de regeneração do DPF
-    pub const FUEL_MAP_SEL:   u16 = 0xCA07; // Mapa de combustível (0=Std,1=Eco,2=Power)
-}
-</pre>
-
-<!-- ═══════════════════════ 13. NETWORK_MGMT.RS ══════════════════════════ -->
-<div class="page-break"></div>
-<div class="module-header">
-  <h2 id="nm">13. network_mgmt.rs — Network Management (OSEK NM)</h2>
-  <p>Coordena o ciclo de vida dos nós CAN: acordar, operar e dormir coordenadamente.</p>
-</div>
-
-<h3>13.1 Por que Network Management?</h3>
-<p>Em máquinas modernas, alguns ECUs ficam sempre alimentados pela bateria (BCM, relógio). Para economizar energia quando o veículo está desligado, o NM coordena todos os nós para entrar em modo sleep ao mesmo tempo. Se qualquer nó ainda precisar do barramento, o sleep é adiado.</p>
-
-<h3>13.2 Estados do Barramento</h3>
-<pre>
-pub enum BusNmState {
-    Off,           // Todos desligados
-    WakingUp,      // Algum nó está iniciando (100 ms de transição)
-    Active,        // ≥1 nó precisa do barramento — operação normal
-    PrepShutdown,  // Todos os nós pediram sleep — contagem regressiva (2s)
-    Sleep,         // Barramento silencioso — todos em modo low-power
-}
-</pre>
-
-<h3>13.3 Protocolo de Sleep</h3>
-<pre>
-// Cada nó envia frame periódico "ALIVE" enquanto precisa do barramento
-// Quando termina seu trabalho, envia "RING" (ready to sleep)
-// O barramento vai para Sleep somente quando TODOS enviaram RING
-
-fn tick(&amp;mut self, powered_sas: &amp;[u8], dt: f64) {
-    // Verificar timeout de heartbeat por nó
-    for node in &amp;mut self.nodes {
-        let silent_for = self.elapsed - node.last_nm_ts;
-        if node.state == NmState::NormalOperation &amp;&amp; silent_for &gt; 0.5 {
-            // Não recebeu heartbeat por 500ms = nó morto/desconectado
-            node.state = NmState::BusSleep;
-        }
-    }
-
-    // Máquina de estado do barramento:
-    self.bus_state = match self.bus_state {
-        BusNmState::Active =&gt; {
-            if !any_active { PrepShutdown } else { Active }
-        }
-        BusNmState::PrepShutdown =&gt; {
-            self.sleep_timer += dt;
-            if any_active { Active }  // alguém acordou de volta
-            else if self.sleep_timer &gt;= 2.0 { Sleep }  // contagem completa
-            else { PrepShutdown }
-        }
-        _ =&gt; { ... }
-    };
-}
-</pre>
-
-<!-- ═══════════════════════ 14. NVM.RS ════════════════════════════════==== -->
-<div class="page-break"></div>
-<div class="module-header">
-  <h2 id="nvm">14. nvm.rs — Non-Volatile Memory (EEPROM)</h2>
-  <p>Simula a memória persistente de um ECU real: hodômetro, calibrações, DTCs e adaptações sobrevivem ao desligamento.</p>
-</div>
-
-<h3>14.1 Regiões NVM</h3>
-<pre>
-pub enum NvmRegion {
-    Counters,      // Hodômetro, horas de motor — atualizados a cada minuto
-    Calibration,   // Parâmetros — só alterados pela ferramenta de diagnóstico
-    FaultStorage,  // DTCs armazenados — persistem entre ciclos de chave
-    Adaptations,   // Correções aprendidas — fuel trim, embreagem, etc.
-    Identification,// VIN, número de série — escritos na fábrica
-    EventLog,      // Log circular de eventos recentes
-}
-</pre>
-
-<h3>14.2 Wear Levelling</h3>
-<pre>
-pub struct NvmBlock {
-    pub write_count: u32,  // Quantas vezes foi escrito
-    pub max_writes:  u32,  // EEPROM: ~100.000 ciclos, Flash: ~10.000
-    pub dirty:       bool, // true = modificado desde último flush
-}
-
-pub fn wear_pct(&amp;self) -&gt; f64 {
-    self.write_count as f64 / self.max_writes as f64 * 100.0
-}
-// Bloco > 80% worn = alerta de manutenção
-// Bloco = 100% worn = dados podem ser corrompidos!
-</pre>
-
-<h3>14.3 Adaptações Aprendidas</h3>
-<pre>
-pub struct Adaptations {
-    pub fuel_trim_lt_pct: f64,       // Trim de combustível longo prazo (±25%)
-                                     // Corrige desvio dos injetores com envelhecimento
-    pub injector_offset_us: [f64; 6],// Correção individual por cilindro (µs)
-    pub clutch_fill_time_ms: f64,    // Tempo de enchimento da embreagem (ms)
-                                     // Aprendido pelo TCM baseado em qualidade de trocas
-    pub dpf_ash_load_pct: f64,       // Carga de cinzas do DPF (irreversível!)
-                                     // Aumenta com uso — só reduz trocando o filtro
-}
-
-pub fn update_fuel_trim(&amp;mut self, lambda_error_pct: f64, dt: f64) {
-    // Short-term trim responde rápido ao erro imediato
-    self.fuel_trim_st_pct += lambda_error_pct * dt * 0.5;
-    // Long-term trim aprende lentamente o offset sistemático
-    self.fuel_trim_lt_pct += self.fuel_trim_st_pct * dt * 0.01;
-}
-</pre>
-
-<!-- ═══════════════════════ 15. IMPLEMENT.RS ═════════════════════════════ -->
-<div class="page-break"></div>
-<div class="module-header">
-  <h2 id="implement">15. implement.rs — Controle de Implementos (ISOBUS)</h2>
-  <p>TDP (Power Take-Off), engate de 3 pontos, válvulas auxiliares e interface ISOBUS ISO 11783.</p>
-</div>
-
-<h3>15.1 Modos da TDP</h3>
-<pre>
-pub enum PtoMode {
-    Off,          // TDP desengajada
-    Std540,       // 540 RPM a 2100 RPM do motor (padrão)
-    Std1000,      // 1000 RPM a 2100 RPM do motor (alta velocidade)
-    Economy540,   // 540 RPM a 1450 RPM do motor (menor consumo!)
-    Economy1000,  // 1000 RPM a 1700 RPM do motor
-}
-// Em modo Economy: o governador reduz o RPM do motor para atingir
-// a mesma velocidade de TDP com menos combustível
-</pre>
-
-<h3>15.2 Modos do Engate de 3 Pontos</h3>
-<pre>
-pub enum HitchMode {
-    Position, // Posição: o engate segue o setpoint de posição exatamente
-    Draft,    // Tração: sobe/desce para manter força de tiro constante
-              // Muito usado em lavoura para profundidade uniforme
-    Mixed,    // 50% posição + 50% tração: compromisso entre os dois
-    Float,    // Livre: o implemento segue o contorno do solo naturalmente
-}
-</pre>
-
-<h3>15.3 Controle de Tração (Draft Control)</h3>
-<pre>
-fn update_hitch(&amp;mut self, ground_speed_kmh: f64, dt: f64) {
-    // Draft control: PID que ajusta profundidade para manter força constante
-    let pos_error   = self.hitch_target_pct - self.hitch_position_pct;
-    let draft_error = self.hitch_draft_target_kn - self.hitch_draft_force_kn;
-
-    let speed = match self.hitch_control_mode {
-        HitchMode::Position =&gt; pos_error * 6.0,   // Segue posição
-        HitchMode::Draft    =&gt; -draft_error * 3.0, // Se draft &gt; target: sobe engate
-        HitchMode::Mixed    =&gt; pos_error * 3.0 - draft_error * 1.5,
-        HitchMode::Float    =&gt; 0.0,                // Sem controle ativo
-    };
-
-    // Força de tração: depende de profundidade, velocidade, implemento, largura
-    let depth_ratio  = (1.0 - self.hitch_position_pct / 100.0).max(0.0);
-    let speed_factor = (ground_speed_kmh / 8.0).clamp(0.0, 2.0);
-    let implement_k  = match self.implement_attached {
-        Plow       =&gt; 14.0, // arado: alta resistência
-        Disc       =&gt;  9.0, // grade de discos
-        Cultivator =&gt;  5.5, // cultivador
-    };
-    // Modelo físico: força = profundidade × velocidade × k_implemento × largura
-    let target_draft = depth_ratio * speed_factor * implement_k * width_factor;
-}
-</pre>
-
-<!-- ═══════════════════════ 16. LIB.RS ════════════════════════════════== -->
-<div class="page-break"></div>
-<div class="module-header">
-  <h2 id="lib">16. lib.rs — Orquestrador Central (HeavyMachinery)</h2>
-  <p>Coordena todos os ECUs, roteia mensagens CAN, gerencia injeção de falhas e o ciclo de simulação.</p>
-</div>
-
-<h3>16.1 Struct <code>HeavyMachinery</code></h3>
-<pre>
-pub struct HeavyMachinery {
-    // Infraestrutura CAN
-    pub gateway:  CanGateway,      // Barramento físico — árbitro de frames
-    pub boot:     BootSequence,    // Sequência de partida
-    pub net_mgmt: NetworkManager,  // OSEK NM — coordenação de sleep
-
-    // ECUs (um por módulo .rs — espelha arquitetura real)
-    pub ecm: EcuEcm,    // Motor
-    pub tcm: EcuTcm,    // Câmbio
-    pub bcm: EcuBcm,    // Carroceria
-    pub icm: EcuIcm,    // Painel de instrumentos
-    pub hcm: EcuHcm,    // Hidráulico
-    pub abs: EcuAbs,    // ABS/ESP/TCS
-
-    // Serviços de diagnóstico (um servidor UDS por ECU em máquina real)
-    pub uds_ecm: UdsServer,
-    pub uds_tcm: UdsServer,
-
-    // Memória não-volátil e implementos
-    pub nvm: NvmStore,
-    pub implement: ImplementControl,
-
-    // Entradas do operador
-    pub throttle_pct:    f64, // Pedal acelerador 0-100%
-    pub brake_pct:       f64, // Pedal de freio 0-100%
-    pub hitch_joystick:  f64, // Joystick do engate -1..+1
-}
-</pre>
-
-<h3>16.2 Método <code>tick()</code> — Ciclo Mestre</h3>
-<pre>
-pub fn tick(&amp;mut self, dt: f64) {
-    // ══ PASSO 1: Boot Sequence ═══════════════════════════════════════════
-    // Gerencia os estados de boot de cada ECU e Address Claiming
-    let trans_neutral = self.tcm.is_neutral;
-    self.boot.engine_running = self.ecm.is_running();
-    let boot_frames = self.boot.tick(dt, &amp;mut self.gateway, trans_neutral);
-    for f in boot_frames { self.gateway.transmit(f); }
-
-    // ══ PASSO 2: Receber frames do ciclo anterior ════════════════════════
-    // IMPORTANTE: cada ECU vê os frames do ciclo ANTERIOR (latência realista)
-    let received: Vec&lt;J1939Frame&gt; = self.gateway.dispatched.clone();
-
-    // ══ PASSO 3: ECM ═════════════════════════════════════════════════════
-    let pto_load_nm       = self.implement.pto_torque_demand();
-    let drivetrain_load   = if tcm.direction != Neutral { tcm.output_torque_nm * 0.05 } else { 0.0 };
-    let total_engine_load = (drivetrain_load + pto_load_nm).clamp(0.0, 2000.0);
-    let ecm_frames = if ecm_alive { ecm.tick(throttle, total_engine_load, dt) } else { vec![] };
-
-    // ══ PASSO 4: TCM ═════════════════════════════════════════════════════
-    let tcm_frames = if tcm_alive { tcm.tick(ecm.rpm, ecm.actual_torque_nm, throttle, brake, dt) } else { vec![] };
-
-    // ══ PASSO 5: BCM ═════════════════════════════════════════════════════
-    let bcm_frames = self.bcm.tick(self.ecm.alternator_v, dt);
-
-    // ══ PASSO 6: ICM ═════════════════════════════════════════════════════
-    let icm_frames = self.icm.tick(&amp;received, dt);
-    // Atualização direta (dados ainda não propagados via CAN):
-    self.icm.engine_rpm       = self.ecm.rpm;
-    self.icm.fuel_level_pct   = self.ecm.fuel_level_pct;
-    // ... (outros campos)
-
-    // ══ PASSO 7: HCM ═════════════════════════════════════════════════════
-    let hcm_frames = self.hcm.tick(ecm.rpm, hitch_cmd, loader_cmd, tilt_cmd, dt);
-
-    // ══ PASSO 8: ABS/ESP/TCS ═════════════════════════════════════════════
-    let (tcs_cut, abs_frames) = self.abs.tick(speed, brake, throttle, steer, yaw, lat_g, dt);
-
-    // ══ PASSO 9: UDS (diagnóstico) ═══════════════════════════════════════
-    self.uds_ecm.tick(dt); // Expira sessões, gerencia lockout de segurança
-
-    // ══ PASSO 10: NVM ════════════════════════════════════════════════════
-    self.nvm.tick(self.elapsed, dt);
-    // Sincroniza horas de motor para NVM a cada minuto:
-    if (self.elapsed % 60.0) &lt; dt { self.nvm.write_f64("engine_hours", ecm.engine_hours); }
-
-    // ══ PASSO 11: Network Management ═════════════════════════════════════
-    let powered_nodes: Vec&lt;u8&gt; = self.boot.ecus.iter().filter(|e| e.is_online())
-                                                        .map(|e| e.sa).collect();
-    self.net_mgmt.tick(&amp;powered_nodes, dt);
-
-    // ══ PASSO 12: Submeter todos os frames para o gateway ════════════════
-    for f in [ecm_frames, tcm_frames, bcm_frames, icm_frames, hcm_frames, abs_frames].into_iter().flatten() {
-        self.gateway.transmit(f);
-    }
-
-    // ══ PASSO 13: Gateway arbitra e despacha ════════════════════════════
-    // Ordenação por prioridade de CAN ID, distribuição para todos os ECUs
-    self.gateway.tick(dt);
-
-    // ══ PASSO 14: Injeção de falhas ══════════════════════════════════════
-    if self.fault_active { self.apply_fault(); }
-
-    self.elapsed += dt;
-}
-</pre>
-
-<!-- ═══════════════════════ 17. WIDGETS.RS ══════════════════════════════= -->
-<div class="page-break"></div>
-<div class="module-header">
-  <h2 id="widgets">17. widgets.rs — Widgets de GUI</h2>
-  <p>Componentes visuais customizados para o dashboard: gauges de arco, barras, lâmpadas LED.</p>
-</div>
-
-<h3>17.1 Função <code>arc_gauge()</code> — Gauge de Arco</h3>
-<pre>
-pub fn arc_gauge(ui: &amp;mut Ui, value: f64, min: f64, max: f64,
-                 label: &amp;str, unit: &amp;str, size: f32,
-                 warn: f64, crit: f64, low_warn: Option&lt;f64&gt;) -&gt; Response {
-
-    let (rect, response) = ui.allocate_exact_size(Vec2::splat(size), Sense::hover());
-    let painter = ui.painter_at(rect);
-    let center  = rect.center();
-    let r       = size * 0.35; // raio do arco
-
-    // GEOMETRIA DO ARCO:
-    // START = 135° → lower-left (em coords de tela, y cresce para baixo)
-    // SWEEP = 270° → varre 3/4 de círculo até lower-right passando pelo topo
-    const START: f32 = PI * 0.75;  // 135°
-    const SWEEP: f32 = PI * 1.50;  // 270°
-
-    // ARCO DE FUNDO (cinza escuro):
-    for i in 0..80 {
-        let a0 = START + (i as f32 / 80.0) * SWEEP;
-        let a1 = START + ((i+1) as f32 / 80.0) * SWEEP;
-        let p0 = center + Vec2::new(a0.cos() * r, a0.sin() * r);
-        let p1 = center + Vec2::new(a1.cos() * r, a1.sin() * r);
-        painter.line_segment([p0, p1], Stroke::new(4.0, Color32::from_gray(42)));
-    }
-
-    // ARCO DE VALOR (colorido, com gradiente verde→amarelo→vermelho):
-    let filled = ((frac * 80.0).floor() as usize).min(80);
-    for i in 0..filled {
-        let seg_color = if t &lt; 0.60 { GREEN } // 0-60% = verde
-                        else if t &lt; 0.82 { YELLOW } // 60-82% = amarelo
-                        else { RED };           // 82-100% = vermelho
-        // Desenha segmento do arco com a cor do gradiente
-    }
-
-    // PONTEIRO (triângulo branco):
-    let na  = START + frac * SWEEP;  // ângulo do ponteiro
-    let tip = center + Vec2::new(na.cos() * r * 0.80, na.sin() * r * 0.80);
-    painter.add(Shape::convex_polygon(vec![tip, base_left, base_right], WHITE, ...));
-
-    // TEXTOS: valor numérico + unidade + label
-    painter.text(..., format!("{:.0}", value), ..., value_color);
-    painter.text(..., unit, ..., GRAY);
-    painter.text(..., label, ..., LIGHT_GRAY);
-}
-</pre>
-
-<h3>17.2 Função <code>warning_lamp()</code> — Lâmpada LED</h3>
-<pre>
-pub fn warning_lamp(ui: &amp;mut Ui, active: bool, label: &amp;str, color: Color32) -&gt; Response {
-    let (rect, response) = ui.allocate_exact_size(Vec2::new(68.0, 48.0), Sense::click());
-    let painter = ui.painter_at(rect);
-
-    if active {
-        // HALO: círculo de brilho difuso ao redor da lâmpada
-        let glow_color = Color32::from_rgba_unmultiplied(r, g, b, 38); // 15% opacidade
-        painter.circle_filled(lamp_center, lamp_r + 6.0, glow_color);
-    }
-
-    // CORPO DA LÂMPADA: círculo sólido
-    painter.circle_filled(lamp_center, 11.0,
-        if active { color } else { Color32::from_gray(28) }); // escuro quando inativa
-
-    if active {
-        // REFLEXO BRILHANTE: pequeno círculo branco translúcido (efeito gloss)
-        painter.circle_filled(lamp_center - Vec2::new(3.0, 3.0), 3.5,
-            Color32::from_rgba_unmultiplied(255, 255, 255, 70));
-    }
-
-    // LABEL: texto abaixo da lâmpada, na cor correspondente
-    painter.text(bottom_center, ..., label, ...,
-        if active { color } else { Color32::from_gray(72) });
-}
-</pre>
-
-<!-- ═══════════════════════ 18. MAIN.RS ═════════════════════════════════= -->
-<div class="page-break"></div>
-<div class="module-header">
-  <h2 id="main">18. main.rs — Aplicação Desktop (eframe/egui)</h2>
-  <p>Loop principal da GUI: 60 FPS, 9 abas interativas, sliders, botões, tabelas e gráficos em tempo real.</p>
-</div>
-
-<h3>18.1 Struct <code>BenchApp</code> — Estado da Aplicação</h3>
-<pre>
-struct BenchApp {
-    bench:      HeavyMachinery, // TODA a simulação de ECU
-    tab:        Tab,             // Aba ativa (enum com 9 variantes)
-    paused:     bool,            // Simulação pausada?
-    throttle:   f32,             // Posição do acelerador no slider (0-1)
-    brake:      f32,             // Posição do freio no slider (0-1)
-    hitch_cmd:  f32,             // Comando do engate (-1 a +1)
-    // Buffers para gráficos em tempo real (ring buffers):
-    plt_rpm:    Vec&lt;[f64; 2]&gt;,  // [[time, value], ...] últimas 400 amostras
-    plt_spd:    Vec&lt;[f64; 2]&gt;,
-    plt_torque: Vec&lt;[f64; 2]&gt;,
-    // ...
-    uds_log:    Vec&lt;String&gt;,     // Log da console UDS
-}
-</pre>
-
-<h3>18.2 Função <code>main()</code></h3>
-<pre>
-fn main() -&gt; eframe::Result&lt;()&gt; {
-    eframe::run_native(
-        "🚜 Heavy Machinery ECU Bench v1.0", // Título da janela
-        NativeOptions {
-            viewport: ViewportBuilder::default()
-                .with_inner_size([1620.0, 1000.0]) // Tamanho inicial
-                .with_min_inner_size([1100.0, 700.0]), // Mínimo redimensionável
-            ..Default::default()
-        },
-        Box::new(|cc| Ok(Box::new(BenchApp::new(cc)))),
-        // Closure que cria o BenchApp quando a janela abre
-    )
-}
-</pre>
-
-<h3>18.3 Método <code>update()</code> — Loop Principal</h3>
-<pre>
-impl eframe::App for BenchApp {
-    fn update(&amp;mut self, ctx: &amp;Context, _frame: &amp;mut eframe::Frame) {
-        // ── SIMULAÇÃO (roda a cada frame, ~60x/s) ──────────────────────────
-        if !self.paused {
-            self.bench.throttle_pct = self.throttle as f64 * 100.0;
-            self.bench.brake_pct    = self.brake    as f64 * 100.0;
-            self.bench.tick(DT);  // DT = 1/60 s = 16.7 ms
-            self.push_plot();     // Armazena ponto para os gráficos
-        }
-
-        // ── PEDE REPAINT (manter 60 FPS) ──────────────────────────────────
-        ctx.request_repaint();
-        // Sem este chamado, egui só redesenharia em eventos de mouse/teclado
-
-        // ── UI: Toolbar no topo ────────────────────────────────────────────
-        TopBottomPanel::top("toolbar").show(ctx, |ui| { self.toolbar(ui); });
-
-        // ── UI: Barra de abas ──────────────────────────────────────────────
-        TopBottomPanel::top("tabbar").show(ctx, |ui| { /* botões de aba */ });
-
-        // ── UI: Barra de status no rodapé ─────────────────────────────────
-        TopBottomPanel::bottom("statusbar").show(ctx, |ui| { /* resumo */ });
-
-        // ── UI: Conteúdo principal (depende da aba ativa) ──────────────────
-        CentralPanel::default().show(ctx, |ui| {
-            match self.tab {
-                Tab::Dashboard    =&gt; self.tab_dashboard(ui),
-                Tab::CanMonitor   =&gt; self.tab_can_monitor(ui),
-                Tab::EcuStatus    =&gt; self.tab_ecu_status(ui),
-                Tab::Faults       =&gt; self.tab_faults(ui),
-                Tab::BootSequence =&gt; self.tab_boot(ui),
-                Tab::Implements   =&gt; self.tab_implements(ui),
-                Tab::UdsDiag      =&gt; self.tab_uds(ui),
-                Tab::NetworkMgmt  =&gt; self.tab_nm(ui),
-                Tab::RealTimePlots=&gt; self.tab_plots(ui),
-            }
-        });
-    }
-}
-</pre>
-
-<h3>18.4 Aba Dashboard</h3>
-<pre>
-fn tab_dashboard(&amp;mut self, ui: &amp;mut Ui) {
-    ui.horizontal(|ui| {
-        // COLUNA 1: Gauges grandes
-        ui.vertical(|ui| {
-            ui.horizontal(|ui| {
-                // Tacômetro: 0-3000 RPM, alarme em 2000, crítico em 2400
-                arc_gauge(ui, ecm.rpm, 0.0, 3000.0, "ENGINE", "RPM", 160.0,
-                          2000.0, 2400.0, None);
-                // Velocímetro: 0-50 km/h
-                arc_gauge(ui, tcm.ground_speed_kmh, 0.0, 50.0, "SPEED", "km/h", 160.0,
-                          40.0, 48.0, None);
-                // Pressão de boost: 0-300 kPa
-                arc_gauge(ui, ecm.boost_pressure_kpa, 0.0, 300.0, "BOOST", "kPa", 130.0, ...);
-            });
-
-            // Cluster de 14 lâmpadas de alerta
-            ui.horizontal_wrapped(|ui| {
-                warning_lamp(ui, ecm.red_lamp,  "RED STOP",  RED);
-                warning_lamp(ui, ecm.amber_lamp,"AMBER WARN",GOLD);
-                // ... (mais lâmpadas)
-            });
-        });
-
-        // COLUNA 2: Dados do motor + transmissão
-        ui.vertical(|ui| {
-            // Barras de dados do motor
-            bar_gauge(ui, "Load", ecm.percent_load, 150.0, "%", 120.0, YELLOW);
-            bar_gauge(ui, "Torque", ecm.actual_torque_nm, 1200.0, "Nm", 120.0, BLUE);
-            // ...
-
-            // Seletor de direção (P/R/N/F com botões clicáveis)
-            if let Some(k) = direction_selector(ui, dir_str) {
-                match k {
-                    'F' =&gt; self.bench.tcm.set_direction(Direction::Forward),
-                    'R' =&gt; self.bench.tcm.set_direction(Direction::Reverse),
-                    'N' =&gt; self.bench.tcm.set_neutral(),
-                }
-            }
-        });
-    });
-}
-</pre>
-
-<h3>18.5 Aba CAN Monitor</h3>
-<pre>
-fn tab_can_monitor(&amp;mut self, ui: &amp;mut Ui) {
-    // Barra de filtros
-    ui.horizontal(|ui| {
-        ui.label("Filter PGN:");
-        ui.text_edit_singleline(&amp;mut self.can_filter_pgn); // campo editável
-        ui.label("SA (hex):");
-        ui.text_edit_singleline(&amp;mut self.can_filter_sa);
-        ui.checkbox(&amp;mut self.can_decoded, "Show decoded");
-    });
-
-    // Tabela com scroll automático até o fim (mensagens mais novas)
-    egui::ScrollArea::vertical().stick_to_bottom(true).show(ui, |ui| {
-        for frame in gateway.frames.filter(pgn_filter, sa_filter).take(80) {
-            ui.horizontal(|ui| {
-                ui.label(format!("{:>9.3}", frame.timestamp)); // timestamp
-                ui.label(format!("{:08X}", frame.raw_id));     // CAN ID hex
-                ui.label(format!("{}", frame.dlc));            // DLC
-                ui.label(frame.data_hex());                    // dados hex
-                ui.label(frame.pgn_name());                    // nome do PGN
-                if show_decoded { ui.label(decoded_spns); }   // SPNs decodificados
-            });
-        }
-    });
-}
-</pre>
-
-<h3>18.6 Aba UDS Diagnóstico</h3>
-<pre>
-fn tab_uds(&amp;mut self, ui: &amp;mut Ui) {
-    // Campo de entrada hex + botões de preset
-    ui.text_edit_singleline(&amp;mut self.uds_hex_input); // ex: "10 02"
-    ui.horizontal_wrapped(|ui| {
-        // Presets de comandos comuns:
-        if ui.small_button("ExtSess").clicked() { self.uds_hex_input = "10 02".into(); }
-        if ui.small_button("ReadRPM").clicked()  { self.uds_hex_input = "22 DD 01".into(); }
-        if ui.small_button("DPF Regen").clicked(){ self.uds_hex_input = "31 01 DF 01".into(); }
-    });
-
-    if ui.button("📤 SEND REQUEST").clicked() {
-        // Parsear bytes hex
-        let bytes: Vec&lt;u8&gt; = self.uds_hex_input.split_whitespace()
-            .filter_map(|s| u8::from_str_radix(s, 16).ok()).collect();
-
-        // Enviar para o UDS server correto baseado no SA alvo
-        let resp = if self.uds_target_sa == 0x00 {
-            self.bench.uds_ecm.process(&amp;bytes, ts) // ECM
-        } else {
-            self.bench.uds_tcm.process(&amp;bytes, ts) // TCM
-        };
-
-        // Mostrar no log
-        self.uds_log.push(format!("REQ: {}", hex_string(&amp;bytes)));
-        self.uds_log.push(format!("RSP: {} {}", hex_string(&amp;resp),
-            if resp[0] == 0x7F { "❌ NRC" } else { "✓" }));
-    }
-}
-</pre>
-
-<!-- ═══════════ NOVOS MÓDULOS v2.0 ════════════════════════════════════════ -->
-<div class="page-break"></div>
-<div class="module-header">
-  <h2 id="can_network">5b. can_network.rs — Rede CAN Multi-Bus ⭐ NOVO</h2>
-  <p>6 barramentos físicos independentes com ISO 11898-1, Transport Protocol BAM+CMDT, message scheduling matrix com jitter real, babbling idiot detection, bus-off recovery timer.</p>
-</div>
-
-<h3>5b.1 Barramento Físico — CanBus</h3>
-<pre>
-pub struct CanBus {
-    pub id:     BusId,       // PowertrainHs | ChassisHs | BodyMs | IsoBus | Diagnostic | Lin
-    pub speed:  CanSpeed,    // Kbps500 | Kbps250 | Kbps125 | Kbps20 | FdMbps2 | FdMbps5
-    pub state:  BusState,    // ErrorActive | ErrorPassive | BusOff (ISO 11898-1)
-    pub can_fd: bool,        // Suporte CAN FD (payload até 64 bytes)
-
-    // Buffers de frames
-    tx_queue:   Vec&lt;J1939Frame&gt;,    // esperando arbitração
-    pub dispatched: Vec&lt;J1939Frame&gt;, // enviados neste ciclo
-    pub frame_log:  VecDeque&lt;...&gt;,  // log para o CAN Analyzer (últimos 500)
-
-    // Estatísticas por barramento
-    pub total_tx:     u64,
-    pub total_errors: u64,
-    pub bus_load_pct: f64,  // calculado a cada segundo
-
-    // Injeção de falhas (para o painel de simulação)
-    pub inject_bit_error:   bool,  // corrompe 1 frame a cada 200
-    pub inject_bus_off:     bool,  // força estado BusOff
-    pub inject_missing_ack: bool,  // simula nó sem ACK a cada 75 frames
-    pub inject_babbling_sa: Option&lt;u8&gt;, // força um nó a "bablar"
-
-    // Bus-Off recovery (ISO 11898-1 §6.15)
-    busoff_recovery_timer: f64,    // tempo acumulado
-    // Recovery após 128 × 11 recessive bits = 128×11÷speed segundos
-
-    // Transport Protocol engine
-    pub tp: CanTransportProtocol,  // BAM + CMDT reassembly
-}
-</pre>
-
-<div class="info-box">
-<strong>Bus-Off Recovery real:</strong> Quando TEC ≥ 256, o nó desconecta do barramento.
-Para reconectar, precisa detectar 128 ocorrências de 11 bits recessivos consecutivos.
-A 500kbps isso significa ~2.8ms de espera. O código simula este timer exatamente.
-</div>
-
-<h3>5b.2 Seis Barramentos — BusId</h3>
-<table>
-  <tr><th>Bus ID</th><th>Velocidade</th><th>ECUs conectados</th><th>Mensagens típicas</th></tr>
-  <tr><td><code>PowertrainHs</code></td><td>500 kbps</td><td>ECM, TCM, ABS, VCM</td><td>EEC1(10ms), ETC1(20ms), EBC1(20ms)</td></tr>
-  <tr><td><code>ChassisHs</code></td><td>500 kbps</td><td>ABS, Steering, Suspension</td><td>VDC1, wheel speeds, EBC2</td></tr>
-  <tr><td><code>BodyMs</code></td><td>250 kbps</td><td>BCM, ICM, PEPS, HVAC</td><td>Lighting, HVAC, AMB(1s)</td></tr>
-  <tr><td><code>IsoBus</code></td><td>250 kbps</td><td>HCM, Implement, Task Ctrl, VT</td><td>PTO(100ms), HITCH(100ms), WS_MASTER</td></tr>
-  <tr><td><code>Diagnostic</code></td><td>500 kbps</td><td>OBD-II port (externo)</td><td>UDS, J1939 diagnóstico</td></tr>
-  <tr><td><code>Lin</code></td><td>20 kbps</td><td>Sensores simples, espelhos</td><td>LIN frames (modelado sobre BodyMs)</td></tr>
-</table>
-
-<h3>5b.3 Transport Protocol J1939-21</h3>
-<pre>
-// BAM (Broadcast Announce Message) — transmissão para múltiplos receptores
-pub fn send_bam(ts: f64, pgn: u32, sa: u8, data: Vec&lt;u8&gt;) → Vec&lt;J1939Frame&gt; {
-    // PASSO 1: TP.CM_BAM (PGN 0xEC00)
-    // Byte 0: 0x20 (BAM control)
-    // Bytes 1-2: total bytes (LE)
-    // Byte 3: número de pacotes
-    // Bytes 5-7: PGN transportado (LE)
-
-    // PASSO 2: TP.DT (PGN 0xEB00) — um pacote por 7 bytes
-    // Byte 0: número de sequência (1-based)
-    // Bytes 1-7: payload (0xFF = padding no último)
-}
-</pre>
-
-<h3>5b.4 Message Scheduling Matrix</h3>
-<p>Cada mensagem tem período definido, jitter realista (±1ms) e prioridade:</p>
-<pre>
-// 35 mensagens na matriz — exemplos:
-EEC1:    SA=ECM,  bus=PowertrainHs, period=10ms,   priority=3  "Engine Speed/Torque"
-EEC2:    SA=ECM,  bus=PowertrainHs, period=50ms,   priority=3  "Throttle/Load"
-ET1:     SA=ECM,  bus=PowertrainHs, period=1000ms, priority=6  "Engine Temperatures"
-ETC1:    SA=TCM,  bus=PowertrainHs, period=20ms,   priority=3  "Trans Output Shaft"
-EBC1:    SA=ABS,  bus=PowertrainHs, period=20ms,   priority=2  "Brake Status (ABS/ESP)"
-PTO:     SA=HCM,  bus=IsoBus,      period=100ms,   priority=6  "Power Take-Off Status"
-HITCH:   SA=HCM,  bus=IsoBus,      period=100ms,   priority=6  "3-Point Hitch Status"
-WS_MST:  SA=TC,   bus=IsoBus,      period=100ms,   priority=6  "ISOBUS Working Set Master"
-BCM:     SA=CAB,  bus=BodyMs,      period=100ms,   priority=7  "BCM Status: Lights/Battery"
-</pre>
-
-<!-- ── GPS ────────────────────────────────────────────────────────────── -->
-<div class="page-break"></div>
-<div class="module-header">
-  <h2 id="gps">19. gps.rs — GPS/GNSS (u-blox ZED-F9P) ⭐ NOVO</h2>
-  <p>Simulação completa de receptor GNSS profissional com saída NMEA 0183 real, constelação de 17 satélites (GPS + GLONASS + Galileo) e modelo de ruído com jitter realístico.</p>
-</div>
-
-<h3>19.1 Qualidade de Fix</h3>
-<table>
-  <tr><th>GpsFixQuality</th><th>Acurácia</th><th>Uso típico</th></tr>
-  <tr><td><code>SpsFix = 1</code></td><td>±2-5m</td><td>Posicionamento padrão (GPS simples)</td></tr>
-  <tr><td><code>DgpsFix = 2</code></td><td>±0.5-1m</td><td>GPS diferencial (estação de referência)</td></tr>
-  <tr><td><code>RtkFix = 4</code></td><td>±2cm</td><td>RTK (precision farming, agricultural guidance)</td></tr>
-  <tr><td><code>FloatRtk = 5</code></td><td>±10-30cm</td><td>RTK Float (inicializando)</td></tr>
-  <tr><td><code>Dead = 6</code></td><td>Acumulada</td><td>Dead reckoning (GNSS perdido)</td></tr>
-</table>
-
-<h3>19.2 Saída NMEA Real — Sentenças Geradas</h3>
-<pre>
-// GPGGA — Global Positioning Fix Data (posição + altitude + qualidade)
-$GPGGA,120015.50,-22.810042,S,-47.062150,W,4,12,0.82,640.0,M,-10.5,M,,*62\r\n
-//       ↑ UTC   ↑ Latitude    ↑ Longitude   ↑Fix ↑Sats ↑HDOP ↑Altitude
-
-// GPRMC — Recommended Minimum (velocidade + rumo)
-$GPRMC,120015.50,A,-22.810042,S,-47.062150,W,5.23,45.1,110826,0.0,E,A*2F\r\n
-//                              ↑ speed(knots)↑course  ↑date
-
-// GPGSA — Active Satellites + DOP
-$GPGSA,A,3,01,03,07,11,14,17,22,28,65,66,,12,0.82,1.10,1.52*...\r\n
-</pre>
-
-<h3>19.3 Checksum NMEA</h3>
-<pre>
-fn nmea_checksum(sentence: &amp;str) → u8 {
-    // XOR de todos os bytes entre '$' e '*'
-    sentence.bytes().fold(0u8, |acc, b| acc ^ b)
-    // Exemplo: "GPGGA,120000.00,..." → checksum em hex no final
-}
-</pre>
-
-<h3>19.4 Integração de Posição</h3>
-<pre>
-// Conversão de velocidade/rumo → variação de lat/lon
-let metres_per_deg_lat = 111_320.0;  // ~111.320 km/grau de latitude
-let metres_per_deg_lon = 111_320.0 × cos(latitude);  // varia com a latitude
-
-// Integração a cada dt:
-d_lat = (speed_ms × heading.cos() × dt) / metres_per_deg_lat
-d_lon = (speed_ms × heading.sin() × dt) / metres_per_deg_lon
-self.latitude_deg  += d_lat
-self.longitude_deg += d_lon
-</pre>
-
-<!-- ── IMU ────────────────────────────────────────────────────────────── -->
-<div class="page-break"></div>
-<div class="module-header">
-  <h2 id="imu">20. imu.rs — IMU 9-DOF + Filtro Madgwick AHRS ⭐ NOVO</h2>
-  <p>Acelerômetro + Giroscópio + Magnetômetro com fusão via algoritmo Madgwick AHRS. Modela bias drift, ruído gaussiano, vibração do motor e compensação de temperatura.</p>
-</div>
-
-<h3>20.1 Filtro Madgwick AHRS</h3>
-<div class="info-box">
-O <strong>Madgwick AHRS</strong> (Attitude and Heading Reference System) é um algoritmo de fusão de sensores que combina acelerômetro, giroscópio e magnetômetro em um quaternion de atitude. É o mesmo algoritmo usado em drones, robôs e sistemas de piloto automático.
-</div>
-
-<pre>
-// Algoritmo Madgwick em pseudocódigo:
-const BETA: f64 = 0.1;  // Ganho do filtro (0.01=lento, 0.5=rápido)
-
-fn madgwick_update(&amp;mut self, dt: f64) {
-    // 1. Normalizar acelerômetro e magnetômetro
-    let (ax, ay, az) = normalise(accel_cal);
-    let (mx, my, mz) = normalise(mag);
-
-    // 2. Calcular referência do campo magnético terrestre
-    //    (h = quaternion_rotate([mx,my,mz] by q))
-    let bx = sqrt(hx² + hy²);  // componente horizontal do campo terrestre
-    let bz = hz;                // componente vertical
-
-    // 3. Calcular função objetivo e Jacobiana
-    //    f = [f_acc(q, a_ref, a_meas), f_mag(q, b_ref, m_meas)]
-    //    J = Jacobiana de f em relação a q
-
-    // 4. Calcular gradiente: ∇f = Jᵀf (normalizado)
-    let (s0, s1, s2, s3) = gradient_descent(f, J);
-
-    // 5. Integrar giroscópio com correção do gradiente
-    q_dot = 0.5 × q ⊗ [gx, gy, gz]  - BETA × ∇f
-
-    // 6. Integrar quaternion
-    q += q_dot × dt
-    q.normalise()
-}
-</pre>
-
-<h3>20.2 Modelo de Vibração do Motor</h3>
-<pre>
-// Frequência de combustão: RPM/60 × (cilindros/2)
-let vibe_freq = rpm / 60.0 × (6.0 / 2.0);  // 6-cil: 50Hz a 1000 RPM
-let vibe_amp  = (rpm / 2200.0 × 0.15).min(0.3);  // amplitude cresce com RPM
-
-// Soma harmônica (fundamental + 2ª harmônica)
-let vibe = vibe_amp × (sin(2π × vibe_freq × t) + 0.3 × sin(4π × vibe_freq × t));
-
-// Adicionado ao sinal do acelerômetro (ruído realístico)
-self.accel_x = true_ax + bias[0] + gaussian_noise + vibe;
-</pre>
-
-<!-- ── RADAR ──────────────────────────────────────────────────────────── -->
-<div class="page-break"></div>
-<div class="module-header">
-  <h2 id="radar">21. radar.rs — RADAR 77GHz Multi-Sensor ⭐ NOVO</h2>
-  <p>Suíte de 6 sensores RADAR automotivo (front/rear/4 corners) com rastreamento Kalman por alvo, modelo de RCS, TTC e detecção BSM.</p>
-</div>
-
-<h3>21.1 Configuração da Suíte RADAR</h3>
-<table>
-  <tr><th>Sensor</th><th>Posição</th><th>Range</th><th>FOV</th><th>Função</th></tr>
-  <tr><td><code>front_center</code></td><td>Para-choque frontal central</td><td>250m</td><td>±9°</td><td>ACC, AEB, Lead vehicle</td></tr>
-  <tr><td><code>rear_center</code></td><td>Para-choque traseiro</td><td>80m</td><td>±20°</td><td>Rear collision warning</td></tr>
-  <tr><td><code>front_left/right</code></td><td>Cantos frontais</td><td>120m</td><td>±75°</td><td>BSM, Junction assist</td></tr>
-  <tr><td><code>rear_left/right</code></td><td>Cantos traseiros</td><td>120m</td><td>±75°</td><td>BSM, Lane change assist</td></tr>
-</table>
-
-<h3>21.2 Kalman Filter por Alvo</h3>
-<pre>
-// Estado Kalman por alvo: [range, range_rate, lateral_pos, lateral_vel]
-// Modelo de processo: constante de velocidade
-
-fn kalman_predict(&amp;mut self, dt: f64) {
-    // Propagação: x[k+1] = F × x[k]
-    self.kf_x[0] += self.kf_x[1] × dt;  // range += range_rate × dt
-    self.kf_x[2] += self.kf_x[3] × dt;  // lateral_pos += lateral_vel × dt
-    // Covariância cresce com tempo (incerteza aumenta sem medição)
-    self.kf_p[0] += self.kf_p[1]×dt + 0.1×dt²;
-}
-
-fn kalman_update(&amp;mut self, z_range: f64, z_rate: f64, z_azimuth: f64) {
-    let r_cov = 1.0;  // variância da medição
-    let k = self.kf_p[0] / (self.kf_p[0] + r_cov);  // ganho Kalman
-    self.kf_x[0] += k × (z_range - self.kf_x[0]);    // inovar estado
-    self.kf_p[0] *= 1.0 - k;                           // reduzir incerteza
-    // Recalcular TTC: se aproximando (range_rate &lt; 0), TTC = range / |rate|
-    self.ttc_s = if range_rate &lt; -0.1 { -range / range_rate } else { ∞ };
-}
-</pre>
-
-<h3>21.3 TTC — Time to Collision</h3>
-<pre>
-// TTC é o parâmetro crítico para AEB e ACC:
-//
-// TTC = distância / velocidade_de_fechamento
-//     = range / |range_rate|  (quando range_rate &lt; 0 = aproximando)
-//
-// Thresholds típicos:
-// TTC &gt; 4s: Normal — nenhuma intervenção
-// 2.5s &lt; TTC &lt; 4s: Pré-carga dos freios (AEB pre-charge)
-// 1.5s &lt; TTC &lt; 2.5s: Frenagem parcial (até 60%)
-// TTC &lt; 1.0s: Frenagem máxima (AEB full — 1g)
-</pre>
-
-<!-- ── LIDAR ──────────────────────────────────────────────────────────── -->
-<div class="page-break"></div>
-<div class="module-header">
-  <h2 id="lidar">22. lidar.rs — LIDAR Velodyne VLP-16 ⭐ NOVO</h2>
-  <p>Simulação de LIDAR rotativo 3D com ray casting real contra obstáculos, geração de point cloud, clustering de objetos e occupancy grid.</p>
-</div>
-
-<h3>22.1 Especificações do VLP-16</h3>
-<table>
-  <tr><th>Parâmetro</th><th>Valor</th><th>Descrição</th></tr>
-  <tr><td>Canais</td><td>16</td><td>Feixes verticais: −15° a +15° (passo 2°)</td></tr>
-  <tr><td>Rotação</td><td>10 Hz</td><td>Velocidade de varredura horizontal</td></tr>
-  <tr><td>Resolução horizontal</td><td>0.2°</td><td>~1800 pontos por revolução por canal</td></tr>
-  <tr><td>Range máximo</td><td>100m</td><td>A 100% de reflectividade</td></tr>
-  <tr><td>Pontos/scan</td><td>~28.800</td><td>16 × 1800 = 28.800 pontos por revolução</td></tr>
-  <tr><td>Taxa de saída</td><td>288.000 pontos/s</td><td>28.800 × 10Hz</td></tr>
-</table>
-
-<h3>22.2 Ray Casting — Equação de Interseção AABB</h3>
-<pre>
-// Para cada raio LIDAR (azimuth × elevação), intersecta com cada obstáculo:
-pub fn ray_intersect(obs: &amp;WorldObstacle, origin, direction, z_at_range) → Option&lt;f64&gt; {
-    // AABB = Axis-Aligned Bounding Box
-    let inv_dx = 1.0 / dir_x;
-    let inv_dy = 1.0 / dir_y;
-
-    // Calcular entradas/saídas nos eixos X e Y
-    let t1x = (obs.x - obs.half_l - origin.x) × inv_dx;  // entrada X
-    let t2x = (obs.x + obs.half_l - origin.x) × inv_dx;  // saída X
-    let t1y = (obs.y - obs.half_w - origin.y) × inv_dy;  // entrada Y
-    let t2y = (obs.y + obs.half_w - origin.y) × inv_dy;  // saída Y
-
-    // A interseção existe se os intervalos X e Y se sobrepõem
-    let tmin = max(min(t1x, t2x), min(t1y, t2y));
-    let tmax = min(max(t1x, t2x), max(t1y, t2y));
-
-    if tmax ≥ tmin &amp;&amp; tmin &gt; 0 { Some(tmin) } else { None }
-}
-</pre>
-
-<h3>22.3 Occupancy Grid</h3>
-<pre>
-// Grid 100×100 células, cada célula = 1m², ego no centro (50,50)
-// Cada célula armazena probabilidade de ocupação (0-255):
-//   - Incrementa +10 quando ponto LIDAR cai na célula (z &gt; 0.2m)
-//   - Decrementa -5 por ciclo de scan (envelhecimento gradual)
-//   - Célula "ocupada" quando valor &gt; 50
-
-fn cell_occupied(&amp;self, row: usize, col: usize) → bool {
-    self.occupancy_grid[row][col] &gt; 50
-}
-
-// Visualização no dashboard: X = ego, █ = ocupado, · = livre
-//   · · · · █ · · · · ·
-//   · · · █ █ · · · · ·
-//   · · · · · · · · · ·
-//   · · · · X · · · · ·   ← ego no centro
-</pre>
-
-<!-- ── CAMERA ─────────────────────────────────────────────────────────── -->
-<div class="page-break"></div>
-<div class="module-header">
-  <h2 id="camera">23. camera.rs — Visão Computacional + Sensor Fusion ⭐ NOVO</h2>
-  <p>Sistema de câmera com lane detection (Hough transform), detecção de objetos (YOLOv8-style), TSR (Traffic Sign Recognition) e fusão de sensores via JPDA (Joint Probabilistic Data Association).</p>
-</div>
-
-<h3>23.1 Lane Detection — Transformada de Hough</h3>
-<pre>
-// Pipeline de detecção de faixas (simplificado):
-// 1. Captura de frame (1920×1080, 30fps)
-// 2. Pré-processamento: grayscale → Canny edge detection
-// 3. Máscara de ROI (Region of Interest): trapézio à frente do veículo
-// 4. Transformada de Hough: detecta linhas retas nas bordas
-// 5. Classificação das linhas: esquerda/direita por inclinação
-// 6. Ajuste polinomial de 2ª grau: cálculo de curvatura
-// 7. Saída: offset lateral, ângulo de heading, curvatura 1/R
-
-// Offset lateral: posição do ego relativa ao centro da faixa
-self.lane.ego_offset_m = ... // + = deslocado para direita
-self.lane.heading_error_deg = ...  // erro de heading vs faixa
-self.lane.curvature_inv_m = ...    // 1/R (0 = reta)
-self.lane.ttld_s = offset / (speed × sin(max_correction_rate))
-</pre>
-
-<h3>23.2 Detecção de Objetos (YOLOv8-style)</h3>
-<pre>
-// YOLOv8 divide a imagem em um grid S×S
-// Cada célula prevê:
-//   - Classe do objeto: Car, Truck, Pedestrian, Cyclist, Cone, Barrier...
-//   - Bounding box: [x_center, y_center, width, height] (normalizado)
-//   - Confidence score: 0.0 - 1.0
-//
-// Saída por objeto detectado:
-pub struct DetectedObject {
-    pub class:       ObjectClass,   // Car, Pedestrian, etc.
-    pub confidence:  f64,           // ex: 0.94 = 94% certo
-    pub distance_m:  f64,           // calculada por projeção perspectiva
-    pub azimuth_deg: f64,           // ângulo horizontal ±FOV/2
-    pub bbox_x/y/w/h: u16,          // bounding box em pixels
-    pub velocity_ms: Option&lt;f64&gt;,   // estimada por optical flow
-}
-</pre>
-
-<h3>23.3 Sensor Fusion — Algoritmo JPDA</h3>
-<pre>
-// JPDA (Joint Probabilistic Data Association):
-// Associa medições de RADAR + CAMERA ao mesmo objeto físico
-
-pub struct SensorFusion {
-    pub objects: Vec&lt;FusedObject&gt;,  // lista de objetos rastreados
-    // Cada FusedObject tem:
-    //   sensor_sources: bitmask (bit0=radar, bit1=camera, bit2=lidar)
-    //   confidence: 0.5 + count_ones(sensor_sources) × 0.15
-    //   Kalman state: [x, y, vx, vy] no referencial do ego
-}
-
-// Regra de associação:
-// |dist_radar - dist_camera| &lt; 5m AND |azimuth_diff| &lt; 8° → mesmo objeto
-// Kalman update com medição de cada sensor
-// Confiança aumenta com cada sensor que confirma o objeto
-</pre>
-
-<!-- ── AUTONOMOUS ──────────────────────────────────────────────────────── -->
-<div class="page-break"></div>
-<div class="module-header">
-  <h2 id="autonomous">24. autonomous.rs — Controlador AD SAE Level 2/3 ⭐ NOVO</h2>
-  <p>Controlador de direção autônoma SAE Level 2/3 com ACC, AEB, LKA, LCA, TJA, Pilot Assist, ISO 26262 ASIL-D safety monitor e driver attention monitoring.</p>
-</div>
-
-<h3>24.1 Níveis SAE de Automação</h3>
-<table>
-  <tr><th>Level</th><th>Nome</th><th>Quem controla?</th><th>Exemplo real</th></tr>
-  <tr><td>L0</td><td>No Automation</td><td>Humano total</td><td>Veículo convencional</td></tr>
-  <tr><td>L1</td><td>Driver Assistance</td><td>ACC OU LKA, não ambos</td><td>Adaptive Cruise Control básico</td></tr>
-  <tr><td>L2</td><td>Partial Automation</td><td>ACC + LKA simultâneos</td><td>Tesla Autopilot, GM Super Cruise</td></tr>
-  <tr><td>L3</td><td>Conditional Automation</td><td>Sistema em cenários específicos</td><td>Audi Traffic Jam Pilot</td></tr>
-  <tr><td>L4</td><td>High Automation</td><td>Sistema dentro de geofence</td><td>Waymo (geofenced)</td></tr>
-  <tr><td>L5</td><td>Full Automation</td><td>Sistema sempre</td><td>Não existe ainda</td></tr>
-</table>
-
-<h3>24.2 ACC — Adaptive Cruise Control (Controlador PI)</h3>
-<pre>
-fn run_acc(&amp;mut self, speed_ms: f64, lead_range: f64, dt: f64) {
-    let set_speed = self.acc_set_speed_kmh / 3.6;
-
-    // PASSO 1: Calcular velocidade alvo baseada no gap para o veículo à frente
-    let safe_dist = speed_ms × self.acc_headway_s;  // ex: 80km/h × 2s = 44m
-    let dist_error = lead_range - safe_dist;          // erro de distância
-    let gap_speed  = speed_ms + dist_error × 0.5;    // velocidade para fechar gap
-    let target_speed = gap_speed.min(set_speed);      // limitado pela velocidade setada
-
-    // PASSO 2: Controlador PI de velocidade
-    let speed_error = target_speed - speed_ms;
-    self.integral += speed_error × dt;
-    let control = speed_error × 0.08 + self.integral × 0.004;
-    //                          ↑ Kp              ↑ Ki
-
-    // PASSO 3: Saída como throttle ou brake
-    if control &gt; 0.02  { throttle = control.clamp(0, 1); brake = 0; }
-    else                { brake = (-control).clamp(0, 0.8); throttle = 0; }
-}
-</pre>
-
-<h3>24.3 LKA — Lane Keeping Assist (Controlador PD)</h3>
-<pre>
-fn run_lka(&amp;mut self, offset: f64, heading_err: f64, speed_ms: f64, dt: f64) {
-    if speed_ms &lt; 3.0 { return; }  // só ativo acima de 3 m/s
-
-    let kp = 4.0 × (speed_ms / 30.0).min(1.0);  // ganho proporcional aumenta com velocidade
-    let ki = 0.3;
-
-    self.lka_integral += offset × dt;
-    // Correção = proporcional ao offset + integral + derivativo do heading
-    let steer = -(kp × offset + ki × self.lka_integral + 0.5 × heading_err);
-    self.lka_steer_cmd = steer.clamp(-6.0, 6.0);  // ±6° de correção máxima
-}
-</pre>
-
-<h3>24.4 ISO 26262 Safety Monitor (ASIL-D)</h3>
-<pre>
-fn safety_check(&amp;mut self, speed_ms: f64, thr: Option&lt;f64&gt;, brk: Option&lt;f64&gt;) {
-    // VERIFICAÇÃO 1: Throttle e brake simultâneos (impossível em veículo real)
-    if throttle &gt; 0.1 AND brake &gt; 0.1 {
-        self.safety_status = SafetyStatus::Degraded;
-        self.degrade_reason = "Throttle+Brake simultaneous → system fault";
-        return;
-    }
-
-    // VERIFICAÇÃO 2: LKA sem ACC em alta velocidade (operação perigosa)
-    if speed_ms &gt; 50.0 AND lka_active AND !acc_active {
-        self.safety_status = SafetyStatus::Degraded;
-        return;
-    }
-
-    // Sistema nominal
-    self.safety_status = SafetyStatus::Normal;
-}
-
-// SafetyStatus states:
-// Normal    → todas as verificações passaram
-// Degraded  → restrição de funcionalidade
-// Minimal   → apenas funções de segurança ativas
-// Safe      → parada segura (safe-stop) em progresso
-</pre>
-
-<!-- ── V2X ────────────────────────────────────────────────────────────── -->
-<div class="page-break"></div>
-<div class="module-header">
-  <h2 id="v2x">25. v2x_telematics.rs — V2X + Fleet Telematics ⭐ NOVO</h2>
-  <p>Comunicação V2X (Vehicle-to-Everything) com SAE J2735 BSM, SPaT, work zones, emergency vehicles, e Fleet Telematics com 4G/5G, OTA, geofencing.</p>
-</div>
-
-<h3>25.1 SAE J2735 BasicSafetyMessage</h3>
-<pre>
-// O BSM é transmitido a 10 Hz (cada 100ms) por todos os veículos conectados
-// Formato: SAE J2735 (definido pela SAE)
-pub struct BasicSafetyMessage {
-    pub msg_count:    u8,      // 0-127, incrementa a cada envio
-    pub vehicle_id:   u32,     // ID pseudo-anônimo (rotaciona a cada 5min)
-    pub lat_deg:      f64,     // posição GPS (WGS84)
-    pub lon_deg:      f64,
-    pub elevation_m:  f64,
-    pub speed_ms:     f64,     // velocidade sobre o solo
-    pub heading_deg:  f64,     // rumo (0=Norte)
-    pub accel_long:   f64,     // m/s² longitudinal (para/trás)
-    pub accel_lat:    f64,     // m/s² lateral (curva)
-    pub brake_status: BrakeStatus,  // ABS, TCS, freio aplicado...
-    pub size_length_m:f64,    // comprimento do veículo
-    pub size_width_m: f64,
-    pub timestamp_ms: u64,
-}
-</pre>
-
-<h3>25.2 SPaT — Signal Phase and Timing</h3>
-<pre>
-// Semáforos inteligentes transmitem o estado via V2X:
-// Veículo recebe e exibe: tempo restante em verde/vermelho, distância do cruzamento
-pub struct SignalPhaseAndTiming {
-    pub intersection_id: u32,
-    pub phase_state:     TrafficPhase,   // Green | Yellow | Red
-    pub time_to_change_s:f64,   // segundos até a próxima mudança
-    pub distance_m:      f64,   // distância do veículo ao cruzamento
-}
-
-// GSPA (Green Signal Phase Approach): permite calcular velocidade ideal
-// para chegar no verde sem parar — economia de combustível
-let ideal_speed = distance_m / time_to_green;
-</pre>
-
-<h3>25.3 Fleet Telematics — OTA Update</h3>
-<pre>
-// Sequência de OTA (Over-The-Air) update via 4G/5G:
-// 1. Fleet server notifica: nova versão disponível
-// 2. Veículo recebe TelEventType::OtaUpdateAvail
-// 3. Operador aprova no dashboard (botão "⬇ Download &amp; Install")
-// 4. TCU (Telematics Control Unit) baixa o pacote via HTTPS
-// 5. Progresso: ota_progress_pct de 0 a 100%
-// 6. Após 100%: ECM entra em modo UDS Programming Session
-//               Dados transferidos via J1939 TP.BAM + UDS 0x36
-// 7. CRC verificado, nova versão ativada no próximo key-on
-// 8. Evento TelEventType::OtaUpdateComplete registrado
-
-pub fn start_ota(&amp;mut self) {
-    if self.ota_available {
-        self.ota_downloading = true;
-        self.ota_progress_pct = 0.0;
-    }
-}
-// Simulação: incrementa 0.5%/s → ~200s para 100MB a 500kbps
-</pre>
-
-<!-- ── VCM ────────────────────────────────────────────────────────────── -->
-<div class="page-break"></div>
-<div class="module-header">
-  <h2 id="vcm">13b. ecu_vcm.rs — Vehicle Control Module (VCM) ⭐ NOVO</h2>
-  <p>Módulo gateway que coordena todos os domínios do veículo: torque entre ECM+ABS+AD, distribuição de potência, bridge multi-bus, safety supervisor ISO 26262 ASIL-B.</p>
-</div>
-
-<h3>13b.1 Coordenação de Torque</h3>
-<pre>
-// O VCM recebe requisições de torque de múltiplas fontes e calcula o mínimo:
-pub struct TorqueCoordination {
-    max_engine_torque_nm:    f64,  // limite por segurança/modo limp
-    abs_torque_limit_nm:     f64,  // ABS/TCS: corte para reduzir slip
-    ad_torque_request_nm:    f64,  // Sistema autônomo: reduz ao frear
-    commanded_torque_nm:     f64,  // = min(todos os limites acima)
-    limiting_source:         &amp;str, // quem está limitando agora
-}
-
-fn compute_final(&amp;mut self) {
-    // A "votação" de torque: sempre usa o limite mais restritivo
-    let (min_torque, source) = [
-        (max_engine, "VCM-max"),
-        (abs_limit,  "ABS/TCS"),
-        (ad_request, "AD-ctrl"),
-    ].iter().min_by(torque_value);
-
-    self.commanded_torque_nm = min_torque;  // ECM vai seguir este valor
-}
-</pre>
-
-<h3>13b.2 Distribuição de Potência (Power Distribution)</h3>
-<pre>
-// Motor diesel tem 220 kW disponíveis — VCM distribui entre os sistemas:
-total = drivetrain + hydraulics + PTO + electrical
-     = (engine_torque × RPM / 30000)  // kW em movimento
-     + hcm.hydraulic_power_kw          // kW para hidráulico
-     + (pto_torque × RPM / 30000)      // kW para TDP
-     + (bcm_load_A × 14V / 1000)       // kW elétrico
-
-if total &gt; 220 × 1.05:  // sobrecarga acima de 5%
-    load_shed_active = true
-    // Prioridade: drivetrain &gt; hydraulics &gt; PTO &gt; electrical
-    // Corta TDP primeiro, depois cargas auxiliares
-</pre>
-
-<h3>13b.3 Vehicle Mode State Machine</h3>
-<pre>
-pub enum VehicleMode {
-    Parked,          // Motor desligado, sem movimento
-    Idle,            // Motor ligado, sem torque de tração
-    FieldWork,       // &lt;15 km/h, implementos podem estar ativos
-    RoadTransport,   // &gt;15 km/h, implementos recolhidos
-    TransportBraked, // Desacelerando em estrada
-    Emergency,       // E-stop ou falha crítica
-    Limp,            // ECM/TCM perdidos → velocidade limitada a 50% potência
-}
-// Transição para Limp: ECM perdido (timeout EEC1) enquanto motor rodando
-if !comm_health.ecm_alive AND engine_rpm &gt; 400 {
-    self.mode = VehicleMode::Limp;
-}
-</pre>
-
-<!-- ═══════════════════════ FLUXO ATUALIZADO ════════════════════════════ -->
-<div class="page-break"></div>
-<h1 id="fluxo">26. Fluxo Completo de Dados — v2.0</h1>
-
-<pre>
-CICLO DE SIMULAÇÃO (a cada 16.7 ms — 60 Hz):
-
-Usuário (mouse, sliders, botões, teclas)
-    │ throttle, brake, key, PTO, hitch, AD engage...
-    ▼
-BenchApp::update() [main.rs]
-    │
-    ├─ bench.throttle_pct = slider × 100
-    ├─ bench.tick(DT)
-    │
-    ▼
-HeavyMachinery::tick(dt) [lib.rs] — 17 passos:
-
-PASSO 1:  boot.tick() ─────────────────── Address Claim frames → gateway.transmit()
-PASSO 2:  Recebe frames do ciclo anterior (gateway.dispatched.clone())
-PASSO 3:  ecm.tick(throttle, pto_load + drivetrain_load) → EEC1, ET1, LFE, DM1...
-PASSO 4:  tcm.tick(rpm, torque, throttle, brake) → ETC1, ETC2...
-PASSO 5:  bcm.tick(alternator_voltage) → Prop-A heartbeat
-PASSO 6:  icm.tick(received_frames) → processa EEC1→RPM, DM1→lâmpadas
-PASSO 7:  hcm.tick(rpm, hitch_cmd, loader_cmd) → HITCH frame
-PASSO 8:  abs.tick(speed, brake, throttle, steer) → EBC1, EBC2
-PASSO 9:  uds_ecm.tick() + uds_tcm.tick() → expira sessões, lockout segurança
-PASSO 10: nvm.tick() → flush EEPROM periódico, fuel trim adaptation
-PASSO 11: net_mgmt.tick() → OSEK NM sleep/wake transitions
-PASSO 12: Submeter todos os frames ao gateway (can_gateway.transmit)
-PASSO 13: gateway.tick() → ARBITRAÇÃO por CAN ID, dispatch, TEC/REC
-PASSO 14: can_net.tick() → multi-bus routing: Powertrain → Body (via VCM)
-PASSO 15b:vcm.tick() → coordenação torque, power distribution, health monitor
-PASSO 16: Sensores:
-          ├─ gps.update(speed, heading) → NMEA sentences, pos lat/lon
-          ├─ imu.update(accel, yaw, rpm) → Madgwick AHRS → roll/pitch/yaw
-          ├─ radar.update(ego_speed, traffic) → Kalman tracking → TTC
-          ├─ lidar.update(world_obstacles) → ray casting → point cloud → clusters
-          ├─ camera.update(speed, heading, radar_ttc) → lane + objects + signs
-          ├─ fusion.fuse(camera, radar) → JPDA → fused_objects
-          ├─ ad.tick(speed, lane, ttc, bsm) → ACC/AEB/LKA commands
-          ├─ v2x.update(gps, speed, heading) → BSM TX/RX, SPaT, alerts
-          └─ telematics.update(gps, speed, dtcs) → reports, OTA, geofences
-PASSO 17: apply_fault() → se painel de injeção de falhas estiver ativo
-PASSO 18: elapsed += dt
-
-    │
-    ▼
-ctx.request_repaint() → egui renderiza no próximo vsync (~16ms)
-</pre>
-
-<!-- ═══════════════════════ 20. GLOSSÁRIO ════════════════════════════════ -->
-<div class="page-break"></div>
-<h1 id="glossario">27. Glossário Técnico — Completo</h1>
-
-<pre>
-CICLO DE SIMULAÇÃO (a cada 16.7 ms — 60 Hz):
-
-Usuário (mouse/teclado)
-    │ throttle, brake, key position, button clicks
-    ▼
-BenchApp::update() [main.rs]
-    │
-    ├─ bench.throttle_pct = slider_value × 100
-    │
-    ▼
-HeavyMachinery::tick(dt) [lib.rs]
-    │
-    ├─ boot.tick() ──────────→ [Address Claim frames] ──→ gateway.transmit()
-    │
-    ├─ ecm.tick(throttle, load) → [EEC1, EEC2, ET1, LFE, DM1...] → gateway.transmit()
-    │       ↓ recebe RPM, torque para cálculo de carga
-    ├─ tcm.tick(rpm, torque) → [ETC1, ETC2...] → gateway.transmit()
-    │       ↓ recebe velocidade para cálculo de slip
-    ├─ abs.tick(speed, brake) → [EBC1, EBC2...] → gateway.transmit()
-    │
-    ├─ hcm.tick(rpm, cmds) → [HITCH frame...] → gateway.transmit()
-    │
-    ├─ bcm.tick(alt_voltage) → [PROP_A...] → gateway.transmit()
-    │
-    ├─ icm.tick(received_frames) → [processa EEC1→RPM, ET1→temp, DM1→lâmpadas]
-    │
-    ├─ gateway.tick(dt) ─────────────────────────────────────────────────────────
-    │       │
-    │       ├─ ARBITRAÇÃO: sort por CAN ID (menor = maior prioridade)
-    │       │   Ex: EEC1 (0x0CF004xx) passa antes de DM1 (0x18FECAxx)
-    │       │
-    │       ├─ Para cada frame: verificar injeção de falhas
-    │       │   inject_bit_error? → descarta 1 em 100
-    │       │   inject_missing_ack? → incrementa TEC do transmissor
-    │       │
-    │       ├─ Armazenar em bus.frames (para CAN Monitor)
-    │       ├─ Armazenar em dispatched (para ECUs no próximo ciclo)
-    │       └─ Calcular bus_load_pct = (frames/s ÷ 4166) × 100
-    │
-    ├─ uds_ecm.tick() / uds_tcm.tick() → expirar sessões, gerenciar lockout
-    │
-    ├─ nvm.tick() → flush periódico, update fuel_trim adaptations
-    │
-    └─ net_mgmt.tick() → transições BusSleep/Active/PrepShutdown
-
-BenchApp::update() [continuação]
-    │
-    ├─ push_plot() → armazena [t, value] nos ring buffers para gráficos
-    │
-    ├─ ctx.request_repaint() → força próximo frame em ~16ms
-    │
-    └─ Renderiza UI conforme aba ativa:
-        Dashboard   → arc_gauge, bar_gauge, warning_lamp
-        CAN Monitor → tabela de frames com filtro
-        ECU Status  → grade de ECUs com TEC/REC/BusState
-        Faults      → lista de DTCs + injeção de falhas
-        Boot        → interlocks + log de eventos
-        Implements  → PTO gauge + hitch bars + hydraulics
-        UDS Diag    → console hex + log de sessão
-        NM          → estados dos nós + log NM
-        Plots       → egui_plot com dados históricos
-</pre>
-
-<!-- ═══════════════════════ 26A. CODE BREAK-DOWN ═══════════════════════ -->
-<div class="page-break"></div>
-<h1 id="code_breakdown">26A. Code Break-Down — Módulos e Fluxo Linha a Linha</h1>
-
-<div class="warn-box">
-<strong>Nota de escopo:</strong> este break-down cobre o comportamento linha a linha dos <em>fluxos críticos</em> (segurança, IO live, decode e UI de operação). Em um projeto com dezenas de módulos e milhares de linhas, esta abordagem evita ruído e foca no que impacta segurança operacional e integração real.
-</div>
-
-<h2>A. Mapa rápido por módulo (estado atual)</h2>
-<table>
-  <tr><th>Módulo</th><th>Responsabilidade</th><th>Funções-chave</th></tr>
-  <tr><td><code>src/main.rs</code></td><td>Aplicação desktop, tabs, fluxo operacional ECM-Live</td><td><code>update()</code>, <code>tab_ecm_live_data()</code>, fila de comandos</td></tr>
-  <tr><td><code>src/io/hw.rs</code></td><td>Contrato de hardware, parsing de flags, política safe-by-default</td><td><code>HwConfig::from_cli_args</code>, <code>open_real_adapter</code>, <code>write_listen_only_startup_log</code></td></tr>
-  <tr><td><code>src/io/live_runner.rs</code></td><td>Pipeline Detect/Connect/Retrieve, histórico e export CSV</td><td><code>detect_ecms</code>, <code>connect_ecm</code>, <code>start_retrieve_data</code>, <code>LiveFeed::export_csv</code></td></tr>
-  <tr><td><code>src/io/ecm_params.rs</code></td><td>Decode de parâmetros J1939 para snapshot de alto nível</td><td><code>decode_can_frame</code>, <code>merge_snapshot</code></td></tr>
-  <tr><td><code>src/io/allowlist.rs</code></td><td>Autorização de TX por regra (CAN/serial)</td><td><code>Allowlist::from_path</code>, <code>is_allowed</code>, <code>rule_matches_frame</code></td></tr>
-  <tr><td><code>src/io/rate_limiter.rs</code></td><td>Limiter global + por CAN ID</td><td><code>TwoLevelRateLimiter::check_can</code>, <code>check_serial</code></td></tr>
-  <tr><td><code>src/io/replay.rs</code></td><td>Conversão frame↔JSONL e replay forense</td><td><code>frame_to_record</code>, <code>record_to_frame</code></td></tr>
-  <tr><td><code>src/io/serial_adapter.rs</code></td><td>I/O real em COM/TTY</td><td><code>open</code>, <code>read_frame</code>, <code>send_frame</code></td></tr>
-  <tr><td><code>src/io/socketcan_adapter.rs</code></td><td>I/O CAN nativo Linux</td><td><code>open</code>, <code>read_frame</code>, <code>send_frame</code></td></tr>
-  <tr><td><code>src/io/vendor_cat_comm.rs</code></td><td>Template Windows-first Cat Comm (fail-closed)</td><td><code>open</code>, contrato de integração bridge/SDK</td></tr>
-  <tr><td><code>src/io/mock.rs</code></td><td>Adapter mock para teste/CI sem hardware</td><td><code>inject_rx</code>, <code>read_frame</code>, <code>send_frame</code></td></tr>
-  <tr><td><code>tests/io_mock.rs</code></td><td>Teste de políticas e pipeline IO</td><td>13 cenários de integração mock</td></tr>
-</table>
-
-<h2>B. Break-down linha a linha dos fluxos críticos</h2>
-
-<h3>B.1 Bootstrap seguro e seleção de adapter (<code>src/io/hw.rs</code>)</h3>
-<pre>
-1) HwConfig::from_cli_args(args)
-    - percorre cada argumento CLI;
-    - converte flags em campos tipados (modo, portas, dry-run, limites, allowlist);
-    - rejeita valores inválidos com erro explícito.
-
-2) write_intent_enabled()
-    - retorna true somente quando existe intenção de escrita segura:
-      enable_write && allowlist_path.is_some() && noninteractive_approved.
-
-3) write_effectively_enabled()
-    - retorna true apenas se intenção segura + dry_run=false.
-    - regra-chave: dry-run sempre bloqueia TX físico.
-
-4) open_real_adapter(cfg)
-    - prioriza vendor_name=cat_comm em Windows (feature vendor-windows);
-    - depois tenta CAN interface;
-    - depois serial;
-    - sem interface válida => erro explícito (nada implícito/silencioso).
-
-5) write_listen_only_startup_log(cfg)
-    - cria diretório de log;
-    - grava sessão auditável (JSONL.GZ) com estado de segurança na inicialização;
-    - indexa sessões com write efetivo habilitado.
-</pre>
-
-<h3>B.2 Fluxo ECM-Live operacional (<code>src/io/live_runner.rs</code> + <code>src/main.rs</code>)</h3>
-<pre>
-1) UI tab_ecm_live_data() (main.rs)
-    - botão Detect chama detect_ecms(cfg, timeout);
-    - botão Connect chama connect_ecm(cfg, target_sa);
-    - botão Retrieve Data chama start_retrieve_data(cfg.clone(), target_sa);
-    - botão Stop sinaliza feed.stop();
-    - botão Export CSV chama feed.export_csv(path).
-
-2) detect_ecms()
-    - abre adapter real e inicializa;
-    - lê frames durante janela de timeout;
-    - coleta SAs candidatos por PGNs esperados;
-    - fecha adapter e retorna lista de alvos detectados.
-
-3) connect_ecm()
-    - executa handshake básico de requisições J1939;
-    - espera resposta no intervalo definido;
-    - falha por timeout se não houver retorno válido.
-
-4) start_retrieve_data()
-    - inicia thread dedicada de leitura;
-    - para cada frame RX: incrementa contadores, registra JSONL e decodifica snapshot;
-    - atualiza snapshot compartilhado para a UI;
-    - empilha histórico (rolling) para dashboard e export.
-
-5) LiveFeed::export_csv()
-    - garante diretório de saída;
-    - grava cabeçalho CSV;
-    - serializa cada ponto histórico com timestamp e parâmetros-chave.
-</pre>
-
-<h3>B.3 Decode de parâmetros ECM (<code>src/io/ecm_params.rs</code>)</h3>
-<pre>
-1) j1939_pgn(id)
-    - extrai o PGN do CAN ID estendido (29 bits).
-
-2) decode_can_frame(frame)
-    - identifica PGN relevante (EEC1, ET1, EFL/P1...);
-    - converte bytes crus para unidades físicas (rpm, °C, kPa, %);
-    - retorna estrutura parcial de parâmetros disponíveis naquele frame.
-
-3) merge_snapshot(snapshot, frame)
-    - aplica somente campos presentes no decode atual;
-    - preserva valores anteriores para campos ausentes;
-    - mantém snapshot consistente para UI/telemetria.
-</pre>
-
-<h3>B.4 Controle de escrita (allowlist + rate limit)</h3>
-<pre>
-1) Allowlist::from_path(path)
-    - lê JSON de regras;
-    - valida schema e consistência de campos;
-    - retorna estrutura pronta para matching.
-
-2) Allowlist::is_allowed(frame)
-    - para CAN: compara id/mask e janelas de bytes permitidas;
-    - para serial: aplica matching de padrão hex;
-    - sem match => bloqueio.
-
-3) TwoLevelRateLimiter::check_can(id)
-    - consome token global;
-    - consome token por ID;
-    - qualquer falha => RateLimited.
-
-4) Send path efetivo
-    - policy gate (hw.rs) + allowlist + rate limiter;
-    - dry-run=true: registra intenção e não transmite no barramento.
-</pre>
-
-<h3>B.5 Adapters físicos e testes</h3>
-<pre>
-1) serial_adapter.rs
-    - open(): abre COM com timeout e mapeia erros de permissão/porta;
-    - read_frame(): lê bytes e encapsula em SerialFrame;
-    - send_frame(): transmite payload e confirma flush.
-
-2) socketcan_adapter.rs
-    - ativa somente em Linux para SocketCAN;
-    - converte frame socketcan para CanFrame do domínio interno;
-    - envia frame com validações de ID e payload.
-
-3) vendor_cat_comm.rs
-    - template fail-closed para integração Cat Comm;
-    - define pontos de extensão para SDK/bridge sem liberar TX inseguro por padrão.
-
-4) tests/io_mock.rs
-    - valida parsing de flags, bloqueio padrão de escrita, dry-run,
-      allowlist, rate-limit e replay timestamp (13 testes).
-</pre>
-
-<h2>C. Leitura recomendada por ordem</h2>
-<ol>
-  <li><code>src/io/hw.rs</code> (contrato + segurança)</li>
-  <li><code>src/io/live_runner.rs</code> (orquestração ECM-Live)</li>
-  <li><code>src/io/ecm_params.rs</code> (decode físico)</li>
-  <li><code>src/main.rs</code> (operação na UI)</li>
-  <li><code>src/io/allowlist.rs</code> + <code>src/io/rate_limiter.rs</code> (controle de escrita)</li>
-  <li><code>src/io/serial_adapter.rs</code> / <code>src/io/socketcan_adapter.rs</code> / <code>src/io/vendor_cat_comm.rs</code></li>
-</ol>
-
-<!-- ═══════════════════════ 27. GLOSSÁRIO COMPLETO ═══════════════════════ -->
-<div class="page-break"></div>
-<h1 id="glossario">27. Glossário Técnico — Completo v2.0</h1>
-
-<table>
-  <tr><th>Termo</th><th>Definição</th></tr>
-  <tr><td><strong>ABS</strong></td><td>Anti-lock Braking System — impede travamento de rodas, mantém dirigibilidade durante frenagem</td></tr>
-  <tr><td><strong>ACC</strong></td><td>Adaptive Cruise Control — mantém velocidade e distância segura do veículo à frente (L1/L2 AD)</td></tr>
-  <tr><td><strong>ACK</strong></td><td>Acknowledgment — bit que qualquer receptor válido puxa para dominante, confirmando recepção</td></tr>
-  <tr><td><strong>Address Claiming</strong></td><td>Processo J1939-81 pelo qual cada ECU reivindica um SA (Source Address) único no barramento</td></tr>
-  <tr><td><strong>AHRS</strong></td><td>Attitude and Heading Reference System — sistema de estimação de atitude (roll/pitch/yaw) por fusão de sensores</td></tr>
-  <tr><td><strong>AEB</strong></td><td>Autonomous Emergency Braking — frenagem de emergência automática quando TTC &lt; threshold</td></tr>
-  <tr><td><strong>BAM</strong></td><td>Broadcast Announce Message — protocolo J1939 TP para transmissão multi-packet em broadcast</td></tr>
-  <tr><td><strong>BSM</strong></td><td>Basic Safety Message (SAE J2735) — mensagem V2V transmitida a 10Hz contendo posição, velocidade, rumo</td></tr>
-  <tr><td><strong>BSFC</strong></td><td>Brake Specific Fuel Consumption — eficiência do motor: g de combustível por kWh de energia produzida</td></tr>
-  <tr><td><strong>CAN</strong></td><td>Controller Area Network — barramento serial diferencial criado pela Bosch, padrão automotivo mundial</td></tr>
-  <tr><td><strong>CAN FD</strong></td><td>CAN Flexible Data Rate (ISO 11898-2:2016) — payload até 64 bytes, fase de dados até 5 Mbit/s</td></tr>
-  <tr><td><strong>CMDT</strong></td><td>Connection Mode Data Transfer — J1939 TP peer-to-peer com controle de fluxo (CTS/EOMACK)</td></tr>
-  <tr><td><strong>CRDI</strong></td><td>Common Rail Direct Injection — sistema de injeção direta com trilho de pressão comum (300-2000 bar)</td></tr>
-  <tr><td><strong>C-V2X</strong></td><td>Cellular V2X — comunicação V2X via rede celular 4G/5G LTE-V (alternativa ao DSRC 5.9GHz)</td></tr>
-  <tr><td><strong>DA</strong></td><td>Destination Address — endereço de destino (0xFF = broadcast para todos)</td></tr>
-  <tr><td><strong>DEF</strong></td><td>Diesel Exhaust Fluid (AdBlue) — solução de ureia 32.5% usada no SCR para reduzir NOx</td></tr>
-  <tr><td><strong>DLC</strong></td><td>Data Length Code — número de bytes de payload (0-8 no CAN clássico, até 64 no CAN FD)</td></tr>
-  <tr><td><strong>DOP</strong></td><td>Dilution of Precision — indicador de qualidade geométrica dos satélites GPS visíveis (menor = melhor)</td></tr>
-  <tr><td><strong>DPF</strong></td><td>Diesel Particulate Filter — filtro de fuligem; precisa de regeneração periódica para queimar partículas</td></tr>
-  <tr><td><strong>DSRC</strong></td><td>Dedicated Short-Range Communications — comunicação V2X via 802.11p (5.9GHz, 300-1000m range)</td></tr>
-  <tr><td><strong>DTC</strong></td><td>Diagnostic Trouble Code — código de falha. Formato J1939: SPN + FMI + contador de ocorrências</td></tr>
-  <tr><td><strong>ECM</strong></td><td>Engine Control Module — ECU que controla o motor (injeção, turbo, emissões, governador)</td></tr>
-  <tr><td><strong>ECU</strong></td><td>Electronic Control Unit — computador embarcado que controla um sistema específico do veículo</td></tr>
-  <tr><td><strong>EGR</strong></td><td>Exhaust Gas Recirculation — recircula parte dos gases de escape para reduzir temperaturas e NOx</td></tr>
-  <tr><td><strong>ESP</strong></td><td>Electronic Stability Program — detecta e corrige sobreesterçamento/subesterçamento aplicando freios individualmente</td></tr>
-  <tr><td><strong>FMI</strong></td><td>Failure Mode Identifier — código 0-31 que descreve como o parâmetro falhou (tensão alta, aberta, intermitente...)</td></tr>
-  <tr><td><strong>GNSS</strong></td><td>Global Navigation Satellite System — inclui GPS (EUA), GLONASS (RU), Galileo (EU), BeiDou (China)</td></tr>
-  <tr><td><strong>GPS</strong></td><td>Global Positioning System — constelação de 31 satélites EUA. Acurácia padrão ±3m, RTK ±2cm</td></tr>
-  <tr><td><strong>ISOBUS</strong></td><td>ISO 11783 — perfil J1939 para equipamentos agrícolas. Define VT, Task Controller, Address Claiming específico</td></tr>
-  <tr><td><strong>IMU</strong></td><td>Inertial Measurement Unit — acelerômetro + giroscópio (6-DOF) ou + magnetômetro (9-DOF)</td></tr>
-  <tr><td><strong>J1939</strong></td><td>SAE J1939 — padrão de comunicação CAN para veículos pesados. Define PGNs, SPNs, endereçamento, diagnóstico</td></tr>
-  <tr><td><strong>JPDA</strong></td><td>Joint Probabilistic Data Association — algoritmo de fusão de sensores para associar medições a objetos rastreados</td></tr>
-  <tr><td><strong>KAM</strong></td><td>Keep Alive Memory — memória alimentada pela bateria mesmo com ignição off. Guarda adaptações</td></tr>
-  <tr><td><strong>LIDAR</strong></td><td>Light Detection And Ranging — sensor laser rotativo que gera nuvem de pontos 3D do ambiente</td></tr>
-  <tr><td><strong>LKA</strong></td><td>Lane Keeping Assist — corrige steering para manter o veículo no centro da faixa (L2 AD)</td></tr>
-  <tr><td><strong>Load-Sensing</strong></td><td>Sistema hidráulico onde a bomba ajusta deslocamento conforme demanda de pressão dos atuadores</td></tr>
-  <tr><td><strong>Madgwick AHRS</strong></td><td>Algoritmo de fusão IMU (accel+gyro+mag) em quaternion via gradient descent — tempo real, baixo custo</td></tr>
-  <tr><td><strong>NM</strong></td><td>Network Management (OSEK NM) — coordena estados de sleep/wake dos nós CAN</td></tr>
-  <tr><td><strong>NMEA</strong></td><td>National Marine Electronics Association 0183 — formato de saída serial de receptores GPS (GGA, RMC, GSA...)</td></tr>
-  <tr><td><strong>NVM</strong></td><td>Non-Volatile Memory — EEPROM ou Flash que mantém dados sem alimentação</td></tr>
-  <tr><td><strong>OTA</strong></td><td>Over-The-Air — atualização de firmware/calibração via rede celular sem conexão física</td></tr>
-  <tr><td><strong>PF</strong></td><td>PDU Format — campo de 8 bits do CAN ID que define o tipo de PDU (broadcast ou peer-to-peer)</td></tr>
-  <tr><td><strong>PGN</strong></td><td>Parameter Group Number — identificador do tipo de mensagem J1939 (conjunto de SPNs)</td></tr>
-  <tr><td><strong>PTO</strong></td><td>Power Take-Off (TDP no Brasil) — saída mecânica que transmite potência do motor para implementos</td></tr>
-  <tr><td><strong>RADAR</strong></td><td>Radio Detection And Ranging — sensor 77GHz que mede distância, velocidade radial e azimute de objetos</td></tr>
-  <tr><td><strong>RCS</strong></td><td>Radar Cross Section (dBsm) — eficiência de reflexão de um objeto ao RADAR. Caminhão ~25dBsm, pedestre ~-5dBsm</td></tr>
-  <tr><td><strong>REC</strong></td><td>Receive Error Counter — contador ISO 11898: incrementa em erros de recepção, decrementa em acertos</td></tr>
-  <tr><td><strong>RTK</strong></td><td>Real-Time Kinematic — correção GPS via estação de referência para acurácia centimétrica (2cm)</td></tr>
-  <tr><td><strong>SA</strong></td><td>Source Address — endereço de 1 byte que identifica o remetente de um frame J1939</td></tr>
-  <tr><td><strong>SAE</strong></td><td>Society of Automotive Engineers — organização que define J1939, J2735, e os níveis de automação L0-L5</td></tr>
-  <tr><td><strong>SCR</strong></td><td>Selective Catalytic Reduction — injeta DEF no escapamento para converter NOx em N2 + H2O</td></tr>
-  <tr><td><strong>SPN</strong></td><td>Suspect Parameter Number — identificador de um parâmetro específico (SPN 190 = RPM do motor)</td></tr>
-  <tr><td><strong>SPaT</strong></td><td>Signal Phase and Timing — mensagem V2I de semáforos inteligentes com tempo restante e fase</td></tr>
-  <tr><td><strong>TCM</strong></td><td>Transmission Control Module — ECU que controla o câmbio automático (relações, embreagens, shuttle)</td></tr>
-  <tr><td><strong>TCS</strong></td><td>Traction Control System — detecta giro excessivo das rodas motrizes e reduz torque/aplica freio</td></tr>
-  <tr><td><strong>TCU</strong></td><td>Telematics Control Unit — módulo de comunicação celular para fleet management e OTA</td></tr>
-  <tr><td><strong>TEC</strong></td><td>Transmit Error Counter — incrementa em erros de TX (+8 por erro), decrementa em sucesso (-1). TEC≥256 → Bus-Off</td></tr>
-  <tr><td><strong>TJA</strong></td><td>Traffic Jam Assist — extensão do ACC para stop-and-go automático em tráfego lento</td></tr>
-  <tr><td><strong>TTC</strong></td><td>Time to Collision — tempo estimado até colisão: TTC = distância / velocidade_de_fechamento</td></tr>
-  <tr><td><strong>UDS</strong></td><td>Unified Diagnostic Services (ISO 14229) — protocolo padrão para diagnóstico de ECU via CAN</td></tr>
-  <tr><td><strong>V2I</strong></td><td>Vehicle-to-Infrastructure — comunicação veículo-infraestrutura (semáforos, portais, estradas)</td></tr>
-  <tr><td><strong>V2V</strong></td><td>Vehicle-to-Vehicle — comunicação direta entre veículos via DSRC ou C-V2X (BSM exchange)</td></tr>
-  <tr><td><strong>V2X</strong></td><td>Vehicle-to-Everything — comunicação veicular com todos os elementos do tráfego (V2V + V2I + V2N)</td></tr>
-  <tr><td><strong>VCM</strong></td><td>Vehicle Control Module — ECU gateway que coordena múltiplos domínios e distribui potência</td></tr>
-  <tr><td><strong>VGT</strong></td><td>Variable Geometry Turbocharger — turbo com pás ajustáveis que otimiza boost em toda a faixa de RPM</td></tr>
-  <tr><td><strong>VT</strong></td><td>Virtual Terminal (ISOBUS) — display padronizado de equipamentos agrícolas (ISO 11783-6)</td></tr>
-  <tr><td><strong>Wear Levelling</strong></td><td>Distribuição uniforme de escritas na EEPROM/Flash para maximizar vida útil (~100k ciclos/célula)</td></tr>
-  <tr><td><strong>YOLOv8</strong></td><td>You Only Look Once v8 — rede neural de detecção de objetos em tempo real (simulada no camera.rs)</td></tr>
-</table>
-
-<hr>
-<p style="text-align:center; color:#888; font-size:10pt; margin-top:40px;">
-    Manual Técnico — SimuBench ECU Platform v3.0<br>
-    Atualizado em 2026-08-12 | Simulação multi-ECU + ECM-Live + Safety IO<br>
-    Rust · J1939 · CAN Multi-Bus · UDS ISO 14229 · OSEK NM · LIDAR · RADAR · GPS · IMU · SAE L2/L3 · V2X · Telematics · egui/eframe
-</p>
-
+  <a id="top"></a>
+  <div class="wrap">
+    <header>
+      <h1>SimuBench - Manual Tecnico Completo</h1>
+      <p class="muted">
+        Guia detalhado, pratico e orientado a engenharia para obter 100% de proveito da plataforma:
+        simulacao multi-ECU, CAN/J1939, UDS, AD, sensores, ECM live, Leak Lab, calibracao e flash workflow.
+      </p>
+      <div class="kpi">
+        <div class="card"><strong>Versao alvo</strong><br/>AutoBreaking 0.3.x</div>
+        <div class="card"><strong>GUI</strong><br/>eframe/egui</div>
+        <div class="card"><strong>Modo default</strong><br/>Sim seguro</div>
+        <div class="card"><strong>Publico</strong><br/>Engenharia, teste, validacao</div>
+      </div>
+    </header>
+
+    <div class="grid">
+      <nav>
+        <a href="#pre">1. Pre-requisitos e setup</a>
+        <a href="#quick">2. Roteiro rapido (15 min)</a>
+        <a href="#tabs">3. Passo a passo por aba</a>
+        <a href="#cluster">3.1 Cluster</a>
+        <a href="#can">3.2 CAN Bus</a>
+        <a href="#events">3.3 Events</a>
+        <a href="#ecunet">3.4 ECU Net</a>
+        <a href="#engine">3.5 Engine</a>
+        <a href="#faults">3.6 Faults</a>
+        <a href="#boot">3.7 Boot</a>
+        <a href="#impl">3.8 Implements</a>
+        <a href="#params">3.9 Params</a>
+        <a href="#sensors">3.10 Sensors</a>
+        <a href="#ad">3.11 AD</a>
+        <a href="#v2x">3.12 V2X</a>
+        <a href="#uds">3.13 UDS</a>
+        <a href="#ecmlive">3.14 ECM Live</a>
+        <a href="#leak">3.15 Leak Lab</a>
+        <a href="#plots">3.16 Plots</a>
+        <a href="#modules">4. Modulos internos (deep use)</a>
+        <a href="#workflows">5. Workflows de engenharia</a>
+        <a href="#prod">6. Modo production-ready</a>
+        <a href="#checklist">7. Checklist de excelencia</a>
+      </nav>
+
+      <main>
+        <section id="pre">
+          <h2>1) Pre-requisitos e setup</h2>
+          <h3>1.1 Build local</h3>
+          <pre>cargo check
+cargo test --locked --workspace</pre>
+
+          <h3>1.2 Rodar GUI em simulacao segura</h3>
+          <pre>cargo run -- --hw-mode=sim</pre>
+
+          <h3>1.3 Rodar em live (somente com governanca)</h3>
+          <pre>cargo run --release --features "vendor-windows" -- \
+  --hw-mode=live \
+  --vendor-name=cat_comm \
+  --enable-write \
+  --allowlist=allowlist.example.json \
+  --noninteractive-approved \
+  --dry-run=false</pre>
+
+          <p>
+            <span class="pill ok">Safe default</span>
+            <span class="pill warn">Live exige gates</span>
+            <span class="pill danger">Sem gate = sem escrita fisica</span>
+          </p>
+        </section>
+
+        <section id="quick">
+          <h2>2) Roteiro rapido (15 min)</h2>
+          <ol>
+            <li>Inicie em <code>--hw-mode=sim</code>.</li>
+            <li>Aba Cluster: aplique throttle/brake e valide dinamica basica.</li>
+            <li>Aba CAN Bus: verifique sinais, trace e saude de rede.</li>
+            <li>Aba Faults: injete falha e veja impacto em Events + ECU Net.</li>
+            <li>Aba UDS: teste 10 02, 22 DD 01, 14 FF FF FF.</li>
+            <li>Aba Leak Lab: rode prediction, Monte Carlo e CAD ASCII do O-ring.</li>
+            <li>Aba ECM Live: conecte feed e exporte CSV historico.</li>
+          </ol>
+        </section>
+
+        <section id="tabs">
+          <h2>3) Passo a passo por aba</h2>
+          <p class="muted">As 16 abas cobrem operacao completa da bancada. Use a ordem abaixo para exploracao progressiva.</p>
+        </section>
+
+        <section id="cluster">
+          <h3>3.1 Cluster</h3>
+          <ol>
+            <li>Use key/ignition para simular estados Off/Acc/Crank/Run.</li>
+            <li>Aplique throttle e brake gradualmente.</li>
+            <li>Observe RPM, velocidade, marcha, lamps e warnings.</li>
+            <li>Valide consistencia com Engine + CAN Bus.</li>
+          </ol>
+          <p><strong>Objetivo:</strong> baseline operacional do powertrain.</p>
+        </section>
+
+        <section id="can">
+          <h3>3.2 CAN Bus</h3>
+          <ol>
+            <li>Modo Signals: inspecione PGNs decodificados e periodicidade.</li>
+            <li>Modo Trace: veja frames crus para troubleshooting.</li>
+            <li>Modo Network: confira load, erros, estado de cada bus.</li>
+            <li>Use filtros por PGN/SA para deep debug.</li>
+            <li>Teste injecoes (Bit/Ack/BusOff/Babbling) e exporte snapshot.</li>
+          </ol>
+          <p><strong>Objetivo:</strong> diagnostico de rede e robustez de comunicacao.</p>
+        </section>
+
+        <section id="events">
+          <h3>3.3 Events</h3>
+          <ol>
+            <li>Selecione nivel minimo (Info/Warning/Critical).</li>
+            <li>Filtre por subsistema (engine, can, uds, leak, ad).</li>
+            <li>Correlacione timestamps com Faults e UDS log.</li>
+          </ol>
+          <p><strong>Objetivo:</strong> trilha causal e auditoria de comportamento.</p>
+        </section>
+
+        <section id="ecunet">
+          <h3>3.4 ECU Net</h3>
+          <ol>
+            <li>Verifique ECUs online/offline e estagio de boot.</li>
+            <li>Confirme sincronismo entre gateway, net_mgmt e can_net.</li>
+            <li>Identifique ECUs degradadas apos faults.</li>
+          </ol>
+          <p><strong>Objetivo:</strong> visibilidade topologica da arquitetura eletronica.</p>
+        </section>
+
+        <section id="engine">
+          <h3>3.5 Engine</h3>
+          <ol>
+            <li>Monitore temperatura, pressao de oleo, boost, torque.</li>
+            <li>Acompanhe aftertreatment e estados de protecao.</li>
+            <li>Valide limites contra parametros calibrados.</li>
+          </ol>
+          <p><strong>Objetivo:</strong> validacao funcional de ECM e saude termica/mecanica.</p>
+        </section>
+
+        <section id="faults">
+          <h3>3.6 Faults</h3>
+          <ol>
+            <li>Selecione fault no catalogo.</li>
+            <li>Acione Inject e observe reacao em Engine/CAN/Events.</li>
+            <li>Use Clear Faults para retorno controlado.</li>
+            <li>Registre sinais antes e depois (Plots + export).</li>
+          </ol>
+          <p><strong>Objetivo:</strong> reproduzir cenarios de falha para RCA/PCA.</p>
+        </section>
+
+        <section id="boot">
+          <h3>3.7 Boot</h3>
+          <ol>
+            <li>Inspecione sequencia de boot por ECU.</li>
+            <li>Valide tempos e address-claim.</li>
+            <li>Cheque transicoes de ignition e readiness geral.</li>
+          </ol>
+          <p><strong>Objetivo:</strong> teste de startup e disponibilidade da rede.</p>
+        </section>
+
+        <section id="impl">
+          <h3>3.8 Implements</h3>
+          <ol>
+            <li>Controle PTO, hitch e valvulas auxiliares.</li>
+            <li>Observe resposta hidraulica e limites de pressao.</li>
+            <li>Correlacione com Leak Lab para impacto de vedacao.</li>
+          </ol>
+          <p><strong>Objetivo:</strong> validacao de implementos e carga hidraulica realista.</p>
+        </section>
+
+        <section id="params">
+          <h3>3.9 Params</h3>
+          <ol>
+            <li>Edite parametros de simulacao de forma controlada.</li>
+            <li>Aplique e acompanhe efeito imediato nos modulos.</li>
+            <li>Use extremos para teste de robustez e alarms.</li>
+          </ol>
+          <p><strong>Objetivo:</strong> ensaio dirigido e validacao de fronteiras operacionais.</p>
+        </section>
+
+        <section id="sensors">
+          <h3>3.10 Sensors</h3>
+          <ol>
+            <li>Valide GPS/IMU/Radar/Lidar/Camera individualmente.</li>
+            <li>Cruze com AD para confirmar impacto de percepcao.</li>
+            <li>Use este painel como base de tuning de fusion.</li>
+          </ol>
+          <p><strong>Objetivo:</strong> assegurar qualidade de entrada do stack autonomo.</p>
+        </section>
+
+        <section id="ad">
+          <h3>3.11 AD</h3>
+          <ol>
+            <li>Engage AD e ajuste setpoint ACC.</li>
+            <li>Monitore throttle/brake/steer gerados pelo controlador.</li>
+            <li>Use path planning para waypoints e observe resposta.</li>
+            <li>Analise TTC/THW, lane confidence, safety status.</li>
+          </ol>
+          <p><strong>Objetivo:</strong> validacao de controle autonomo e seguranca operacional.</p>
+        </section>
+
+        <section id="v2x">
+          <h3>3.12 V2X</h3>
+          <ol>
+            <li>Monitore DSRC/C-V2X, range, latencia e perda.</li>
+            <li>Avalie alertas cooperativos e telemetria remota.</li>
+            <li>Cruze eventos com AD para risco de colisao.</li>
+          </ol>
+          <p><strong>Objetivo:</strong> testar cooperacao veiculo-rede.</p>
+        </section>
+
+        <section id="uds">
+          <h3>3.13 UDS</h3>
+          <ol>
+            <li>Defina SA alvo (ex: 0x00 ECM, 0x03 TCM).</li>
+            <li>Use presets para sessao e leitura de DIDs.</li>
+            <li>Para limpeza: use workflow Clean (ClrDTC + ResetAdap).</li>
+            <li>Para flash: selecione firmware .bin e execute Flash Upload.</li>
+            <li>Em live real, a escrita depende de gate completo:</li>
+          </ol>
+          <pre>--enable-write + --allowlist + --noninteractive-approved + --dry-run=false</pre>
+          <p><strong>Objetivo:</strong> diagnostico e manutencao controlada por protocolo UDS.</p>
+        </section>
+
+        <section id="ecmlive">
+          <h3>3.14 ECM Live</h3>
+          <ol>
+            <li>Detect ECMs na rede.</li>
+            <li>Connect ao SA alvo.</li>
+            <li>Start Retrieve Data e monitore snapshot.</li>
+            <li>Stop e exporte historico CSV para analise.</li>
+          </ol>
+          <p><strong>Objetivo:</strong> coleta operacional para tendencia, tuning e auditoria.</p>
+        </section>
+
+        <section id="leak">
+          <h3>3.15 Leak Lab</h3>
+          <ol>
+            <li>Escolha circuito (HYD_MAIN, ENG_OIL, AC_HIGH ou custom).</li>
+            <li>Aplique parametros manuais de engenharia.</li>
+            <li>Rode Scenario Prediction e Monte Carlo.</li>
+            <li>Use CAD ASCII para visualizar pressure point, tear-up e fragilidade.</li>
+            <li>Use timeline ASCII para evolucao temporal de pressao/risco/flow.</li>
+            <li>Calibracao: Select CSV -> Run Auto Calibration -> exporte report.</li>
+          </ol>
+          <p><strong>Objetivo:</strong> plataforma de engenharia de vedacao e risco de ruptura.</p>
+        </section>
+
+        <section id="plots">
+          <h3>3.16 Plots</h3>
+          <ol>
+            <li>Acompanhe RPM, torque, velocidade, fuel, coolant, boost, dpf.</li>
+            <li>Use como suporte a investigacao de root cause.</li>
+            <li>Capture comportamento antes/depois de faults e calibracoes.</li>
+          </ol>
+          <p><strong>Objetivo:</strong> analise temporal de sinais criticos.</p>
+        </section>
+
+        <section id="modules">
+          <h2>4) Modulos internos (deep use)</h2>
+          <table>
+            <thead>
+              <tr><th>Modulo</th><th>Arquivo</th><th>Funcao principal</th><th>Quando usar</th></tr>
+            </thead>
+            <tbody>
+              <tr><td>Orquestrador</td><td>src/lib.rs</td><td>Tick central, integracao multi-ECU</td><td>Debug cross-modulo</td></tr>
+              <tr><td>Leak Physics</td><td>src/leak_physics.rs</td><td>Fisica de vazamento/ruptura e calibracao</td><td>Engenharia de vedacao</td></tr>
+              <tr><td>UDS Server</td><td>src/uds.rs</td><td>Sessoes, seed/key, download/transfer</td><td>Diag e manutencao</td></tr>
+              <tr><td>I/O Live</td><td>src/io/live_runner.rs</td><td>Detect/connect/retrieve/flash/clean live</td><td>Conexao real com hardware</td></tr>
+              <tr><td>CAN Network</td><td>src/can_network.rs</td><td>Multi-bus e erros de comunicacao</td><td>Validacao de rede</td></tr>
+              <tr><td>Gateway J1939</td><td>src/can_gateway.rs</td><td>Arbitragem e despacho de frames</td><td>Analise de routing</td></tr>
+              <tr><td>Autonomous</td><td>src/autonomous.rs</td><td>ACC/AEB/LKA/TJA</td><td>Controle AD</td></tr>
+              <tr><td>Sensores</td><td>src/gps.rs, src/imu.rs, src/radar.rs, src/lidar.rs, src/camera.rs</td><td>Percepcao e fusion</td><td>Qualidade de input AD</td></tr>
+              <tr><td>VCM</td><td>src/ecu_vcm.rs</td><td>Coordenacao veicular</td><td>Gestao de limites</td></tr>
+            </tbody>
+          </table>
+        </section>
+
+        <section id="workflows">
+          <h2>5) Workflows de engenharia recomendados</h2>
+
+          <h3>Workflow A - Validacao funcional end-to-end</h3>
+          <ol>
+            <li>Cluster baseline.</li>
+            <li>Engine estabilidade termica.</li>
+            <li>CAN Bus sem erros.</li>
+            <li>Fault inject controlado.</li>
+            <li>Events/Plots para evidencia.</li>
+          </ol>
+
+          <h3>Workflow B - Diagnostico UDS + manutencao</h3>
+          <ol>
+            <li>Entrar em sessao correta.</li>
+            <li>Ler DIDs criticos.</li>
+            <li>Executar clean quando necessario.</li>
+            <li>Flash upload somente com gate completo e janela segura.</li>
+          </ol>
+
+          <h3>Workflow C - Leak Engineering completo</h3>
+          <ol>
+            <li>Ajuste manual inicial.</li>
+            <li>Prediction + Monte Carlo.</li>
+            <li>CAD ASCII + timeline ASCII.</li>
+            <li>Calibracao por CSV real de bancada.</li>
+            <li>Export de report por circuito/material/oleo.</li>
+          </ol>
+        </section>
+
+        <section id="prod">
+          <h2>6) Modo production-ready</h2>
+          <h3>6.1 Politica de seguranca</h3>
+          <ul>
+            <li>Operacao live sempre com allowlist e aprovacao explicita.</li>
+            <li>Dry-run ativo por default fora de janela de manutencao.</li>
+            <li>Logs de startup policy e trilha UDS obrigatorios.</li>
+          </ul>
+
+          <h3>6.2 Comandos de validacao antes de release</h3>
+          <pre>cargo fmt
+cargo clippy --workspace --all-targets
+cargo test --locked --workspace
+cargo test --test io_mock</pre>
+
+          <h3>6.3 Evidencias minimas por entrega</h3>
+          <ul>
+            <li>snapshot de rede CAN</li>
+            <li>CSV de ECM live</li>
+            <li>report Leak Lab runtime + prediction + calibration</li>
+            <li>log UDS de manutencao/flash</li>
+          </ul>
+        </section>
+
+        <section id="checklist">
+          <h2>7) Checklist de excelencia (100% proveito)</h2>
+          <table>
+            <thead>
+              <tr><th>Area</th><th>Pergunta</th><th>Status</th></tr>
+            </thead>
+            <tbody>
+              <tr><td>Simulacao</td><td>Todos os subsistemas respondem ao tick sem inconsistencias?</td><td>[ ]</td></tr>
+              <tr><td>CAN/J1939</td><td>Sem erro persistente em rede nominal?</td><td>[ ]</td></tr>
+              <tr><td>Faults</td><td>Falhas geram efeito observavel e reversivel?</td><td>[ ]</td></tr>
+              <tr><td>AD</td><td>Comandos AD (throttle/brake/steer) estao efetivos?</td><td>[ ]</td></tr>
+              <tr><td>UDS</td><td>Sessao, security e rotinas estao consistentes?</td><td>[ ]</td></tr>
+              <tr><td>Live</td><td>Gates de escrita estao validados antes de operar?</td><td>[ ]</td></tr>
+              <tr><td>Leak</td><td>Prediction, Monte Carlo, CAD ASCII e timeline estao coerentes?</td><td>[ ]</td></tr>
+              <tr><td>Calibracao</td><td>CSV real gera ajuste e relatorio com erro aceitavel?</td><td>[ ]</td></tr>
+              <tr><td>Qualidade</td><td>check/clippy/test passaram 100%?</td><td>[ ]</td></tr>
+            </tbody>
+          </table>
+        </section>
+      </main>
+    </div>
+  </div>
+
+  <a class="top" href="#top">Topo</a>
 </body>
 </html>

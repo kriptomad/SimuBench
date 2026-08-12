@@ -22,6 +22,9 @@
 //! Max payload without transport: 7 bytes (with J1939 TP: up to 1785 bytes).
 
 use std::collections::VecDeque;
+use rand::RngCore;
+
+const MAX_DOWNLOAD_LEN: u32 = 16 * 1024 * 1024;
 
 // ── Diagnostic Session ────────────────────────────────────────────────────────
 
@@ -329,6 +332,9 @@ impl UdsServer {
         if new_session == DiagSession::Programming && self.security < SecurityLevel::Level3 {
             return self.nrc(0x10, Nrc::SecurityAccessDenied);
         }
+        if new_session == DiagSession::Default {
+            self.security = SecurityLevel::Locked;
+        }
         self.session = new_session;
         self.session_timer = 0.0;
         self.log(
@@ -557,9 +563,8 @@ impl UdsServer {
         match sub {
             // Odd sub-functions = seed request
             sub if sub % 2 == 1 => {
-                // Generate new seed (deterministic for simulation)
-                self.security_seed =
-                    (self.security_seed.wrapping_mul(1664525)).wrapping_add(1013904223);
+                // Generate seed using cryptographic-quality RNG.
+                self.security_seed = rand::thread_rng().next_u32();
                 let seed_bytes = self.security_seed.to_be_bytes();
                 let mut resp = vec![0x67, sub];
                 resp.extend_from_slice(&seed_bytes);
@@ -683,6 +688,9 @@ impl UdsServer {
         if self.session == DiagSession::Default {
             return self.nrc(0x31, Nrc::ServiceNotSupportedInActiveSession);
         }
+        if self.security < SecurityLevel::Level1 {
+            return self.nrc(0x31, Nrc::SecurityAccessDenied);
+        }
         let sub = req[1]; // 0x01=start, 0x02=stop, 0x03=request result
         let rid_hi = req[2];
         let rid_lo = req[3];
@@ -726,15 +734,21 @@ impl UdsServer {
         if self.security < SecurityLevel::Level3 {
             return self.nrc(0x34, Nrc::SecurityAccessDenied);
         }
-        if req.len() < 8 {
+        // Format used here: [0x34, format, addr32(4 bytes), len32(4 bytes)]
+        if req.len() < 10 {
             return self.nrc(0x34, Nrc::IncorrectMessageLength);
         }
         self.download_address = ((req[2] as u32) << 24)
             | ((req[3] as u32) << 16)
             | ((req[4] as u32) << 8)
             | req[5] as u32;
-        self.download_expected_len =
-            ((req[4] as u32) << 24) | ((req[5] as u32) << 16) | ((req[6] as u32) << 8) | req[7] as u32;
+        self.download_expected_len = ((req[6] as u32) << 24)
+            | ((req[7] as u32) << 16)
+            | ((req[8] as u32) << 8)
+            | req[9] as u32;
+        if self.download_expected_len == 0 || self.download_expected_len > MAX_DOWNLOAD_LEN {
+            return self.nrc(0x34, Nrc::RequestOutOfRange);
+        }
         self.download_received_len = 0;
         self.download_block_num = 1;
         self.download_state = DownloadState::Requested;
@@ -760,11 +774,25 @@ impl UdsServer {
             return self.nrc(0x36, Nrc::IncorrectMessageLength);
         }
         let block_num = req[1];
+        if block_num == 0 {
+            return self.nrc(0x36, Nrc::RequestSequenceError);
+        }
         if block_num != self.download_block_num {
             return self.nrc(0x36, Nrc::RequestSequenceError);
         }
-        self.download_received_len += (req.len() - 2) as u32;
-        self.download_block_num = self.download_block_num.wrapping_add(1);
+        let payload_len = (req.len() - 2) as u32;
+        let Some(next_total) = self.download_received_len.checked_add(payload_len) else {
+            return self.nrc(0x36, Nrc::GeneralProgrammingFailure);
+        };
+        if next_total > self.download_expected_len {
+            return self.nrc(0x36, Nrc::RequestOutOfRange);
+        }
+        self.download_received_len = next_total;
+        let next_block = self.download_block_num.wrapping_add(1);
+        if next_block == 0 {
+            return self.nrc(0x36, Nrc::RequestSequenceError);
+        }
+        self.download_block_num = next_block;
         self.download_state = DownloadState::Transferring;
         self.log(
             ts,
@@ -781,6 +809,10 @@ impl UdsServer {
     fn svc_request_transfer_exit(&mut self, _req: &[u8], ts: f64) -> Vec<u8> {
         if self.download_state != DownloadState::Transferring {
             return self.nrc(0x37, Nrc::RequestSequenceError);
+        }
+        if self.download_received_len != self.download_expected_len {
+            self.download_state = DownloadState::Idle;
+            return self.nrc(0x37, Nrc::GeneralProgrammingFailure);
         }
         self.download_state = DownloadState::Complete;
         self.log(
@@ -897,4 +929,34 @@ fn dtc_to_3bytes(spn: u32, fmi: u8) -> [u8; 3] {
         ((spn >> 8) & 0xFF) as u8,
         ((((spn >> 16) & 0x7) as u8) | ((fmi & 0x1F) << 3)),
     ]
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn session_default_relocks_security() {
+        let mut s = UdsServer::new("ECM", 0x00);
+        let _ = s.process(&[0x27, 0x01], 0.0);
+        // Force unlocked state for transition behavior test.
+        s.security = SecurityLevel::Level3;
+        let _ = s.process(&[0x10, 0x01], 0.1);
+        assert_eq!(s.security, SecurityLevel::Locked);
+    }
+
+    #[test]
+    fn transfer_exit_rejects_incomplete_download() {
+        let mut s = UdsServer::new("ECM", 0x00);
+        s.security = SecurityLevel::Level3;
+        let dl = s.process(&[0x34, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x10], 0.0);
+        assert_eq!(dl.first().copied(), Some(0x74));
+
+        let td = s.process(&[0x36, 0x01, 0xAA, 0xBB, 0xCC], 0.1);
+        assert_eq!(td.first().copied(), Some(0x76));
+
+        let exit = s.process(&[0x37, 0x00], 0.2);
+        assert_eq!(exit.first().copied(), Some(0x7F));
+        assert_eq!(exit.get(2).copied(), Some(Nrc::GeneralProgrammingFailure as u8));
+    }
 }

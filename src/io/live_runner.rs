@@ -323,3 +323,203 @@ fn optf(v: Option<f64>) -> String {
         None => String::new(),
     }
 }
+
+#[derive(Debug, Clone)]
+pub struct FlashSummary {
+    pub bytes_sent: usize,
+    pub blocks_sent: usize,
+}
+
+fn encode_uds_frame(cfg: &HwConfig, target_sa: Option<u8>, req: &[u8]) -> Result<Frame, HwError> {
+    if cfg.can_interface.is_some() {
+        if req.len() > 7 {
+            return Err(HwError::Unknown(
+                "UDS single-frame over CAN supports up to 7-byte payload in this workflow"
+                    .to_string(),
+            ));
+        }
+        let dst = target_sa.unwrap_or(0x00);
+        let mut data = [0u8; 8];
+        data[0] = req.len() as u8;
+        let len = req.len();
+        data[1..=len].copy_from_slice(req);
+        let id = 0x18DA0000 | ((dst as u32) << 8) | 0xF9;
+        Ok(Frame::Can(CanFrame {
+            id,
+            dlc: 8,
+            data,
+            len: 8,
+            timestamp_ms: Some(now_ms()),
+        }))
+    } else {
+        Ok(Frame::Serial(super::hw::SerialFrame {
+            bytes: req.to_vec(),
+            protocol_hint: Some("uds-raw".into()),
+            timestamp_ms: Some(now_ms()),
+        }))
+    }
+}
+
+fn decode_uds_response(frame: &Frame) -> Option<Vec<u8>> {
+    match frame {
+        Frame::Serial(sf) => {
+            if sf.bytes.is_empty() {
+                None
+            } else {
+                Some(sf.bytes.clone())
+            }
+        }
+        Frame::Can(cf) => {
+            if cf.len == 0 {
+                return None;
+            }
+            let raw = &cf.data[..cf.len.min(8)];
+            if raw.is_empty() {
+                return None;
+            }
+            let sf_len = raw[0] as usize;
+            if sf_len > 0 && sf_len <= 7 && raw.len() > 1 {
+                let payload_len = sf_len.min(raw.len() - 1);
+                Some(raw[1..(1 + payload_len)].to_vec())
+            } else {
+                Some(raw.to_vec())
+            }
+        }
+    }
+}
+
+fn send_uds_and_wait(
+    adapter: &mut dyn super::hw::HardwareInterface,
+    cfg: &HwConfig,
+    target_sa: Option<u8>,
+    req: &[u8],
+    timeout: Duration,
+) -> Result<Vec<u8>, HwError> {
+    let frame = encode_uds_frame(cfg, target_sa, req)?;
+    adapter.send_frame(frame)?;
+
+    let deadline = Instant::now() + timeout;
+    while Instant::now() < deadline {
+        match adapter.read_frame() {
+            Ok(frame) => {
+                if let Some(resp) = decode_uds_response(&frame) {
+                    return Ok(resp);
+                }
+            }
+            Err(HwError::Timeout) => {}
+            Err(e) => return Err(e),
+        }
+    }
+    Err(HwError::Timeout)
+}
+
+pub fn live_clean_ecm(cfg: &HwConfig, target_sa: Option<u8>) -> Result<(), HwError> {
+    if cfg.mode != HwMode::Live {
+        return Err(HwError::Unknown(
+            "clean requires --hw-mode=live".to_string(),
+        ));
+    }
+    if !cfg.write_effectively_enabled() {
+        return Err(HwError::WriteBlockedAllowlist);
+    }
+
+    let mut adapter = super::hw::open_real_adapter(cfg)?;
+    adapter.init(cfg)?;
+
+    let _ = send_uds_and_wait(&mut *adapter, cfg, target_sa, &[0x10, 0x02], Duration::from_secs(1))?;
+    let _ = send_uds_and_wait(
+        &mut *adapter,
+        cfg,
+        target_sa,
+        &[0x14, 0xFF, 0xFF, 0xFF],
+        Duration::from_secs(1),
+    )?;
+    let _ = send_uds_and_wait(
+        &mut *adapter,
+        cfg,
+        target_sa,
+        &[0x31, 0x01, 0xDF, 0x04],
+        Duration::from_secs(1),
+    )?;
+
+    adapter.close()?;
+    Ok(())
+}
+
+pub fn live_flash_ecm_firmware(
+    cfg: &HwConfig,
+    target_sa: Option<u8>,
+    firmware: &[u8],
+) -> Result<FlashSummary, HwError> {
+    if cfg.mode != HwMode::Live {
+        return Err(HwError::Unknown(
+            "flash requires --hw-mode=live".to_string(),
+        ));
+    }
+    if firmware.is_empty() {
+        return Err(HwError::Unknown("firmware payload is empty".to_string()));
+    }
+    if !cfg.write_effectively_enabled() {
+        return Err(HwError::WriteBlockedAllowlist);
+    }
+
+    let mut adapter = super::hw::open_real_adapter(cfg)?;
+    adapter.init(cfg)?;
+
+    let _ = send_uds_and_wait(&mut *adapter, cfg, target_sa, &[0x10, 0x02], Duration::from_secs(1))?;
+    let seed = send_uds_and_wait(&mut *adapter, cfg, target_sa, &[0x27, 0x05], Duration::from_secs(1))?;
+    if seed.len() < 6 || seed[0] != 0x67 {
+        adapter.close()?;
+        return Err(HwError::Unknown("security seed response invalid".to_string()));
+    }
+    let seed_u32 = ((seed[2] as u32) << 24)
+        | ((seed[3] as u32) << 16)
+        | ((seed[4] as u32) << 8)
+        | seed[5] as u32;
+    let key = seed_u32 ^ 0xDEADBEEF;
+    let key_req = [
+        0x27,
+        0x06,
+        ((key >> 24) & 0xFF) as u8,
+        ((key >> 16) & 0xFF) as u8,
+        ((key >> 8) & 0xFF) as u8,
+        (key & 0xFF) as u8,
+    ];
+    let _ = send_uds_and_wait(&mut *adapter, cfg, target_sa, &key_req, Duration::from_secs(1))?;
+    let _ = send_uds_and_wait(&mut *adapter, cfg, target_sa, &[0x10, 0x03], Duration::from_secs(1))?;
+
+    let total_len = firmware.len() as u32;
+    let req_dl = [
+        0x34,
+        0x00,
+        0x00,
+        0x00,
+        0x00,
+        0x00,
+        ((total_len >> 24) & 0xFF) as u8,
+        ((total_len >> 16) & 0xFF) as u8,
+        ((total_len >> 8) & 0xFF) as u8,
+        (total_len & 0xFF) as u8,
+    ];
+    let _ = send_uds_and_wait(&mut *adapter, cfg, target_sa, &req_dl, Duration::from_secs(1))?;
+
+    let mut block = 1u8;
+    let mut blocks = 0usize;
+    for chunk in firmware.chunks(5) {
+        let mut req = Vec::with_capacity(chunk.len() + 2);
+        req.push(0x36);
+        req.push(block);
+        req.extend_from_slice(chunk);
+        let _ = send_uds_and_wait(&mut *adapter, cfg, target_sa, &req, Duration::from_secs(2))?;
+        block = block.wrapping_add(1);
+        blocks += 1;
+    }
+
+    let _ = send_uds_and_wait(&mut *adapter, cfg, target_sa, &[0x37, 0x00], Duration::from_secs(1))?;
+    adapter.close()?;
+
+    Ok(FlashSummary {
+        bytes_sent: firmware.len(),
+        blocks_sent: blocks,
+    })
+}

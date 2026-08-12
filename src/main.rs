@@ -28,7 +28,7 @@ use eframe::{egui, NativeOptions};
 use egui::*;
 use egui_plot::{Line, Plot, PlotPoints};
 use rfd::FileDialog;
-use std::collections::{BTreeMap, HashMap};
+use std::collections::{BTreeMap, HashMap, VecDeque};
 use std::path::PathBuf;
 use std::time::Duration;
 use widgets::{arc_gauge, bar_gauge, digital_readout, direction_selector, warning_lamp};
@@ -352,6 +352,7 @@ struct App {
     // UDS console
     uds_input: String,
     uds_sa: u8,
+    uds_flash_path: String,
     uds_log: Vec<(bool, String)>,
 
     // Leak physics lab
@@ -361,6 +362,7 @@ struct App {
     leak_horizon_s: f64,
     leak_scenario_dt: f64,
     leak_predictions: Vec<ScenarioPrediction>,
+    leak_temporal_trace: VecDeque<(f64, f64, f64, f64)>, // (t, pressure, risk, leak)
     leak_calibration_csv_path: String,
     leak_calibration_report: Option<CalibrationReport>,
     leak_note: String,
@@ -446,6 +448,7 @@ impl App {
             fault_idx: 0,
             uds_input: "10 02".into(),
             uds_sa: 0x00,
+            uds_flash_path: String::new(),
             uds_log: Vec::new(),
             leak_sel_idx: 0,
             leak_manual: LeakManualUi::default(),
@@ -453,6 +456,7 @@ impl App {
             leak_horizon_s: 600.0,
             leak_scenario_dt: 0.05,
             leak_predictions: Vec::new(),
+            leak_temporal_trace: VecDeque::new(),
             leak_calibration_csv_path: String::new(),
             leak_calibration_report: None,
             leak_note: String::new(),
@@ -1312,6 +1316,19 @@ impl eframe::App for App {
         self.bench.brake_pct = self.brake as f64 * 100.0;
         self.auto_sequence();
         self.bench.tick(DT);
+        if let Some(sel) = self.bench.leak_rig.circuits.get(self.leak_sel_idx) {
+            if let Some(rep) = self.bench.leak_reports.iter().find(|r| r.name == sel.name) {
+                self.leak_temporal_trace.push_back((
+                    self.bench.elapsed,
+                    rep.current_pressure_bar,
+                    rep.rupture_probability_pct,
+                    rep.leak_lpm,
+                ));
+                if self.leak_temporal_trace.len() > 240 {
+                    self.leak_temporal_trace.pop_front();
+                }
+            }
+        }
         self.ticks += 1;
         self.update_signals();
         self.detect_events();
@@ -4680,6 +4697,238 @@ impl App {
 // TAB LEAK LAB
 // ═════════════════════════════════════════════════════════════════════════════
 impl App {
+    fn uds_process_sa(&mut self, sa: u8, req: &[u8], ts: f64) -> Vec<u8> {
+        if sa == 0x00 {
+            self.bench.uds_ecm.process(req, ts)
+        } else if sa == 0x03 {
+            self.bench.uds_tcm.process(req, ts)
+        } else {
+            vec![0x7F, req.first().copied().unwrap_or(0x00), 0x11]
+        }
+    }
+
+    fn uds_send_and_log(&mut self, sa: u8, req: Vec<u8>, ts: f64) -> Vec<u8> {
+        let req_hex = req
+            .iter()
+            .map(|b| format!("{:02X}", b))
+            .collect::<Vec<_>>()
+            .join(" ");
+        let svc = auto_breaking::uds::UdsServer::service_name(req[0]);
+        let resp = self.uds_process_sa(sa, &req, ts);
+        let resp_hex = resp
+            .iter()
+            .map(|b| format!("{:02X}", b))
+            .collect::<Vec<_>>()
+            .join(" ");
+        let nrc = resp.first().copied() == Some(0x7F);
+        self.uds_log.push((
+            true,
+            format!("[{:.2}s] 0x{:02X} {} -> {}", ts, sa, svc, req_hex),
+        ));
+        self.uds_log.push((
+            false,
+            format!(
+                "            RESP {}{}",
+                resp_hex,
+                if nrc { " FAIL" } else { " OK" }
+            ),
+        ));
+        if self.uds_log.len() > 240 {
+            self.uds_log.drain(0..60);
+        }
+        resp
+    }
+
+    fn run_uds_flash_pipeline(&mut self, sa: u8, ts: f64) -> Result<String, String> {
+        if self.uds_flash_path.trim().is_empty() {
+            return Err("selecione um arquivo .bin para flash".into());
+        }
+        let fw = std::fs::read(&self.uds_flash_path)
+            .map_err(|e| format!("falha ao ler firmware: {}", e))?;
+        if fw.is_empty() {
+            return Err("arquivo de firmware vazio".into());
+        }
+
+        // Session + security unlock for programming level.
+        let _ = self.uds_send_and_log(sa, vec![0x10, 0x02], ts);
+        let seed_resp = self.uds_send_and_log(sa, vec![0x27, 0x05], ts);
+        if seed_resp.len() < 6 || seed_resp[0] != 0x67 {
+            return Err("seed de seguranca nao recebido".into());
+        }
+        let seed = ((seed_resp[2] as u32) << 24)
+            | ((seed_resp[3] as u32) << 16)
+            | ((seed_resp[4] as u32) << 8)
+            | seed_resp[5] as u32;
+        let key = seed ^ 0xDEADBEEF;
+        let unlock_resp = self.uds_send_and_log(
+            sa,
+            vec![
+                0x27,
+                0x06,
+                ((key >> 24) & 0xFF) as u8,
+                ((key >> 16) & 0xFF) as u8,
+                ((key >> 8) & 0xFF) as u8,
+                (key & 0xFF) as u8,
+            ],
+            ts,
+        );
+        if unlock_resp.first().copied() != Some(0x67) {
+            return Err("unlock de seguranca falhou".into());
+        }
+
+        let _ = self.uds_send_and_log(sa, vec![0x10, 0x03], ts);
+
+        let total_len = fw.len() as u32;
+        let req_dl = vec![
+            0x34,
+            0x00,
+            0x00,
+            0x00,
+            0x00,
+            0x00,
+            ((total_len >> 24) & 0xFF) as u8,
+            ((total_len >> 16) & 0xFF) as u8,
+            ((total_len >> 8) & 0xFF) as u8,
+            (total_len & 0xFF) as u8,
+        ];
+        let dl_resp = self.uds_send_and_log(sa, req_dl, ts);
+        if dl_resp.first().copied() != Some(0x74) {
+            return Err("request download rejeitado".into());
+        }
+
+        let mut block: u8 = 1;
+        for chunk in fw.chunks(120) {
+            let mut req = Vec::with_capacity(chunk.len() + 2);
+            req.push(0x36);
+            req.push(block);
+            req.extend_from_slice(chunk);
+            let tr = self.uds_send_and_log(sa, req, ts);
+            if tr.first().copied() != Some(0x76) {
+                return Err(format!("transfer data falhou no bloco {}", block));
+            }
+            block = block.wrapping_add(1);
+        }
+
+        let end = self.uds_send_and_log(sa, vec![0x37, 0x00], ts);
+        if end.first().copied() != Some(0x77) {
+            return Err("request transfer exit falhou".into());
+        }
+
+        Ok(format!(
+            "flash concluido (simulado): {} bytes enviados para SA 0x{:02X}",
+            fw.len(),
+            sa
+        ))
+    }
+
+    fn leak_ascii_cad(
+        circuit: &LeakCircuit,
+        report: &auto_breaking::CircuitResult,
+    ) -> (String, Vec<String>) {
+        const SECTORS: usize = 16;
+        let mut local_pressure = [0.0_f64; SECTORS];
+        let mut local_frag = [0.0_f64; SECTORS];
+        let mut local_flow = [0.0_f64; SECTORS];
+
+        for i in 0..SECTORS {
+            let theta = i as f64 * std::f64::consts::TAU / SECTORS as f64;
+            let harmonic = (2.0 * theta).cos() * 0.15 + (theta + 0.4).sin() * 0.07;
+            let pressure = (report.current_pressure_bar * (1.0 + harmonic)).max(0.0);
+            let pressure_ratio = pressure / circuit.pressure.rupture_bar.max(1e-6);
+            let frag = (0.62 * pressure_ratio + 0.38 * (report.rupture_probability_pct / 100.0))
+                .clamp(0.0, 1.0);
+            let flow = report.leak_lpm * (0.65 + 0.35 * harmonic.max(-0.9));
+
+            local_pressure[i] = pressure;
+            local_frag[i] = frag;
+            local_flow[i] = flow.max(0.0);
+        }
+
+        let mut max_pressure_idx = 0usize;
+        let mut max_frag_idx = 0usize;
+        for i in 1..SECTORS {
+            if local_pressure[i] > local_pressure[max_pressure_idx] {
+                max_pressure_idx = i;
+            }
+            if local_frag[i] > local_frag[max_frag_idx] {
+                max_frag_idx = i;
+            }
+        }
+
+        let width = 37usize;
+        let height = 17usize;
+        let mut grid = vec![vec![' '; width]; height];
+        for (y, row) in grid.iter_mut().enumerate().take(height) {
+            for (x, cell) in row.iter_mut().enumerate().take(width) {
+                let nx = (x as f64 / (width - 1) as f64 - 0.5) * 2.0;
+                let ny = (y as f64 / (height - 1) as f64 - 0.5) * 2.0;
+                let rr = ((nx * 1.1).powi(2) + (ny * 0.9).powi(2)).sqrt();
+                if (0.45..=0.95).contains(&rr) {
+                    let ang = ny.atan2(nx);
+                    let mut idx = ((ang + std::f64::consts::PI) / std::f64::consts::TAU
+                        * SECTORS as f64) as usize;
+                    if idx >= SECTORS {
+                        idx = SECTORS - 1;
+                    }
+                    let frag = local_frag[idx];
+                    let mut ch = if frag > 0.85 {
+                        'X'
+                    } else if frag > 0.70 {
+                        '!'
+                    } else if frag > 0.50 {
+                        '*'
+                    } else if frag > 0.30 {
+                        ':'
+                    } else {
+                        '.'
+                    };
+                    if idx == max_pressure_idx {
+                        ch = 'P';
+                    }
+                    if idx == max_frag_idx {
+                        ch = 'T';
+                    }
+                    *cell = ch;
+                }
+            }
+        }
+
+        let mut cad = String::new();
+        cad.push_str("      ENGINEERING ASCII CAD - O-RING / SEAL CROSS-SECTION\n");
+        cad.push_str("  legend: T=tear-up point, P=max pressure point, X=fragility critical\n");
+        cad.push_str("          !=high fragility, *=moderate, :=watch, .=low\n\n");
+        for row in &grid {
+            let line: String = row.iter().collect();
+            cad.push_str(&line);
+            cad.push('\n');
+        }
+
+        let mut lines = Vec::new();
+        lines.push(format!(
+            "pressure point (max): sector {} | {:.2} bar",
+            max_pressure_idx, local_pressure[max_pressure_idx]
+        ));
+        lines.push(format!(
+            "tear-up point (max fragility): sector {} | fragility {:.3}",
+            max_frag_idx, local_frag[max_frag_idx]
+        ));
+        lines.push(format!(
+            "global leak flow: {:.4} L/min | rupture risk {:.1}% | band {}",
+            report.leak_lpm, report.rupture_probability_pct, report.pressure_band
+        ));
+
+        let mut ranked: Vec<(usize, f64)> = (0..SECTORS).map(|i| (i, local_frag[i])).collect();
+        ranked.sort_by(|a, b| b.1.total_cmp(&a.1));
+        for (idx, frag) in ranked.into_iter().take(6) {
+            lines.push(format!(
+                "fragility point s{:02}: pressure {:.2} bar | fragility {:.3} | flow {:.4} L/min",
+                idx, local_pressure[idx], frag, local_flow[idx]
+            ));
+        }
+
+        (cad, lines)
+    }
+
     fn tab_leak_lab(&mut self, ui: &mut Ui) {
         let circuits: Vec<(usize, String, String, String, String)> = self
             .bench
@@ -4701,6 +4950,13 @@ impl App {
         let alerts = self.bench.leak_rig.alerts.clone();
         let predictions = self.leak_predictions.clone();
         let calibration_report = self.leak_calibration_report.clone();
+        let selected_circuit = self.bench.leak_rig.circuits.get(self.leak_sel_idx).cloned();
+        let selected_report = selected_circuit.as_ref().and_then(|c| {
+            reports
+                .iter()
+                .find(|r| r.name == c.name)
+                .cloned()
+        });
 
         ui.horizontal(|ui| {
             ui.label(
@@ -4955,6 +5211,79 @@ impl App {
                     if ui.add(Button::new(RichText::new("RUN MONTE CARLO (120 runs)").size(11.0)).fill(Color32::from_rgb(70,35,90)).min_size(Vec2::new(ui.available_width()-8.0,26.0))).clicked() {
                         do_monte_carlo = true;
                     }
+
+                    ui.separator();
+                    ui.label(RichText::new("O-RING / SEAL ENGINEERING RENDER (ASCII CAD)").size(11.0).color(Color32::from_rgb(80,155,255)));
+                    if let (Some(c), Some(r)) = (&selected_circuit, &selected_report) {
+                        let (cad, points) = Self::leak_ascii_cad(c, r);
+                        ScrollArea::vertical().max_height(205.0).show(ui, |ui| {
+                            ui.label(RichText::new(cad).size(8.8).monospace().color(Color32::from_gray(190)));
+                        });
+                        for p in points {
+                            ui.label(RichText::new(p).size(9.2).color(Color32::from_gray(170)));
+                        }
+                        ui.label(
+                            RichText::new(format!(
+                                "{} | material {} | cs {:.2}mm | squeeze {:.1}% | gap {:.3}mm | comp set {:.1}% | shore {:.0}A | life {:.0}h",
+                                c.name,
+                                c.spec.material.name(),
+                                c.spec.cross_section_mm,
+                                c.spec.squeeze_pct,
+                                c.spec.extrusion_gap_mm,
+                                c.spec.compression_set_pct,
+                                c.spec.shore_a,
+                                c.spec.design_life_hours
+                            ))
+                            .size(9.4)
+                            .color(Color32::from_gray(170)),
+                        );
+
+                        ui.separator();
+                        ui.label(
+                            RichText::new("TEMPORAL ASCII EVOLUTION (pressure/risk/flow)")
+                                .size(10.6)
+                                .color(Color32::from_rgb(80, 155, 255)),
+                        );
+                        let mut timeline = String::new();
+                        timeline.push_str("legend: ^=pressure high  !=risk high  ~=flow high  .=low\n");
+                        for (i, (_, p, risk, leak)) in self.leak_temporal_trace.iter().enumerate() {
+                            let p_ratio = (p / c.pressure.rupture_bar.max(1e-6)).clamp(0.0, 1.0);
+                            let r_ratio = (risk / 100.0).clamp(0.0, 1.0);
+                            let f_ratio = (leak / 1.5).clamp(0.0, 1.0);
+                            let pch = if p_ratio > 0.85 {
+                                '^'
+                            } else if p_ratio > 0.55 {
+                                ':'
+                            } else {
+                                '.'
+                            };
+                            let rch = if r_ratio > 0.80 {
+                                '!'
+                            } else if r_ratio > 0.45 {
+                                '*'
+                            } else {
+                                '.'
+                            };
+                            let fch = if f_ratio > 0.80 {
+                                '~'
+                            } else if f_ratio > 0.45 {
+                                '-'
+                            } else {
+                                '.'
+                            };
+                            timeline.push_str(&format!("{:03}: {}{}{}\n", i, pch, rch, fch));
+                        }
+                        ScrollArea::vertical().max_height(130.0).show(ui, |ui| {
+                            ui.label(
+                                RichText::new(timeline)
+                                    .size(8.9)
+                                    .monospace()
+                                    .color(Color32::from_gray(178)),
+                            );
+                        });
+                    } else {
+                        ui.label(RichText::new("Select a circuit with runtime data to render O-ring CAD").size(9.8).color(Color32::from_gray(145)));
+                    }
                 });
 
                 // Right: custom circuit + scenario table
@@ -5045,6 +5374,67 @@ impl App {
                             ui.label(RichText::new(format!("mode: {} | ttf: {}", p.likely_failure_mode, p.hours_to_rupture.map(|h| format!("{:.1}h", h)).unwrap_or_else(|| "n/a".into()))).size(9.4).color(Color32::from_gray(165)));
                         }
                     });
+                    ui.label(RichText::new("3D SCENARIO SIMULATION VIEW").size(10.6).color(Color32::from_rgb(80,155,255)));
+                    let (srect, _sresp) = ui.allocate_exact_size(
+                        Vec2::new(ui.available_width() - 4.0, 170.0),
+                        Sense::hover(),
+                    );
+                    let sp = ui.painter_at(srect);
+                    sp.rect_filled(srect, 4.0, Color32::from_gray(10));
+                    sp.rect_stroke(srect, 4.0, Stroke::new(1.0, Color32::from_gray(60)));
+
+                    let center = srect.center();
+                    let yaw = 28.0f32.to_radians();
+                    let pitch = 20.0f32.to_radians();
+                    let scale = 65.0f32;
+                    let project = |x: f32, y: f32, z: f32| -> Pos2 {
+                        let cy = yaw.cos();
+                        let sy = yaw.sin();
+                        let cp = pitch.cos();
+                        let spv = pitch.sin();
+
+                        let xr = x * cy + z * sy;
+                        let zr = -x * sy + z * cy;
+                        let yr = y * cp - zr * spv;
+                        let zr2 = y * spv + zr * cp + 8.5;
+                        let f = scale / zr2.max(0.35);
+                        Pos2::new(center.x + xr * f, center.y - yr * f)
+                    };
+
+                    let axis = [
+                        ([-2.4, 0.0, 0.0], [2.4, 0.0, 0.0], Color32::from_rgb(220, 90, 90)),
+                        ([0.0, 0.0, -2.4], [0.0, 0.0, 2.4], Color32::from_rgb(90, 220, 90)),
+                        ([0.0, 0.0, 0.0], [0.0, 2.4, 0.0], Color32::from_rgb(90, 140, 255)),
+                    ];
+                    for (a, b, c) in axis {
+                        sp.line_segment(
+                            [project(a[0], a[1], a[2]), project(b[0], b[1], b[2])],
+                            Stroke::new(1.1, c),
+                        );
+                    }
+
+                    for (i, scen) in predictions.iter().take(36).enumerate() {
+                        let x = -2.0 + (i % 12) as f32 * 0.36;
+                        let z = -1.6 + (i / 12) as f32 * 1.0;
+                        let risk = (scen.final_rupture_probability_pct as f32 / 100.0).clamp(0.0, 1.0);
+                        let peak = (scen.peak_pressure_bar as f32 / 320.0).clamp(0.0, 1.0);
+                        let h = (0.15 + 1.9 * (0.6 * risk + 0.4 * peak)).clamp(0.1, 2.2);
+                        let col = Color32::from_rgb(
+                            (80.0 + 170.0 * risk) as u8,
+                            (210.0 - 140.0 * risk) as u8,
+                            (90.0 + 90.0 * (1.0 - peak)) as u8,
+                        );
+
+                        let p0 = project(x, 0.0, z);
+                        let p1 = project(x, h, z);
+                        sp.line_segment([p0, p1], Stroke::new(2.0, col));
+                        sp.circle_filled(p1, 2.5, col);
+                    }
+                    ui.label(
+                        RichText::new("3D axes: X=scenario index, Y=risk/pressure amplitude, Z=scenario group")
+                            .size(9.0)
+                            .color(Color32::from_gray(145)),
+                    );
                     ui.separator();
                     ui.label(RichText::new("EXPORT REPORTS").size(11.0).color(Color32::from_rgb(80,155,255)));
                     ui.horizontal_wrapped(|ui| {
@@ -6459,6 +6849,9 @@ impl App {
             .collect();
         let elapsed = self.bench.elapsed;
         let mut send_bytes: Option<(Vec<u8>, u8)> = None;
+        let mut do_pick_flash = false;
+        let mut do_flash = false;
+        let mut do_clean = false;
 
         ui.columns(2, |cols| {
             let ui = &mut cols[0];
@@ -6534,6 +6927,39 @@ impl App {
             }
             if ui.small_button("🗑 Clear").clicked() {
                 self.uds_log.clear();
+            }
+            ui.separator();
+            ui.label(
+                RichText::new("ECM FLASH / UPLOAD WORKFLOW")
+                    .size(11.0)
+                    .color(Color32::from_rgb(80, 155, 255)),
+            );
+            ui.horizontal_wrapped(|ui| {
+                if ui.button("Select FW (.bin)").clicked() {
+                    do_pick_flash = true;
+                }
+                if ui
+                    .add_enabled(!self.uds_flash_path.is_empty(), Button::new("Flash Upload"))
+                    .clicked()
+                {
+                    do_flash = true;
+                }
+                if ui.button("Clean (ClrDTC + ResetAdap)").clicked() {
+                    do_clean = true;
+                }
+            });
+            if self.uds_flash_path.is_empty() {
+                ui.label(
+                    RichText::new("FW file: none selected")
+                        .size(10.0)
+                        .color(Color32::from_gray(140)),
+                );
+            } else {
+                ui.label(
+                    RichText::new(format!("FW file: {}", self.uds_flash_path))
+                        .size(9.5)
+                        .color(Color32::LIGHT_BLUE),
+                );
             }
             ui.separator();
             ScrollArea::vertical()
@@ -6623,39 +7049,68 @@ impl App {
         // Execute UDS send AFTER column closure released borrows
         if let Some((bytes, sa)) = send_bytes {
             let ts = elapsed;
-            let req_hex = bytes
-                .iter()
-                .map(|b| format!("{:02X}", b))
-                .collect::<Vec<_>>()
-                .join(" ");
-            let resp = if sa == 0x00 {
-                self.bench.uds_ecm.process(&bytes, ts)
-            } else if sa == 0x03 {
-                self.bench.uds_tcm.process(&bytes, ts)
+            let _ = self.uds_send_and_log(sa, bytes, ts);
+        }
+        if do_pick_flash {
+            if let Some(path) = Self::pick_open_path("bin") {
+                self.uds_flash_path = path;
+            }
+        }
+        if do_flash {
+            let ts = elapsed;
+            if matches!(self.hw_cfg.mode, io::hw::HwMode::Live) {
+                if self.uds_flash_path.trim().is_empty() {
+                    self.uds_log
+                        .push((false, "            flash failed: selecione .bin".into()));
+                } else {
+                    match std::fs::read(&self.uds_flash_path) {
+                        Ok(payload) => {
+                            match io::live_runner::live_flash_ecm_firmware(
+                                &self.hw_cfg,
+                                Some(self.uds_sa),
+                                &payload,
+                            ) {
+                                Ok(s) => self.uds_log.push((
+                                    false,
+                                    format!(
+                                        "            LIVE flash ok: {} bytes / {} blocks",
+                                        s.bytes_sent, s.blocks_sent
+                                    ),
+                                )),
+                                Err(e) => self
+                                    .uds_log
+                                    .push((false, format!("            LIVE flash failed: {}", e))),
+                            }
+                        }
+                        Err(e) => self.uds_log.push((
+                            false,
+                            format!("            flash failed: leitura firmware: {}", e),
+                        )),
+                    }
+                }
             } else {
-                vec![0x7F, bytes[0], 0x11]
-            };
-            let resp_hex = resp
-                .iter()
-                .map(|b| format!("{:02X}", b))
-                .collect::<Vec<_>>()
-                .join(" ");
-            let nrc = resp.first().copied() == Some(0x7F);
-            let svc = auto_breaking::uds::UdsServer::service_name(bytes[0]);
-            self.uds_log.push((
-                true,
-                format!("[{:.2}s] 0x{:02X} {} → {}", ts, sa, svc, req_hex),
-            ));
-            self.uds_log.push((
-                false,
-                format!(
-                    "            RESP {}{}",
-                    resp_hex,
-                    if nrc { " ❌ NRC" } else { " ✓" }
-                ),
-            ));
-            if self.uds_log.len() > 200 {
-                self.uds_log.drain(0..40);
+                match self.run_uds_flash_pipeline(self.uds_sa, ts) {
+                    Ok(msg) => self.uds_log.push((false, format!("            {}", msg))),
+                    Err(e) => self
+                        .uds_log
+                        .push((false, format!("            flash failed: {}", e))),
+                }
+            }
+        }
+        if do_clean {
+            let ts = elapsed;
+            if matches!(self.hw_cfg.mode, io::hw::HwMode::Live) {
+                match io::live_runner::live_clean_ecm(&self.hw_cfg, Some(self.uds_sa)) {
+                    Ok(()) => self
+                        .uds_log
+                        .push((false, "            LIVE clean ok".into())),
+                    Err(e) => self
+                        .uds_log
+                        .push((false, format!("            LIVE clean failed: {}", e))),
+                }
+            } else {
+                let _ = self.uds_send_and_log(self.uds_sa, vec![0x14, 0xFF, 0xFF, 0xFF], ts);
+                let _ = self.uds_send_and_log(self.uds_sa, vec![0x31, 0x01, 0xDF, 0x04], ts);
             }
         }
     }
