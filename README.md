@@ -1,392 +1,176 @@
-# 🚗 Sistema Autônomo de Freio com ABS - Simulador Educacional
+# SimuBench (formerly AutoBreaking prototype)
 
-Um sistema de simulação funcional de **freio autônomo com ABS (Sistema Anti-travamento de Rodas)** desenvolvido em **Rust**, com painel visual completo e interativo para fins de estudo e pesquisa.
+SimuBench is now a production-focused heavy machinery ECU bench platform in Rust, with a Windows-first ECM live path. It is no longer an ABS-only test project: it combines full-system simulation, real hardware acquisition workflows, safety-gated write controls, auditable logs, replay tooling, and testable adapter architecture.
 
-## 📋 Características Principais
+## 1. Executive summary
 
-## Hardware Live Mode (Safety-by-default)
+This project provides a hardware-agnostic interface for live ECM telemetry and controlled writes. Windows operators can use Cat Comm integration mode via a vendor adapter template, while serial and Linux SocketCAN paths remain available. Write operations are denied by default and require explicit enablement, allowlist scope, and operator approval. In parallel, SimuBench keeps a rich multi-ECU simulation and diagnostics UI for development, validation, and operator training.
 
-- O sistema inicia em modo seguro (`--hw-mode=sim`) e escuta passivamente.
-- Escritas em hardware ficam bloqueadas por padrão.
-- Para habilitar escrita, os 3 requisitos devem ser verdadeiros ao mesmo tempo:
-  - `--enable-write`
-  - `--allowlist=/caminho/allowlist.json`
-  - `--noninteractive-approved`
-- `--dry-run` sempre bloqueia escrita efetiva, mesmo com os flags acima.
-- Um log de auditoria JSONL gzip é criado por sessão em `artifacts/hw_logs/`.
+## 2. Windows-first quickstart
 
-### Executar mock integration (sem hardware real)
+Build:
 
-```bash
+```powershell
+cargo build --release --features "vendor-windows"
+```
+
+Live over serial (recommended baseline before vendor SDK integration):
+
+```powershell
+cargo run --release --features "vendor-windows" -- --hw-mode=live --serial-port=COM3 --serial-baud=115200 --dry-run
+```
+
+Live with Cat Comm template mode:
+
+```powershell
+cargo run --release --features "vendor-windows" -- --hw-mode=live --vendor-name=cat_comm --dry-run
+```
+
+Simulation mode:
+
+```powershell
+cargo run -- --hw-mode=sim
+```
+
+## 3. ECM-Live Data workflow
+
+The ECM live workflow runs in a dedicated tab and never auto-starts.
+
+1. Detect: scan for candidate ECM source addresses.
+2. Connect: perform handshake and verify response path.
+3. Retrieve Data: stream live frames and decode real-time snapshot fields.
+4. Stop: terminate live stream.
+5. Export CSV: export rolling snapshot history for analysis.
+
+The tab also includes a rolling post-analysis dashboard with min/avg/max RPM plus coolant and oil pressure extrema.
+
+## 4. Adapter architecture
+
+Adapters are selected in priority order by runtime flags:
+
+1. Windows vendor adapter when `--vendor-name=cat_comm` is set and feature `vendor-windows` is enabled.
+2. Linux SocketCAN when `--can-if=<iface>` is provided.
+3. Serial adapter when `--serial-port=<port>` is provided.
+
+Key files:
+
+1. [src/io/hw.rs](src/io/hw.rs)
+2. [src/io/serial_adapter.rs](src/io/serial_adapter.rs)
+3. [src/io/socketcan_adapter.rs](src/io/socketcan_adapter.rs)
+4. [src/io/vendor_cat_comm.rs](src/io/vendor_cat_comm.rs)
+
+## 5. Cat Comm vendor binding status
+
+Current `cat_comm` path is a fail-closed template by design. It documents the integration seam and blocks live operations until vendor SDK or bridge wiring is added.
+
+Recommended production pattern:
+
+1. Run vendor SDK access in an isolated bridge process.
+2. Communicate with Rust via named pipes or stdio RPC.
+3. Restart bridge on crash without killing the main app.
+
+## 6. Safety model
+
+Write path requires all conditions:
+
+1. `--enable-write`
+2. `--allowlist=<path>`
+3. `--noninteractive-approved`
+4. `--dry-run=false`
+
+Without all four, physical writes are blocked.
+
+Policy and startup audit logic:
+
+1. [src/io/hw.rs](src/io/hw.rs)
+2. [src/io/allowlist.rs](src/io/allowlist.rs)
+3. [src/io/rate_limiter.rs](src/io/rate_limiter.rs)
+
+## 7. Logging, replay, and evidence
+
+Runtime artifacts include JSONL/GZIP startup audit and ECM live streams.
+
+1. Append-only audit session logs.
+2. RX records and snapshot records in live mode.
+3. Replay conversion support for forensic analysis.
+
+Reference:
+
+1. [src/io/replay.rs](src/io/replay.rs)
+2. [src/io/live_runner.rs](src/io/live_runner.rs)
+
+## 8. Failure modes and mitigations
+
+1. Permission denied on COM or driver:
+Install vendor driver correctly and validate access rights.
+2. Device disconnect or cable power glitch:
+Use explicit reconnect strategy and keep emergency power cutoff accessible.
+3. CAN bus-off or transceiver faults:
+Stop writes, surface operator alerts, and require controlled recovery.
+4. Parser desync on serial streams:
+Keep raw logging and perform parser resync with bounded retries.
+5. Allowlist misconfiguration:
+Use dry-run first, change control, and signed allowlist process in production.
+
+## 9. Metrics and observability
+
+Internal hardware metrics counters are tracked in:
+
+1. [src/io/metrics.rs](src/io/metrics.rs)
+
+Recommended production extension:
+
+1. expose Prometheus endpoint;
+2. avoid high-cardinality labels;
+3. alert on read/write error spikes and rate-limit bursts.
+
+## 10. CI and test strategy
+
+Mock integration workflow:
+
+1. [/.github/workflows/integration-mock.yml](.github/workflows/integration-mock.yml)
+
+Local validation:
+
+```powershell
+cargo fmt
+cargo clippy --test io_mock
 cargo test --test io_mock
+cargo check
 ```
 
-### Exemplo de inicialização segura
+## 11. CLI flags
 
-```bash
-cargo run -- --hw-mode=sim --dry-run --allowlist=./allowlist.json
-```
+Live mode flags:
 
-### 1. **Sistema de Freio com ABS Completo**
-- ✅ Simulação realística de dinâmica veicular
-- ✅ Detecção automática de travamento de rodas
-- ✅ Modulação de pressão de freio inteligente
-- ✅ 4 rodas independentes com monitoramento individual
-- ✅ Pulsação ABS em ~8 Hz (típico de sistemas reais)
+1. `--hw-mode=sim|live`
+2. `--vendor-name=cat_comm`
+3. `--serial-port=<port>`
+4. `--serial-baud=<baud>`
+5. `--can-if=<interface>`
+6. `--enable-write`
+7. `--allowlist=<path>`
+8. `--noninteractive-approved`
+9. `--dry-run` or `--dry-run=false`
+10. `--rate-limit-global=<n>`
+11. `--rate-limit-per-id=<n>`
+12. `--log-dir=<path>`
 
-### 2. **Sensor de Velocidade Simulado**
-- ✅ Simulação de leitura de sensor com ruído realístico
-- ✅ Desvio padrão de 0.5 km/h (±0.5σ)
-- ✅ Detecta diferença entre velocidade real e sensor
-- ✅ Essencial para estudar limitações de sensores
+## 12. Production runbook
 
-### 3. **Painel Visual Interativo**
-- ✅ Interface em tempo real no terminal
-- ✅ 60 FPS de atualização
-- ✅ Gráficos de velocidade histórica
-- ✅ Status individual de cada roda
-- ✅ Indicadores visuais de estado do ABS
+Full long-form runbook, calculations, security controls, and rollout checklist:
 
-### 4. **Cenários de Simulação**
-1. **Manual**: Controle total do usuário
-2. **Emergency Brake**: Freio de emergência de alta velocidade
-3. **High Speed**: Simulação de frenagem em alta velocidade
-4. **Repeated Braking**: Múltiplas frenagens para estresse do sistema
+1. [docs/ECM-Data.md](docs/ECM-Data.md)
 
-## 🎮 Controles da Simulação
+## 13. Current limitations
 
-```
-ACELERAÇÃO E FREIO:
-  ↑ Seta Para Cima    → Aumenta aceleração
-  ↓ Seta Para Baixo   → Reduz aceleração
-  ← Seta Para Esquerda → Aumenta freio
-  → Seta Para Direita  → Reduz freio
+1. Cat Comm template still needs real SDK bridge wiring.
+2. Proprietary Caterpillar parser coverage requires validated captures/specs.
+3. Prometheus endpoint is documented but not yet wired into runtime.
 
-CENÁRIOS:
-  1 → Modo Manual
-  2 → Freio de Emergência (automático)
-  3 → Alta Velocidade (automático)
-  4 → Frenagem Repetida (automático)
+## 14. Next implementation targets
 
-SIMULAÇÃO:
-  ESPAÇO → Pausar/Retomar
-  R      → Resetar simulação
-  Q/ESC  → Sair
-```
-
-## 📊 Painel de Visualização
-
-O painel mostra em tempo real:
-
-### Status do Veículo
-- **Velocidade**: Velocidade atual em km/h
-- **Sensor**: Leitura do sensor com ruído
-- **Aceleração**: Aceleração em m/s²
-- **Status ABS**: 🔴 ACTIVE ou ⚪ IDLE
-
-### Sistema de Freio
-- **Pressão de Freio**: Para cada roda (FL, FR, RL, RR)
-- **Estado das Rodas**: 
-  - 🟢 ROLLING (Rodando normalmente)
-  - 🟡 ABS (Sistema ABS atuando)
-  - 🔴 SKIDDING (Rodas travadas)
-- **Velocidade Individual**: Cada roda
-
-### Histórico de Velocidade
-- Gráfico de velocidade em tempo real
-- Escala de 0-200 km/h
-- Últimas 100 amostras
-
-### Informações do Cenário
-- Modo de simulação ativo
-- Tempo decorrido
-- Número de ciclos ABS
-
-## 🔧 Arquitetura Técnica
-
-### Módulos Principais
-
-#### `SpeedSensor` - Sensor de Velocidade
-```rust
-pub struct SpeedSensor {
-    real_velocity: f64,
-    measured_velocity: f64,
-    noise_std_dev: f64,  // Ruído gaussiano
-}
-```
-- Simula leituras realísticas com ruído
-- Importante para estudar robustez do ABS
-
-#### `Wheel` - Dinâmica Individual da Roda
-```rust
-pub struct Wheel {
-    velocity: f64,
-    state: WheelState,  // Rolling, Skidding, AbsActive
-    brake_pressure: f64,  // 0.0 a 1.0
-}
-```
-- Cada roda tem dinâmica independente
-- Detecta travamento comparando com velocidade do veículo
-
-#### `BrakeSystem` - Sistema de Freio
-```rust
-pub struct BrakeSystem {
-    wheels: [Wheel; 4],
-    brake_request: f64,
-    abs_cycles: u32,  // Contador de ciclos ABS
-}
-```
-- Gerencia 4 rodas
-- Aplica pressão de freio
-- Mantém histórico de ciclos
-
-#### `ABSController` - Controlador ABS Inteligente
-```rust
-pub struct ABSController {
-    brake_system: BrakeSystem,
-    abs_active: bool,
-    current_pressure: f64,
-    abs_cycle: f64,  // Fase de pulsação
-    pulse_frequency: f64,  // ~8 Hz típico
-}
-```
-- Detecta travamento de rodas
-- Modula pressão com pulsação
-- Aumenta/reduz pressão para evitar travamento
-
-#### `VehicleSimulator` - Simulador Completo
-```rust
-pub struct VehicleSimulator {
-    velocity: f64,
-    acceleration: f64,
-    speed_sensor: SpeedSensor,
-    abs_controller: ABSController,
-    elapsed_time: f64,
-}
-```
-- Coordena toda a simulação
-- Aplica dinâmica do veículo
-- Integra sensor e controlador ABS
-
-## 🔬 Física Implementada
-
-### Dinâmica do Veículo
-```
-v(t+dt) = v(t) + a(t) * dt
-
-Onde:
-- v = velocidade (km/h)
-- a = aceleração (m/s²)
-- dt = intervalo de tempo (≈0.016s a 60 FPS)
-```
-
-### Desaceleração por Freio
-```
-decel = brake_force * 10.0  // Fator de conversão
-v_roda(t+dt) = v_roda(t) - decel * dt
-```
-
-### Detecção de Travamento
-```
-velocity_diff = v_veículo - v_roda
-
-Se velocity_diff > 5.0 km/h E brake_pressure > 0.3:
-    -> Estado = Skidding (travado!)
-```
-
-### Modulação ABS
-```
-Frequência: 8 Hz (período: 0.125s)
-Ciclo de pulsação:
-- 0-0.5s: Reduz pressão a 30%
-- 0.5-1.0s: Aumenta pressão a 90%
-- Repetir enquanto houver travamento
-```
-
-### Resistência do Ar
-```
-drag = 0.5 * v_ms
-v(t+dt) = v(t) - drag * dt
-```
-
-Onde `v_ms` é a velocidade em m/s (convertido de km/h).
-
-## 📈 Casos de Uso Educacionais
-
-### 1. **Estudo de Dinâmica Veicular**
-- Entender como velocidade de roda vs veículo afeta frenagem
-- Analisar comportamento de 4 rodas independentes
-
-### 2. **Pesquisa em Sistemas de Controle**
-- Implementar diferentes algoritmos de ABS
-- Testar estratégias de modulação de pressão
-- Validar detecção de travamento
-
-### 3. **Engenharia de Software Automotiva**
-- Exemplo de sistema crítico em tempo real
-- Padrões de estado de máquina (state machine)
-- Simulação de sensor e atuador
-
-### 4. **Validação de Algoritmos**
-- Testar robustez com múltiplos cenários
-- Medir número de ciclos ABS
-- Analisar distância de frenagem
-
-## 🚀 Como Usar
-
-### Compilação
-```bash
-cargo build --release
-```
-
-### Execução
-```bash
-cargo run
-```
-
-### Modo Debug
-```bash
-cargo build
-cargo run
-```
-
-## 📋 Requisitos
-
-- **Rust** 1.70+
-- **Cargo** (gerenciador de pacotes Rust)
-- **Terminal** compatível com ANSI (Windows 10+, Linux, macOS)
-
-## 📦 Dependências
-
-```toml
-crossterm = "0.27"  # UI em terminal
-chrono = "0.4"      # Timing
-serde = "1.0"       # Serialização
-serde_json = "1.0"  # JSON
-```
-
-## 📊 Métricas de Desempenho
-
-### Taxa de Atualização
-- **60 FPS** (16ms por frame)
-- Suficiente para visualização fluida
-
-### Precisão de Simulação
-- **Passo de tempo**: 0.016s
-- **Erro numérico**: Método de Euler (ordem 1)
-- **Acurácia**: ±5% para dinâmica de roda
-
-### Overhead Computacional
-- **CPU**: Mínimo (apenas cálculos matemáticos)
-- **Memória**: ~2 MB
-- **Latência**: <1ms por ciclo de simulação
-
-## 🔍 Exemplos de Análise
-
-### Exemplo 1: Comparar com/sem ABS
-1. Selecione "Modo Manual" (tecla 1)
-2. Acelere para 100 km/h (↑)
-3. Aplique freio máximo (→ até 100%)
-4. Observe ciclos ABS aumentando
-5. Note que velocidade das rodas ≠ velocidade do veículo
-
-### Exemplo 2: Teste de Emergência
-1. Selecione "Emergency Brake" (tecla 2)
-2. Sistema acelera automaticamente a 100 km/h
-3. Aplica freio máximo
-4. Observe pulsação ABS em tempo real
-5. Conte ciclos de ativação
-
-### Exemplo 3: Múltiplas Frenagens
-1. Selecione "Repeated Braking" (tecla 4)
-2. Sistema realiza 5 ciclos de frenagem
-3. Analise consistência do sistema ABS
-4. Observe recuperação entre frenagens
-
-## 🎯 Métricas Observáveis
-
-```
-Velocidade Real vs Sensor
-├─ Diferença máxima de ~2 km/h (ruído)
-├─ Importante para algoritmos de filtragem
-└─ Mostra limitações de sensores reais
-
-Estado das Rodas
-├─ FL/FR: Rodas dianteiras (controlam direção)
-├─ RL/RR: Rodas traseiras
-├─ Padrão: Front mais sensível ao travamento
-└─ Crítico para estabilidade
-
-Ciclos ABS
-├─ Número total de pulsações
-├─ Frequência de ativação
-├─ Indicador de eficácia do frenagem
-└─ Benchmark para otimização
-
-Distância de Frenagem
-├─ Tempo: Mostrado no painel
-├─ Velocidade final: Sempre zero
-├─ Estimativa teórica vs real
-└─ Impacto do ABS na segurança
-```
-
-## 🧪 Testes Inclusos
-
-```bash
-cargo test
-```
-
-Testes unitários para:
-- Criação de simulador
-- Aceleração
-- Cálculos de dinâmica
-
-## 📚 Referências Técnicas
-
-### Padrões de Projeto Utilizados
-- **State Pattern**: Estados das rodas (Rolling, Skidding, AbsActive)
-- **Strategy Pattern**: Diferentes cenários de simulação
-- **Observer Pattern**: Atualização em tempo real do UI
-
-### Algoritmos
-- **Detecção de Travamento**: Comparação de velocidades
-- **Modulação ABS**: Função senoidal de pulsação
-- **Simulação Física**: Integração de Euler de 1ª ordem
-
-### Padrões de Segurança
-- Sem unsafe code
-- Memory-safe por padrão (Rust)
-- Sem race conditions (single-threaded)
-
-## 🚀 Futuras Melhorias
-
-- [ ] Multi-threading para cálculos paralelos
-- [ ] Suporte a diferentes tipos de veículos (carro, caminhão, moto)
-- [ ] Algoritmos ABS mais avançados (cornering, hill brake)
-- [ ] Integração com dados de sensores reais (CAN bus)
-- [ ] Dashboard de análise pós-simulação
-- [ ] Exportação de dados para Excel/CSV
-- [ ] Simulação de diferentes superfícies (asfalto, gelo, etc)
-- [ ] Testes de compatibilidade com ESP (Controle de Estabilidade)
-
-## 📝 Licença
-
-Este projeto é de código aberto para fins educacionais e de pesquisa.
-
-## 👨‍💻 Desenvolvimento
-
-Desenvolvido como ferramenta educacional para:
-- Estudantes de Engenharia Automotiva
-- Pesquisadores de Sistemas de Controle
-- Engenheiros de Software Automotivo
-- Entusiastas de Dinâmica Veicular
-
-## 📞 Suporte
-
-Para dúvidas, sugestões ou bugs, por favor crie um issue.
-
----
-
-**Versão**: 0.1.0  
-**Última Atualização**: 2026-08-11  
-**Status**: ✅ Funcional e Estável
+1. Wire Cat Comm bridge and recovery watchdog.
+2. Add signed allowlist verification.
+3. Add Prometheus exporter endpoint and alert rules.
+4. Expand parser decoding with real captures.

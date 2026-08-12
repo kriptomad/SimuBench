@@ -1,0 +1,16 @@
+[
+  {
+    "type": "can",
+    "id": 419385573,
+    "mask": "0x1FFFFFFF",
+    "allowed_bytes": [[2, 2]],
+    "max_rate_per_sec": 1,
+    "description": "Allowed two-byte write at payload offset 2"
+  },
+  {
+    "type": "serial",
+    "pattern_hex": "AA55..",
+    "max_rate_per_sec": 1,
+    "description": "Allowed bootloader unlock pattern"
+  }
+]

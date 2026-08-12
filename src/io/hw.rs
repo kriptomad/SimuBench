@@ -39,6 +39,7 @@ pub enum Frame {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct HwConfig {
     pub mode: HwMode,
+    pub vendor_name: Option<String>,
     pub serial_port: Option<String>,
     pub serial_baud: u32,
     pub serial_parity: Option<String>,
@@ -66,6 +67,7 @@ impl Default for HwConfig {
     fn default() -> Self {
         Self {
             mode: HwMode::Sim,
+            vendor_name: None,
             serial_port: None,
             serial_baud: 115_200,
             serial_parity: Some("None".to_string()),
@@ -80,7 +82,7 @@ impl Default for HwConfig {
             reconnect_backoff_base_ms: 500,
             reconnect_backoff_max_ms: 30_000,
             parser_max_frame_size: 4096,
-            dry_run: false,
+            dry_run: true,
             use_isolation_hw: false,
             log_dir: PathBuf::from("./artifacts/hw_logs"),
             metrics_enabled: false,
@@ -103,6 +105,8 @@ impl HwConfig {
                 };
             } else if a == "--dry-run" {
                 cfg.dry_run = true;
+            } else if a == "--dry-run=false" {
+                cfg.dry_run = false;
             } else if a == "--enable-write" {
                 cfg.enable_write = true;
             } else if a == "--noninteractive-approved" {
@@ -111,16 +115,35 @@ impl HwConfig {
                 cfg.allowlist_path = Some(PathBuf::from(v));
             } else if let Some(v) = a.strip_prefix("--log-dir=") {
                 cfg.log_dir = PathBuf::from(v);
+            } else if let Some(v) = a.strip_prefix("--serial-port=") {
+                cfg.serial_port = Some(v.to_string());
+            } else if let Some(v) = a.strip_prefix("--vendor-name=") {
+                cfg.vendor_name = Some(v.to_string());
+            } else if let Some(v) = a.strip_prefix("--serial-baud=") {
+                cfg.serial_baud = v
+                    .parse::<u32>()
+                    .map_err(|e| HwError::Unknown(format!("invalid --serial-baud value: {e}")))?;
+            } else if let Some(v) = a.strip_prefix("--can-if=") {
+                cfg.can_interface = Some(v.to_string());
+            } else if let Some(v) = a.strip_prefix("--rate-limit-global=") {
+                cfg.rate_limit_global_per_sec = v.parse::<u32>().map_err(|e| {
+                    HwError::Unknown(format!("invalid --rate-limit-global value: {e}"))
+                })?;
+            } else if let Some(v) = a.strip_prefix("--rate-limit-per-id=") {
+                cfg.rate_limit_per_id_per_sec = v.parse::<u32>().map_err(|e| {
+                    HwError::Unknown(format!("invalid --rate-limit-per-id value: {e}"))
+                })?;
             }
         }
         Ok(cfg)
     }
 
+    pub fn write_intent_enabled(&self) -> bool {
+        self.enable_write && self.allowlist_path.is_some() && self.noninteractive_approved
+    }
+
     pub fn write_effectively_enabled(&self) -> bool {
-        self.enable_write
-            && self.allowlist_path.is_some()
-            && self.noninteractive_approved
-            && !self.dry_run
+        self.write_intent_enabled() && !self.dry_run
     }
 }
 
@@ -154,6 +177,32 @@ pub trait HardwareInterface {
     fn try_read_frame(&mut self) -> Result<Option<Frame>, HwError>;
     fn send_frame(&mut self, frame: Frame) -> Result<(), HwError>;
     fn close(&mut self) -> Result<(), HwError>;
+}
+
+pub fn open_real_adapter(cfg: &HwConfig) -> Result<Box<dyn HardwareInterface>, HwError> {
+    #[cfg(all(target_os = "windows", feature = "vendor-windows"))]
+    {
+        if let Some(vendor) = &cfg.vendor_name {
+            if vendor.eq_ignore_ascii_case("cat_comm") {
+                return super::vendor_cat_comm::CatCommAdapter::open(cfg)
+                    .map(|ad| Box::new(ad) as Box<dyn HardwareInterface>);
+            }
+        }
+    }
+
+    if let Some(iface) = &cfg.can_interface {
+        let ad = super::socketcan_adapter::SocketCanAdapter::open(iface)?;
+        return Ok(Box::new(ad));
+    }
+
+    if let Some(port) = &cfg.serial_port {
+        let ad = super::serial_adapter::SerialAdapter::open(port, cfg.serial_baud)?;
+        return Ok(Box::new(ad));
+    }
+
+    Err(HwError::PortNotFound(
+        "no real interface configured: set --can-if or --serial-port".to_string(),
+    ))
 }
 
 #[derive(Debug, Serialize)]

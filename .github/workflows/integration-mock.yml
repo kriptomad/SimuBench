@@ -19,3 +19,22 @@ jobs:
         run: cargo clippy --test io_mock
       - name: Run mock integration tests
         run: cargo test --test io_mock
+      - name: Cargo check
+        run: cargo check
+
+  integration-mock-windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+      - name: Format check
+        run: cargo fmt -- --check
+      - name: Clippy (io_mock)
+        run: cargo clippy --test io_mock
+      - name: Run mock integration tests
+        run: cargo test --test io_mock
+      - name: Cargo check with vendor-windows feature
+        run: cargo check --features vendor-windows

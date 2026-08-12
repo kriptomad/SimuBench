@@ -26,6 +26,7 @@ use eframe::{egui, NativeOptions};
 use egui::*;
 use egui_plot::{Line, Plot, PlotPoints};
 use std::collections::HashMap;
+use std::time::Duration;
 use widgets::{arc_gauge, bar_gauge, digital_readout, direction_selector, warning_lamp};
 
 const DT: f64 = 1.0 / 60.0;
@@ -133,6 +134,7 @@ enum Tab {
     Autonomous,
     V2X,
     Uds,
+    EcmLiveData,
     LeakLab,
     Plots,
 }
@@ -267,8 +269,19 @@ struct Signal {
 // ═════════════════════════════════════════════════════════════════════════════
 struct App {
     bench: HeavyMachinery,
+    hw_cfg: io::hw::HwConfig,
     tab: Tab,
     cmds: Vec<Cmd>, // deferred command queue
+
+    // ECM live operations state
+    ecm_detected_sas: Vec<u8>,
+    ecm_selected_idx: usize,
+    ecm_connected: bool,
+    ecm_live_feed: Option<io::live_runner::LiveFeed>,
+    ecm_live_status: String,
+    ecm_live_snapshot: io::ecm_params::EcmSnapshot,
+    ecm_live_last_update_ms: u64,
+    ecm_live_frames_total: u64,
 
     // Inputs mirrored here (bench mutations happen via Cmd)
     throttle: f32,
@@ -350,7 +363,7 @@ struct App {
 }
 
 impl App {
-    fn new(cc: &eframe::CreationContext) -> Self {
+    fn new(cc: &eframe::CreationContext, hw_cfg: io::hw::HwConfig) -> Self {
         let mut vis = Visuals::dark();
         vis.panel_fill = Color32::from_gray(14);
         cc.egui_ctx.set_visuals(vis);
@@ -365,8 +378,17 @@ impl App {
 
         App {
             bench,
+            hw_cfg,
             tab: Tab::Cluster,
             cmds: Vec::new(),
+            ecm_detected_sas: Vec::new(),
+            ecm_selected_idx: 0,
+            ecm_connected: false,
+            ecm_live_feed: None,
+            ecm_live_status: "Idle. Press Detect to scan ECMs on the network.".into(),
+            ecm_live_snapshot: io::ecm_params::EcmSnapshot::default(),
+            ecm_live_last_update_ms: 0,
+            ecm_live_frames_total: 0,
             throttle: 0.0,
             brake: 0.0,
             can_mode: CanMode::Signals,
@@ -1146,7 +1168,7 @@ fn main() -> eframe::Result<()> {
                 .with_min_inner_size([1200.0, 700.0]),
             ..Default::default()
         },
-        Box::new(|cc| Ok(Box::new(App::new(cc)))),
+        Box::new(move |cc| Ok(Box::new(App::new(cc, hw_cfg.clone())))),
     )
 }
 
@@ -1168,6 +1190,11 @@ impl eframe::App for App {
         self.detect_events();
         self.push_plots();
         self.sync_params_from_bench();
+        if let Some(feed) = &self.ecm_live_feed {
+            self.ecm_live_snapshot = feed.latest_snapshot();
+            self.ecm_live_last_update_ms = feed.last_update_ms();
+            self.ecm_live_frames_total = feed.frames_total();
+        }
         ctx.request_repaint();
 
         // ── Panels ──────────────────────────────────────────────────────────
@@ -1194,6 +1221,7 @@ impl eframe::App for App {
             Tab::Autonomous => self.tab_autonomous(ui),
             Tab::V2X => self.tab_v2x(ui),
             Tab::Uds => self.tab_uds(ui),
+            Tab::EcmLiveData => self.tab_ecm_live_data(ui),
             Tab::LeakLab => self.tab_leak_lab(ui),
             Tab::Plots => self.tab_plots(ui),
         });
@@ -1219,6 +1247,7 @@ impl App {
                 (Tab::Autonomous, "🤖 AD"),
                 (Tab::V2X, "📶 V2X"),
                 (Tab::Uds, "🔧 UDS"),
+                (Tab::EcmLiveData, "🧲 ECM LIVE"),
                 (Tab::LeakLab, "🧪 LEAK LAB"),
                 (Tab::Plots, "📈 PLOTS"),
             ];
@@ -1309,6 +1338,283 @@ impl App {
                 ui.separator();
                 s!("🤖 AD ON", Color32::GREEN);
             }
+        });
+    }
+
+    fn tab_ecm_live_data(&mut self, ui: &mut Ui) {
+        ui.heading("ECM-Live Data");
+        ui.add_space(6.0);
+
+        if !matches!(self.hw_cfg.mode, io::hw::HwMode::Live) {
+            ui.colored_label(
+                Color32::YELLOW,
+                "Live mode is disabled. Start with --hw-mode=live and either --vendor-name=cat_comm (Windows), --serial-port, or --can-if.",
+            );
+            return;
+        }
+
+        ui.horizontal(|ui| {
+            if ui.button("Detect").clicked() {
+                match io::live_runner::detect_ecms(&self.hw_cfg, Duration::from_secs(3)) {
+                    Ok(res) => {
+                        self.ecm_detected_sas = res.source_addresses;
+                        self.ecm_selected_idx = 0;
+                        self.ecm_connected = false;
+                        if self.ecm_detected_sas.is_empty() {
+                            self.ecm_live_status =
+                                "Detect completed: no ECM found in timeout window.".into();
+                        } else {
+                            self.ecm_live_status = format!(
+                                "Detect completed: {} ECM source address(es) found.",
+                                self.ecm_detected_sas.len()
+                            );
+                        }
+                    }
+                    Err(e) => {
+                        self.ecm_live_status = format!("Detect failed: {e}");
+                    }
+                }
+            }
+
+            let can_connect = !self.ecm_detected_sas.is_empty();
+            if ui
+                .add_enabled(can_connect, Button::new("Connect"))
+                .clicked()
+            {
+                let selected_sa = self.ecm_detected_sas.get(self.ecm_selected_idx).copied();
+                let target_sa = if self.hw_cfg.can_interface.is_some() {
+                    selected_sa
+                } else {
+                    None
+                };
+
+                match io::live_runner::connect_ecm(&self.hw_cfg, target_sa) {
+                    Ok(()) => {
+                        self.ecm_connected = true;
+                        self.ecm_live_status = "Connect successful. Ready to Retrieve Data.".into();
+                    }
+                    Err(e) => {
+                        self.ecm_connected = false;
+                        self.ecm_live_status = format!("Connect failed: {e}");
+                    }
+                }
+            }
+
+            let can_retrieve = self.ecm_connected && self.ecm_live_feed.is_none();
+            if ui
+                .add_enabled(can_retrieve, Button::new("Retrieve Data"))
+                .clicked()
+            {
+                let selected_sa = self.ecm_detected_sas.get(self.ecm_selected_idx).copied();
+                let target_sa = if self.hw_cfg.can_interface.is_some() {
+                    selected_sa
+                } else {
+                    None
+                };
+
+                match io::live_runner::start_retrieve_data(self.hw_cfg.clone(), target_sa) {
+                    Ok(feed) => {
+                        self.ecm_live_feed = Some(feed);
+                        self.ecm_live_status =
+                            "Retrieve started. Real-time parameter updates are active.".into();
+                    }
+                    Err(e) => {
+                        self.ecm_live_status = format!("Retrieve failed: {e}");
+                    }
+                }
+            }
+
+            if ui
+                .add_enabled(self.ecm_live_feed.is_some(), Button::new("Stop"))
+                .clicked()
+            {
+                if let Some(feed) = &self.ecm_live_feed {
+                    feed.stop();
+                }
+                self.ecm_live_feed = None;
+                self.ecm_live_status = "Retrieve stopped by operator.".into();
+            }
+
+            if ui
+                .add_enabled(self.ecm_live_feed.is_some(), Button::new("Export CSV"))
+                .clicked()
+            {
+                if let Some(feed) = &self.ecm_live_feed {
+                    let ts = chrono::Local::now().format("%Y%m%d_%H%M%S").to_string();
+                    let path = format!("reports/ecm_live_{}.csv", ts);
+                    match feed.export_csv(&path) {
+                        Ok(()) => {
+                            self.ecm_live_status = format!("CSV exported to {}", path);
+                        }
+                        Err(e) => {
+                            self.ecm_live_status = format!("CSV export failed: {e}");
+                        }
+                    }
+                }
+            }
+        });
+
+        ui.add_space(8.0);
+        ui.horizontal(|ui| {
+            ui.label("Detected ECM SA:");
+            if self.ecm_detected_sas.is_empty() {
+                ui.label("(none)");
+            } else {
+                let mut selected = self.ecm_selected_idx.min(self.ecm_detected_sas.len() - 1);
+                ComboBox::from_id_salt("ecm_live_sa_combo")
+                    .selected_text(format!("0x{:02X}", self.ecm_detected_sas[selected]))
+                    .show_ui(ui, |ui| {
+                        for (i, sa) in self.ecm_detected_sas.iter().enumerate() {
+                            ui.selectable_value(&mut selected, i, format!("0x{:02X}", sa));
+                        }
+                    });
+                self.ecm_selected_idx = selected;
+            }
+        });
+
+        ui.add_space(8.0);
+        ui.label(format!("Status: {}", self.ecm_live_status));
+        ui.label(format!(
+            "Connected: {} | Streaming: {} | Frames: {} | Last update(ms): {}",
+            self.ecm_connected,
+            self.ecm_live_feed.is_some(),
+            self.ecm_live_frames_total,
+            self.ecm_live_last_update_ms
+        ));
+
+        ui.separator();
+        if let Some(feed) = &self.ecm_live_feed {
+            let points = feed.recent_points(300);
+            if !points.is_empty() {
+                let mut rpm_min = f64::INFINITY;
+                let mut rpm_max = f64::NEG_INFINITY;
+                let mut rpm_sum = 0.0;
+                let mut rpm_count = 0usize;
+                let mut cool_max = f64::NEG_INFINITY;
+                let mut oil_min = f64::INFINITY;
+
+                for p in &points {
+                    if let Some(r) = p.engine_speed_rpm {
+                        rpm_min = rpm_min.min(r);
+                        rpm_max = rpm_max.max(r);
+                        rpm_sum += r;
+                        rpm_count += 1;
+                    }
+                    if let Some(c) = p.coolant_temp_c {
+                        cool_max = cool_max.max(c);
+                    }
+                    if let Some(o) = p.oil_pressure_kpa {
+                        oil_min = oil_min.min(o);
+                    }
+                }
+
+                ui.label("Post-analysis dashboard (rolling window)");
+                Grid::new("ecm_live_dashboard_grid").show(ui, |ui| {
+                    ui.label("Samples");
+                    ui.label(format!("{}", points.len()));
+                    ui.end_row();
+
+                    ui.label("RPM Min");
+                    ui.label(if rpm_count > 0 {
+                        format!("{:.1}", rpm_min)
+                    } else {
+                        "-".to_string()
+                    });
+                    ui.end_row();
+
+                    ui.label("RPM Avg");
+                    ui.label(if rpm_count > 0 {
+                        format!("{:.1}", rpm_sum / rpm_count as f64)
+                    } else {
+                        "-".to_string()
+                    });
+                    ui.end_row();
+
+                    ui.label("RPM Max");
+                    ui.label(if rpm_count > 0 {
+                        format!("{:.1}", rpm_max)
+                    } else {
+                        "-".to_string()
+                    });
+                    ui.end_row();
+
+                    ui.label("Coolant Peak C");
+                    ui.label(if cool_max.is_finite() {
+                        format!("{:.1}", cool_max)
+                    } else {
+                        "-".to_string()
+                    });
+                    ui.end_row();
+
+                    ui.label("Oil Pressure Min kPa");
+                    ui.label(if oil_min.is_finite() {
+                        format!("{:.1}", oil_min)
+                    } else {
+                        "-".to_string()
+                    });
+                    ui.end_row();
+                });
+                ui.separator();
+            }
+        }
+
+        ui.label("Real-time ECM Snapshot:");
+        Grid::new("ecm_live_snapshot_grid").show(ui, |ui| {
+            ui.label("Engine Speed");
+            ui.label(
+                self.ecm_live_snapshot
+                    .engine_speed_rpm
+                    .map_or("-".into(), |v| format!("{v:.1} rpm")),
+            );
+            ui.end_row();
+
+            ui.label("Accel Pedal");
+            ui.label(
+                self.ecm_live_snapshot
+                    .accel_pedal_pct
+                    .map_or("-".into(), |v| format!("{v:.1} %")),
+            );
+            ui.end_row();
+
+            ui.label("Coolant Temp");
+            ui.label(
+                self.ecm_live_snapshot
+                    .coolant_temp_c
+                    .map_or("-".into(), |v| format!("{v:.1} C")),
+            );
+            ui.end_row();
+
+            ui.label("Fuel Temp");
+            ui.label(
+                self.ecm_live_snapshot
+                    .fuel_temp_c
+                    .map_or("-".into(), |v| format!("{v:.1} C")),
+            );
+            ui.end_row();
+
+            ui.label("Oil Pressure");
+            ui.label(
+                self.ecm_live_snapshot
+                    .oil_pressure_kpa
+                    .map_or("-".into(), |v| format!("{v:.1} kPa")),
+            );
+            ui.end_row();
+
+            ui.label("Last PGN");
+            ui.label(
+                self.ecm_live_snapshot
+                    .last_seen_pgn
+                    .map_or("-".into(), |v| format!("{v}")),
+            );
+            ui.end_row();
+
+            ui.label("Source Address");
+            ui.label(
+                self.ecm_live_snapshot
+                    .source_address
+                    .map_or("-".into(), |v| format!("0x{v:02X}")),
+            );
+            ui.end_row();
         });
     }
 
