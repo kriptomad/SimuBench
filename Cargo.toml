@@ -2,6 +2,7 @@
 name = "auto_breaking"
 version = "0.3.0"
 edition = "2021"
+default-run = "auto_breaking"
 
 [features]
 default = []
