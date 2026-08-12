@@ -13,6 +13,7 @@ use auto_breaking::{
     autonomous::FeatureState,
     boot_sequence::EcuBootStage,
     can_gateway::BusState,
+    CalibrationReport,
     ecu_abs::EspCondition,
     ecu_ecm::AftertreatmentState,
     ecu_tcm::{AutoShiftMode, ClutchState, Direction},
@@ -102,6 +103,13 @@ enum Cmd {
     LeakExportReportJson(String),
     LeakExportPredCsv(String),
     LeakExportPredJson(String),
+    LeakExportCatalogMaterialsCsv(String),
+    LeakExportCatalogMaterialsJson(String),
+    LeakExportCatalogOilsCsv(String),
+    LeakExportCatalogOilsJson(String),
+    LeakCalibrateFromCsv(String),
+    LeakExportCalibrationCsv(String),
+    LeakExportCalibrationJson(String),
     LeakRunMonteCarlo,
     // CAN network controls
     CanInjectBitError(usize),
@@ -353,6 +361,8 @@ struct App {
     leak_horizon_s: f64,
     leak_scenario_dt: f64,
     leak_predictions: Vec<ScenarioPrediction>,
+    leak_calibration_csv_path: String,
+    leak_calibration_report: Option<CalibrationReport>,
     leak_note: String,
     leak_view_yaw_deg: f32,
     leak_view_pitch_deg: f32,
@@ -443,6 +453,8 @@ impl App {
             leak_horizon_s: 600.0,
             leak_scenario_dt: 0.05,
             leak_predictions: Vec::new(),
+            leak_calibration_csv_path: String::new(),
+            leak_calibration_report: None,
             leak_note: String::new(),
             leak_view_yaw_deg: 25.0,
             leak_view_pitch_deg: 20.0,
@@ -467,6 +479,13 @@ impl App {
             .set_file_name(default_name)
             .add_filter(ext, &[ext])
             .save_file()
+            .map(|p| p.display().to_string())
+    }
+
+    fn pick_open_path(ext: &str) -> Option<String> {
+        FileDialog::new()
+            .add_filter(ext, &[ext])
+            .pick_file()
             .map(|p| p.display().to_string())
     }
 
@@ -514,15 +533,7 @@ impl App {
     }
 
     fn oil_type_from_idx(idx: usize) -> OilType {
-        match idx {
-            0 => OilType::HydraulicIso46,
-            1 => OilType::HydraulicIso68,
-            2 => OilType::Engine15w40,
-            3 => OilType::Engine10w30,
-            4 => OilType::Pag46,
-            5 => OilType::Poe68,
-            _ => OilType::Custom,
-        }
+        OilType::all().get(idx).copied().unwrap_or(OilType::Custom)
     }
 
     fn component_from_idx(idx: usize) -> CircuitComponent {
@@ -534,24 +545,14 @@ impl App {
     }
 
     fn material_from_idx(idx: usize) -> OringMaterial {
-        match idx {
-            0 => OringMaterial::Nbr,
-            1 => OringMaterial::Hnbr,
-            2 => OringMaterial::Fkm,
-            _ => OringMaterial::Epdm,
-        }
+        OringMaterial::all()
+            .get(idx)
+            .copied()
+            .unwrap_or(OringMaterial::Nbr)
     }
 
     fn idx_from_oil_type(o: OilType) -> usize {
-        match o {
-            OilType::HydraulicIso46 => 0,
-            OilType::HydraulicIso68 => 1,
-            OilType::Engine15w40 => 2,
-            OilType::Engine10w30 => 3,
-            OilType::Pag46 => 4,
-            OilType::Poe68 => 5,
-            OilType::Custom => 6,
-        }
+        OilType::all().iter().position(|x| *x == o).unwrap_or(0)
     }
 
     fn sync_leak_manual_from_selected(&mut self) {
@@ -790,6 +791,70 @@ impl App {
                     {
                         Ok(_) => format!("Pred JSON salvo em {}", path),
                         Err(e) => format!("Falha export pred JSON: {}", e),
+                    };
+                }
+                Cmd::LeakExportCatalogMaterialsCsv(path) => {
+                    self.leak_note = match self.bench.leak_rig.export_material_catalog_csv(&path) {
+                        Ok(_) => format!("Catalogo materiais CSV salvo em {}", path),
+                        Err(e) => format!("Falha export catalogo materiais CSV: {}", e),
+                    };
+                }
+                Cmd::LeakExportCatalogMaterialsJson(path) => {
+                    self.leak_note =
+                        match self.bench.leak_rig.export_material_catalog_json(&path) {
+                            Ok(_) => format!("Catalogo materiais JSON salvo em {}", path),
+                            Err(e) => format!("Falha export catalogo materiais JSON: {}", e),
+                        };
+                }
+                Cmd::LeakExportCatalogOilsCsv(path) => {
+                    self.leak_note = match self.bench.leak_rig.export_oil_catalog_csv(&path) {
+                        Ok(_) => format!("Catalogo oleos CSV salvo em {}", path),
+                        Err(e) => format!("Falha export catalogo oleos CSV: {}", e),
+                    };
+                }
+                Cmd::LeakExportCatalogOilsJson(path) => {
+                    self.leak_note = match self.bench.leak_rig.export_oil_catalog_json(&path) {
+                        Ok(_) => format!("Catalogo oleos JSON salvo em {}", path),
+                        Err(e) => format!("Falha export catalogo oleos JSON: {}", e),
+                    };
+                }
+                Cmd::LeakCalibrateFromCsv(path) => {
+                    self.leak_note = match self.bench.calibrate_leak_model_from_csv(&path) {
+                        Ok(report) => {
+                            let circuits = report.calibrated_circuits;
+                            let samples = report.total_samples;
+                            self.leak_calibration_report = Some(report);
+                            self.leak_calibration_csv_path = path.clone();
+                            format!(
+                                "Calibracao concluida: {} circuitos, {} amostras",
+                                circuits, samples
+                            )
+                        }
+                        Err(e) => format!("Falha calibracao CSV: {}", e),
+                    };
+                }
+                Cmd::LeakExportCalibrationCsv(path) => {
+                    self.leak_note = match self.leak_calibration_report.as_ref() {
+                        Some(report) => match self
+                            .bench
+                            .export_leak_calibration_report_csv(&path, report)
+                        {
+                            Ok(_) => format!("Calibracao CSV salva em {}", path),
+                            Err(e) => format!("Falha export calibracao CSV: {}", e),
+                        },
+                        None => "Execute calibracao antes de exportar".into(),
+                    };
+                }
+                Cmd::LeakExportCalibrationJson(path) => {
+                    self.leak_note = match self.leak_calibration_report.as_ref() {
+                        Some(report) => match self
+                            .bench
+                            .export_leak_calibration_report_json(&path, report)
+                        {
+                            Ok(_) => format!("Calibracao JSON salva em {}", path),
+                            Err(e) => format!("Falha export calibracao JSON: {}", e),
+                        },
+                        None => "Execute calibracao antes de exportar".into(),
                     };
                 }
                 Cmd::LeakRunMonteCarlo => {
@@ -4635,6 +4700,7 @@ impl App {
         let reports = self.bench.leak_reports.clone();
         let alerts = self.bench.leak_rig.alerts.clone();
         let predictions = self.leak_predictions.clone();
+        let calibration_report = self.leak_calibration_report.clone();
 
         ui.horizontal(|ui| {
             ui.label(
@@ -4676,6 +4742,14 @@ impl App {
         let mut do_export_report_json = false;
         let mut do_export_pred_csv = false;
         let mut do_export_pred_json = false;
+        let mut do_export_catalog_mat_csv = false;
+        let mut do_export_catalog_mat_json = false;
+        let mut do_export_catalog_oil_csv = false;
+        let mut do_export_catalog_oil_json = false;
+        let mut do_pick_calibration_csv = false;
+        let mut do_run_calibration = false;
+        let mut do_export_calibration_csv = false;
+        let mut do_export_calibration_json = false;
         let mut do_monte_carlo = false;
         let mut pending_select: Option<usize> = None;
 
@@ -4703,7 +4777,23 @@ impl App {
                             auto_breaking::LeakAlertLevel::Critical => Color32::RED,
                             auto_breaking::LeakAlertLevel::Ruptured => Color32::from_rgb(255,0,0),
                         };
-                        ui.label(RichText::new(format!("{} | {} | leak {:.3} L/min | risk {:.0}%", r.name, r.alert, r.leak_lpm, r.rupture_probability_pct)).size(10.0).color(c));
+                        ui.label(RichText::new(format!(
+                            "{} | {} | p={:.1}bar ({}) | leak {:.3} L/min | risk {:.0}%",
+                            r.name,
+                            r.alert,
+                            r.current_pressure_bar,
+                            r.pressure_band,
+                            r.leak_lpm,
+                            r.rupture_probability_pct
+                        )).size(10.0).color(c));
+                        ui.label(RichText::new(format!(
+                            "safe {:.1}-{:.1}bar target {:.1}bar | rupture at {} bar / {} h",
+                            r.recommended_hold_min_bar,
+                            r.recommended_hold_max_bar,
+                            r.recommended_hold_target_bar,
+                            r.rupture_pressure_bar.map(|v| format!("{v:.2}")).unwrap_or_else(|| "n/a".into()),
+                            r.rupture_elapsed_h.map(|v| format!("{v:.3}")).unwrap_or_else(|| "n/a".into())
+                        )).size(9.5).color(Color32::from_gray(160)));
                     }
                     if !alerts.is_empty() {
                         ui.separator();
@@ -4808,12 +4898,18 @@ impl App {
                     ui.label(RichText::new("Use this for production-calibrated pressure/oring/oil settings").size(9.8).color(Color32::from_gray(140)));
                     ui.separator();
 
-                    const OIL_NAMES: [&str; 7] = ["Hydraulic ISO46", "Hydraulic ISO68", "Engine 15W40", "Engine 10W30", "PAG46", "POE68", "Custom"];
+                    let oil_types = OilType::all();
                     ComboBox::from_label("Oil Type")
-                        .selected_text(OIL_NAMES[self.leak_manual.oil_type_idx.min(6)])
+                        .selected_text(
+                            oil_types
+                                .get(self.leak_manual.oil_type_idx)
+                                .copied()
+                                .unwrap_or(OilType::Custom)
+                                .name(),
+                        )
                         .show_ui(ui, |ui| {
-                            for (i, n) in OIL_NAMES.iter().enumerate() {
-                                ui.selectable_value(&mut self.leak_manual.oil_type_idx, i, *n);
+                            for (i, o) in oil_types.iter().enumerate() {
+                                ui.selectable_value(&mut self.leak_manual.oil_type_idx, i, o.name());
                             }
                         });
 
@@ -4873,16 +4969,28 @@ impl App {
                         ui.add_sized([180.0, 20.0], TextEdit::singleline(&mut self.leak_custom.application));
                     });
                     const COMP_NAMES: [&str; 3] = ["O-ring", "Seal", "A/C Hose"];
-                    const OIL_NAMES: [&str; 7] = ["Hydraulic ISO46", "Hydraulic ISO68", "Engine 15W40", "Engine 10W30", "PAG46", "POE68", "Custom"];
-                    const MAT_NAMES: [&str; 4] = ["NBR", "HNBR", "FKM", "EPDM"];
+                    let oil_types = OilType::all();
+                    let materials = OringMaterial::all();
                     ComboBox::from_label("Component").selected_text(COMP_NAMES[self.leak_custom.component_idx.min(2)]).show_ui(ui, |ui| {
                         for (i, n) in COMP_NAMES.iter().enumerate() { ui.selectable_value(&mut self.leak_custom.component_idx, i, *n); }
                     });
-                    ComboBox::from_label("Oil").selected_text(OIL_NAMES[self.leak_custom.oil_type_idx.min(6)]).show_ui(ui, |ui| {
-                        for (i, n) in OIL_NAMES.iter().enumerate() { ui.selectable_value(&mut self.leak_custom.oil_type_idx, i, *n); }
+                    ComboBox::from_label("Oil").selected_text(
+                        oil_types
+                            .get(self.leak_custom.oil_type_idx)
+                            .copied()
+                            .unwrap_or(OilType::Custom)
+                            .name(),
+                    ).show_ui(ui, |ui| {
+                        for (i, o) in oil_types.iter().enumerate() { ui.selectable_value(&mut self.leak_custom.oil_type_idx, i, o.name()); }
                     });
-                    ComboBox::from_label("Material").selected_text(MAT_NAMES[self.leak_custom.material_idx.min(3)]).show_ui(ui, |ui| {
-                        for (i, n) in MAT_NAMES.iter().enumerate() { ui.selectable_value(&mut self.leak_custom.material_idx, i, *n); }
+                    ComboBox::from_label("Material").selected_text(
+                        materials
+                            .get(self.leak_custom.material_idx)
+                            .copied()
+                            .unwrap_or(OringMaterial::Nbr)
+                            .name(),
+                    ).show_ui(ui, |ui| {
+                        for (i, m) in materials.iter().enumerate() { ui.selectable_value(&mut self.leak_custom.material_idx, i, m.name()); }
                     });
                     ui.horizontal(|ui| {
                         ui.label("Seals"); ui.add(DragValue::new(&mut self.leak_custom.seal_count).range(1..=128));
@@ -4945,6 +5053,43 @@ impl App {
                         if ui.button("CSV Prediction").clicked() { do_export_pred_csv = true; }
                         if ui.button("JSON Prediction").clicked() { do_export_pred_json = true; }
                     });
+                    ui.label(RichText::new("ENGINEERING CATALOG EXPORT").size(11.0).color(Color32::from_rgb(80,155,255)));
+                    ui.horizontal_wrapped(|ui| {
+                        if ui.button("CSV Materials").clicked() { do_export_catalog_mat_csv = true; }
+                        if ui.button("JSON Materials").clicked() { do_export_catalog_mat_json = true; }
+                        if ui.button("CSV Oils").clicked() { do_export_catalog_oil_csv = true; }
+                        if ui.button("JSON Oils").clicked() { do_export_catalog_oil_json = true; }
+                    });
+
+                    ui.separator();
+                    ui.label(RichText::new("CALIBRATION MODE (BENCH CSV)").size(11.0).color(Color32::from_rgb(80,155,255)));
+                    ui.horizontal(|ui| {
+                        if ui.button("Select CSV").clicked() { do_pick_calibration_csv = true; }
+                        if ui.add_enabled(!self.leak_calibration_csv_path.is_empty(), Button::new("Run Auto Calibration")).clicked() {
+                            do_run_calibration = true;
+                        }
+                    });
+                    if self.leak_calibration_csv_path.is_empty() {
+                        ui.label(RichText::new("No CSV selected").size(9.8).color(Color32::from_gray(145)));
+                    } else {
+                        ui.label(RichText::new(format!("CSV: {}", self.leak_calibration_csv_path)).size(9.6).color(Color32::LIGHT_BLUE));
+                    }
+                    if let Some(rep) = &calibration_report {
+                        ui.label(RichText::new(format!(
+                            "Calibrated circuits: {} | samples: {}",
+                            rep.calibrated_circuits, rep.total_samples
+                        )).size(9.8).color(Color32::YELLOW));
+                        for r in rep.circuit_reports.iter().take(5) {
+                            ui.label(RichText::new(format!(
+                                "{} | RMSE {:.4} LPM | MAPE {:.2}% | rupture acc {:.1}%",
+                                r.circuit_name, r.rmse_leak_lpm, r.mape_leak_pct, r.rupture_accuracy_pct
+                            )).size(9.4).color(Color32::from_gray(165)));
+                        }
+                        ui.horizontal_wrapped(|ui| {
+                            if ui.button("CSV Calibration Report").clicked() { do_export_calibration_csv = true; }
+                            if ui.button("JSON Calibration Report").clicked() { do_export_calibration_json = true; }
+                        });
+                    }
                 });
             });
         });
@@ -4991,6 +5136,59 @@ impl App {
         }
         if do_monte_carlo {
             self.cmds.push(Cmd::LeakRunMonteCarlo);
+        }
+        if do_export_catalog_mat_csv {
+            let ts = Local::now().format("%Y%m%d_%H%M%S");
+            let name = format!("materials_catalog_{}.csv", ts);
+            if let Some(path) = Self::pick_save_path(&name, "csv") {
+                self.cmds.push(Cmd::LeakExportCatalogMaterialsCsv(path));
+            }
+        }
+        if do_export_catalog_mat_json {
+            let ts = Local::now().format("%Y%m%d_%H%M%S");
+            let name = format!("materials_catalog_{}.json", ts);
+            if let Some(path) = Self::pick_save_path(&name, "json") {
+                self.cmds.push(Cmd::LeakExportCatalogMaterialsJson(path));
+            }
+        }
+        if do_export_catalog_oil_csv {
+            let ts = Local::now().format("%Y%m%d_%H%M%S");
+            let name = format!("oils_catalog_{}.csv", ts);
+            if let Some(path) = Self::pick_save_path(&name, "csv") {
+                self.cmds.push(Cmd::LeakExportCatalogOilsCsv(path));
+            }
+        }
+        if do_export_catalog_oil_json {
+            let ts = Local::now().format("%Y%m%d_%H%M%S");
+            let name = format!("oils_catalog_{}.json", ts);
+            if let Some(path) = Self::pick_save_path(&name, "json") {
+                self.cmds.push(Cmd::LeakExportCatalogOilsJson(path));
+            }
+        }
+        if do_pick_calibration_csv {
+            if let Some(path) = Self::pick_open_path("csv") {
+                self.leak_calibration_csv_path = path;
+                self.leak_note = "CSV de bancada selecionado".into();
+            }
+        }
+        if do_run_calibration {
+            self.cmds.push(Cmd::LeakCalibrateFromCsv(
+                self.leak_calibration_csv_path.clone(),
+            ));
+        }
+        if do_export_calibration_csv {
+            let ts = Local::now().format("%Y%m%d_%H%M%S");
+            let name = format!("leak_calibration_report_{}.csv", ts);
+            if let Some(path) = Self::pick_save_path(&name, "csv") {
+                self.cmds.push(Cmd::LeakExportCalibrationCsv(path));
+            }
+        }
+        if do_export_calibration_json {
+            let ts = Local::now().format("%Y%m%d_%H%M%S");
+            let name = format!("leak_calibration_report_{}.json", ts);
+            if let Some(path) = Self::pick_save_path(&name, "json") {
+                self.cmds.push(Cmd::LeakExportCalibrationJson(path));
+            }
         }
     }
 }

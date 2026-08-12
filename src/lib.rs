@@ -76,9 +76,11 @@ pub use j1939::addr as SaConstants;
 pub use j1939::pgn as PgnConstants;
 pub use j1939::{find_pgn, fmi_name, Dtc, DtcSeverity, J1939Bus, J1939Frame};
 pub use leak_physics::{
-    CircuitComponent, CircuitInput, CircuitResult, LeakAlert, LeakAlertLevel, LeakCircuit,
-    LeakPhysicsRig, ManualCircuitParams, OilType, OringMaterial, OringSpec, PressureEnvelope,
-    ScenarioPrediction,
+    engineering_material_catalog, engineering_oil_catalog, CalibrationCircuitReport,
+    CalibrationCsvSample, CalibrationGroupReport, CalibrationReport, CircuitComponent,
+    CircuitInput, CircuitResult, LeakAlert, LeakAlertLevel, LeakCircuit, LeakModelCoefficients,
+    LeakPhysicsRig, ManualCircuitParams, MaterialCatalogEntry, OilCatalogEntry, OilType,
+    OringMaterial, OringSpec, PressureBand, PressureEnvelope, ScenarioPrediction,
 };
 pub use lidar::{LidarCluster, LidarObjectType, LidarSensor, WorldObstacle};
 pub use network_mgmt::{BusNmState, NetworkManager, NmNode, NmState};
@@ -944,6 +946,57 @@ impl HeavyMachinery {
         predictions: &[ScenarioPrediction],
     ) -> std::io::Result<()> {
         self.leak_rig.export_predictions_csv(path, predictions)
+    }
+
+    pub fn export_leak_material_catalog_json<P: AsRef<std::path::Path>>(
+        &self,
+        path: P,
+    ) -> std::io::Result<()> {
+        self.leak_rig.export_material_catalog_json(path)
+    }
+
+    pub fn export_leak_material_catalog_csv<P: AsRef<std::path::Path>>(
+        &self,
+        path: P,
+    ) -> std::io::Result<()> {
+        self.leak_rig.export_material_catalog_csv(path)
+    }
+
+    pub fn export_leak_oil_catalog_json<P: AsRef<std::path::Path>>(
+        &self,
+        path: P,
+    ) -> std::io::Result<()> {
+        self.leak_rig.export_oil_catalog_json(path)
+    }
+
+    pub fn export_leak_oil_catalog_csv<P: AsRef<std::path::Path>>(
+        &self,
+        path: P,
+    ) -> std::io::Result<()> {
+        self.leak_rig.export_oil_catalog_csv(path)
+    }
+
+    pub fn calibrate_leak_model_from_csv<P: AsRef<std::path::Path>>(
+        &mut self,
+        csv_path: P,
+    ) -> std::io::Result<CalibrationReport> {
+        self.leak_rig.calibrate_from_csv(csv_path)
+    }
+
+    pub fn export_leak_calibration_report_json<P: AsRef<std::path::Path>>(
+        &self,
+        path: P,
+        report: &CalibrationReport,
+    ) -> std::io::Result<()> {
+        self.leak_rig.export_calibration_report_json(path, report)
+    }
+
+    pub fn export_leak_calibration_report_csv<P: AsRef<std::path::Path>>(
+        &self,
+        path: P,
+        report: &CalibrationReport,
+    ) -> std::io::Result<()> {
+        self.leak_rig.export_calibration_report_csv(path, report)
     }
 
     pub fn monte_carlo_leak_predictions(

@@ -54,6 +54,21 @@ fn e2e_hydraulic_plus_ac_stress_generates_reports() {
     bench
         .export_leak_predictions_csv(root.join("pred_report.csv"), &pred)
         .expect("pred csv export");
+    bench
+        .export_leak_material_catalog_json(root.join("materials_catalog.json"))
+        .expect("materials catalog json export");
+    bench
+        .export_leak_oil_catalog_csv(root.join("oils_catalog.csv"))
+        .expect("oils catalog csv export");
+
+    let hyd = bench
+        .leak_reports
+        .iter()
+        .find(|r| r.name == "HYD_MAIN")
+        .expect("HYD_MAIN report exists");
+    assert!(hyd.recommended_hold_max_bar > hyd.recommended_hold_min_bar);
+    assert!(!hyd.rca_hint.is_empty());
+    assert!(!hyd.pca_recommendation.is_empty());
 }
 
 #[test]

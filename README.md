@@ -1,242 +1,233 @@
 # SimuBench
 
-SimuBench is a full heavy-machinery ECU bench platform in Rust.
+SimuBench e uma bancada completa de simulacao e diagnostico de ECUs para maquinas pesadas, escrita em Rust.
 
-It combines three major capabilities in one system:
+O projeto integra em um unico app:
+- simulacao multi-ECU em tempo real;
+- monitoramento CAN/J1939 e UDS;
+- fluxo de dados ECM live com exportacao;
+- Leak Physics Lab com predicao, Monte Carlo e calibracao automatica por CSV de bancada;
+- camada de I/O com politicas de seguranca (allowlist, rate limit, dry-run e auditoria).
 
-1. High-fidelity multi-ECU simulation and diagnostics bench.
-2. Real ECM live communication workflow (Detect, Connect, Retrieve, Stop, Export CSV).
-3. Safety-first hardware I/O layer with allowlist, rate limiting, dry-run controls, and auditable logs.
+## Sumario
 
-This is not an ABS-only project anymore. ABS/ESP/TCS is one subsystem inside a broader platform that includes powertrain, transmission, hydraulics, CAN network, UDS diagnostics, autonomous sensor stack, V2X/telematics, leak physics, and operator-focused desktop workflows.
+- [Visao geral rapida](#visao-geral-rapida)
+- [Arquitetura do projeto](#arquitetura-do-projeto)
+- [Executaveis](#executaveis)
+- [Como rodar](#como-rodar)
+- [Fluxo da interface (tabs)](#fluxo-da-interface-tabs)
+- [Leak Lab e modo calibracao](#leak-lab-e-modo-calibracao)
+- [Seguranca para I/O real](#seguranca-para-io-real)
+- [Testes e qualidade](#testes-e-qualidade)
+- [Mapa de arquivos](#mapa-de-arquivos)
 
-## What the platform does
+## Visao geral rapida
 
-### 1. Multi-ECU real-time simulation
+- Linguagem: Rust (edition 2021)
+- UI desktop: eframe/egui
+- Plataforma foco: Windows (com suporte de modo sim completo)
+- Branch principal: master
 
-Simulates a complete heavy-machinery electronic architecture with interacting ECUs:
+Entrypoints principais:
+- Orquestrador e modulos: [src/lib.rs](src/lib.rs)
+- Aplicacao desktop: [src/main.rs](src/main.rs)
+- Fisica de vazamento/calibracao: [src/leak_physics.rs](src/leak_physics.rs)
+- I/O live e seguranca: [src/io/hw.rs](src/io/hw.rs)
 
-1. ECM, TCM, BCM, ICM, HCM, ABS/ESP/TCS, VCM.
-2. Boot sequence, ignition states, node online/offline behavior.
-3. Fault injection catalog and DTC-driven diagnostics behavior.
-4. Cross-module state propagation through CAN/J1939 and network management.
+## Arquitetura do projeto
 
-Core orchestrator and module exports are defined in [src/lib.rs](src/lib.rs).
+### 1. Core de simulacao multi-ECU
 
-### 2. CAN/J1939 network and diagnostics
+O orchestrator central instancia e integra ECM, TCM, BCM, ICM, HCM, ABS/ESP, VCM, sensores e telematica.
 
-Implements protocol and network behavior for realistic bench analysis:
+Referencia:
+- [src/lib.rs](src/lib.rs)
 
-1. J1939 frame flow and decode primitives.
-2. Multi-bus CAN simulation with health/error counters.
-3. UDS diagnostic server flows for service-level testing.
-4. OSEK-style network management and NVM persistence hooks.
+### 2. Rede CAN/J1939 e UDS
 
-Relevant modules:
+Cobertura de monitoramento e diagnostico de rede:
+- transporte e gateway;
+- multi-bus CAN com estados de saude;
+- decode J1939;
+- servidor UDS para fluxos de diagnostico.
 
-1. [src/j1939.rs](src/j1939.rs)
-2. [src/can_gateway.rs](src/can_gateway.rs)
-3. [src/can_network.rs](src/can_network.rs)
-4. [src/uds.rs](src/uds.rs)
-5. [src/network_mgmt.rs](src/network_mgmt.rs)
-6. [src/nvm.rs](src/nvm.rs)
+Referencias:
+- [src/can_gateway.rs](src/can_gateway.rs)
+- [src/can_network.rs](src/can_network.rs)
+- [src/j1939.rs](src/j1939.rs)
+- [src/uds.rs](src/uds.rs)
 
-### 3. Autonomous and sensing stack
+### 3. Pilha de sensores/autonomia
 
-The bench includes perception/control subsystems for AD scenarios:
+Inclui GPS, IMU, radar, lidar, camera e fusao para cenarios AD.
 
-1. GPS, IMU, radar, lidar, and camera simulation.
-2. Sensor fusion and autonomous controller integration.
-3. V2X and telematics behavior in the same runtime loop.
+Referencias:
+- [src/gps.rs](src/gps.rs)
+- [src/imu.rs](src/imu.rs)
+- [src/radar.rs](src/radar.rs)
+- [src/lidar.rs](src/lidar.rs)
+- [src/camera.rs](src/camera.rs)
+- [src/autonomous.rs](src/autonomous.rs)
 
-Relevant modules:
+### 4. Leak Physics Lab
 
-1. [src/gps.rs](src/gps.rs)
-2. [src/imu.rs](src/imu.rs)
-3. [src/radar.rs](src/radar.rs)
-4. [src/lidar.rs](src/lidar.rs)
-5. [src/camera.rs](src/camera.rs)
-6. [src/autonomous.rs](src/autonomous.rs)
-7. [src/v2x_telematics.rs](src/v2x_telematics.rs)
+Ambiente de engenharia para circuitos hidraulicos e de vedacao:
+- simulacao de degradacao e risco de ruptura;
+- predicao por cenario;
+- Monte Carlo;
+- exportacao runtime/prediction/catalogos;
+- calibracao automatica com dados reais de bancada (CSV).
 
-### 4. Leak physics and engineering analysis
+Referencia:
+- [src/leak_physics.rs](src/leak_physics.rs)
 
-Includes hydraulic leak modeling and report generation support for engineering use:
+## Executaveis
 
-1. Circuit-level leak simulation.
-2. Scenario prediction workflow.
-3. Export support for analysis/reporting.
+O repositorio possui dois bins:
+- auto_breaking: app desktop principal
+- simulator_cli: runner headless
 
-Module:
+Referencia:
+- [src/bin/simulator_cli.rs](src/bin/simulator_cli.rs)
 
-1. [src/leak_physics.rs](src/leak_physics.rs)
+## Como rodar
 
-### 5. ECM live data workflow
-
-In the desktop app, ECM live communication runs in a dedicated tab and is operator-triggered only.
-
-Workflow:
-
-1. Detect candidate ECMs.
-2. Connect and verify response path.
-3. Retrieve Data in real time.
-4. Stop acquisition explicitly.
-5. Export live history to CSV.
-
-The tab also provides a rolling post-analysis summary (min/avg/max and key extrema).
-
-Key modules:
-
-1. [src/main.rs](src/main.rs)
-2. [src/io/live_runner.rs](src/io/live_runner.rs)
-3. [src/io/ecm_params.rs](src/io/ecm_params.rs)
-
-## Desktop application capabilities
-
-Main GUI binary:
-
-1. [src/main.rs](src/main.rs)
-
-Main tabs include:
-
-1. Cluster.
-2. CAN Bus monitor.
-3. Events.
-4. ECU network.
-5. Engine.
-6. Faults.
-7. Boot.
-8. Implements.
-9. Params.
-10. Sensors.
-11. Autonomous.
-12. V2X.
-13. UDS.
-14. ECM Live.
-15. Leak Lab.
-16. Plots.
-
-## Hardware I/O architecture
-
-I/O abstraction and policy layer is under [src/io](src/io):
-
-1. [src/io/hw.rs](src/io/hw.rs): config, trait contract, CLI parsing, startup audit log.
-2. [src/io/serial_adapter.rs](src/io/serial_adapter.rs): real serial transport.
-3. [src/io/socketcan_adapter.rs](src/io/socketcan_adapter.rs): Linux SocketCAN transport.
-4. [src/io/vendor_cat_comm.rs](src/io/vendor_cat_comm.rs): Windows-first Cat Comm template.
-5. [src/io/allowlist.rs](src/io/allowlist.rs): write authorization rules.
-6. [src/io/rate_limiter.rs](src/io/rate_limiter.rs): global and per-ID throttling.
-7. [src/io/replay.rs](src/io/replay.rs): JSONL conversion/replay support.
-8. [src/io/metrics.rs](src/io/metrics.rs): hardware metrics model.
-9. [src/io/mock.rs](src/io/mock.rs): mock adapter for CI and tests.
-
-Adapter selection priority:
-
-1. Windows vendor adapter when vendor is requested and feature is enabled.
-2. CAN interface when provided.
-3. Serial port when provided.
-
-## Safety model (write control)
-
-Physical write is blocked unless all gates are satisfied:
-
-1. enable-write.
-2. allowlist path provided and valid.
-3. noninteractive approved.
-4. dry-run explicitly disabled.
-
-Safe-by-default behavior:
-
-1. default mode is read/sim safe.
-2. dry-run prevents physical TX while preserving audit evidence.
-3. startup policy is recorded to log artifacts.
-
-## Logging, replay, and observability
-
-The platform supports evidence and post-analysis flows:
-
-1. startup policy logs (JSONL/GZIP).
-2. live RX/snapshot records.
-3. replay-friendly conversions.
-4. in-process metrics structures for operational counters.
-
-Related modules:
-
-1. [src/io/replay.rs](src/io/replay.rs)
-2. [src/io/live_runner.rs](src/io/live_runner.rs)
-3. [src/io/metrics.rs](src/io/metrics.rs)
-4. [src/observability.rs](src/observability.rs)
-
-## Binaries
-
-This repository currently ships two binaries:
-
-1. auto_breaking: desktop ECU bench app.
-2. simulator_cli: headless CLI simulation runner.
-
-CLI binary source:
-
-1. [src/bin/simulator_cli.rs](src/bin/simulator_cli.rs)
-
-Cargo default-run is configured so plain cargo run starts auto_breaking.
-
-## Build and run
-
-### Desktop app (default)
+### Rodar app desktop (modo simulacao)
 
 ```powershell
 cargo run -- --hw-mode=sim
 ```
 
-### Explicit binaries
+### Rodar binario explicito
 
 ```powershell
 cargo run --bin auto_breaking -- --hw-mode=sim
+```
+
+### Rodar CLI headless
+
+```powershell
 cargo run --bin simulator_cli -- --seed 7 --steps 20000 --model reduced
 ```
 
-### Windows-first live build
+### Build com feature Windows vendor
 
 ```powershell
 cargo build --release --features "vendor-windows"
 ```
 
-### Live over serial
+## Fluxo da interface (tabs)
 
-```powershell
-cargo run --release --features "vendor-windows" -- --hw-mode=live --serial-port=COM3 --serial-baud=115200 --dry-run
+Tabs principais no app ([src/main.rs](src/main.rs)):
+1. Cluster
+2. CAN Bus
+3. Events
+4. ECU Net
+5. Engine
+6. Faults
+7. Boot
+8. Implements
+9. Params
+10. Sensors
+11. Autonomous
+12. V2X
+13. UDS
+14. ECM Live
+15. Leak Lab
+16. Plots
+
+Sugestao de fluxo de uso rapido:
+1. Inicie em modo sim.
+2. Use Cluster/Engine para validar dinamica basica.
+3. Va para CAN Bus + Events para diagnostico.
+4. Use UDS para exercitar servicos de diagnostico.
+5. Use ECM Live para captura e exportacao de historico.
+6. Finalize no Leak Lab para analise de risco e calibracao por CSV.
+
+## Leak Lab e modo calibracao
+
+### O que o Leak Lab entrega
+
+- runtime em tempo real por circuito;
+- predicao por horizonte e dt;
+- Monte Carlo;
+- export CSV/JSON de runtime e prediction;
+- export de catalogos de materiais e oleos;
+- calibracao por CSV de bancada com ajuste automatico de coeficientes.
+
+### Fluxo de calibracao (UI)
+
+No tab Leak Lab:
+1. Clique em Select CSV
+2. Escolha o arquivo de bancada
+3. Clique em Run Auto Calibration
+4. Veja o resumo por circuito (RMSE, MAPE, acuracia de ruptura)
+5. Exporte o relatorio em CSV/JSON
+
+### CSV esperado para calibracao
+
+Cabecalho esperado:
+
+```text
+timestamp_s,circuit_name,pressure_bar,delta_p_bar,temp_c,cycles_per_s,duty_01,fluid_density_kg_m3,measured_leak_lpm,observed_rupture
 ```
 
-### Live with Cat Comm template mode
+Descricao rapida de campos:
+- timestamp_s: tempo da amostra
+- circuit_name: nome do circuito (deve bater com circuito conhecido)
+- pressure_bar: pressao instantanea
+- delta_p_bar: diferencial de pressao
+- temp_c: temperatura do fluido
+- cycles_per_s: frequencia de ciclagem
+- duty_01: duty cycle entre 0 e 1
+- fluid_density_kg_m3: densidade
+- measured_leak_lpm: vazao medida de leak
+- observed_rupture: true/false opcional
 
-```powershell
-cargo run --release --features "vendor-windows" -- --hw-mode=live --vendor-name=cat_comm --dry-run
-```
+### O que e ajustado automaticamente
 
-## Runtime flags for live mode
+A calibracao faz busca deterministica (grid search) por circuito para ajustar:
+- damage_rate_scale
+- extrusion_rate_scale
+- thermal_rate_scale
+- flow_rate_scale
+- rupture_area_scale
 
-Supported live flags include:
+Saidas do relatorio:
+- por circuito;
+- agregado por material;
+- agregado por oleo.
 
-1. --hw-mode=sim|live
-2. --vendor-name=cat_comm
-3. --serial-port
-4. --serial-baud
-5. --can-if
-6. --enable-write
-7. --allowlist
-8. --noninteractive-approved
-9. --dry-run or --dry-run=false
-10. --rate-limit-global
-11. --rate-limit-per-id
-12. --log-dir
+## Seguranca para I/O real
 
-## Testing and quality
+A camada de I/O foi desenhada com default seguro.
 
-Main integration test for I/O safety behavior:
+Diretorio:
+- [src/io](src/io)
 
-1. [tests/io_mock.rs](tests/io_mock.rs)
+Gates para escrita fisica:
+- enable-write
+- allowlist valida
+- noninteractive-approved
+- dry-run desabilitado de forma explicita
 
-Local validation commands:
+Flags importantes:
+- --hw-mode=sim|live
+- --vendor-name=cat_comm
+- --serial-port
+- --serial-baud
+- --can-if
+- --enable-write
+- --allowlist
+- --noninteractive-approved
+- --dry-run / --dry-run=false
+- --rate-limit-global
+- --rate-limit-per-id
+- --log-dir
+
+## Testes e qualidade
+
+Comandos recomendados:
 
 ```powershell
 cargo fmt
@@ -247,46 +238,23 @@ cargo test --test io_mock
 cargo check
 ```
 
-## CI workflows
+Suites de referencia:
+- [tests/io_mock.rs](tests/io_mock.rs)
+- [tests/leak_system_integration.rs](tests/leak_system_integration.rs)
+- [tests/property_invariants.rs](tests/property_invariants.rs)
+- [tests/system_failure_scenarios.rs](tests/system_failure_scenarios.rs)
 
-CI and quality workflows are under [.github/workflows](.github/workflows):
+## Mapa de arquivos
 
-1. [ci.yml](.github/workflows/ci.yml): formatting, clippy, and workspace tests.
-2. [integration-mock.yml](.github/workflows/integration-mock.yml): focused mock integration tests on Linux and Windows (including vendor-windows build check).
-3. [fuzz-smoke.yml](.github/workflows/fuzz-smoke.yml): fuzz smoke run.
-4. [nightly-montecarlo.yml](.github/workflows/nightly-montecarlo.yml): scheduled simulation workload.
+- [src/main.rs](src/main.rs): UI desktop, tabs e fila de comandos
+- [src/lib.rs](src/lib.rs): orchestrator principal e API publica
+- [src/leak_physics.rs](src/leak_physics.rs): fisica de leak, predicoes e calibracao
+- [src/io/hw.rs](src/io/hw.rs): configuracao de hardware e politicas de runtime
+- [src/io/live_runner.rs](src/io/live_runner.rs): ciclo live ECM
+- [src/io/ecm_params.rs](src/io/ecm_params.rs): decode de parametros live
+- [docs/ECM-Data.md](docs/ECM-Data.md): runbook de dados ECM
+- [CHANGELOG.md](CHANGELOG.md): historico de mudancas
 
-## Repository map
+## Licenca e contribuicao
 
-Top-level code domains:
-
-1. [src/lib.rs](src/lib.rs): simulation orchestrator and module exports.
-2. [src/main.rs](src/main.rs): desktop bench UI and operator workflows.
-3. [src/io](src/io): live hardware abstraction and safety controls.
-4. [src/bin](src/bin): CLI runner.
-5. [tests](tests): integration tests.
-6. [docs](docs): runbooks and technical documentation.
-7. [MANUAL_TECNICO.html](MANUAL_TECNICO.html): full technical manual with code break-down.
-
-## Current status and limitations
-
-Current state:
-
-1. Full simulation platform is functional.
-2. ECM-Live workflow is integrated in UI.
-3. Serial and SocketCAN adapters are implemented.
-4. Cat Comm adapter path exists as a fail-closed template.
-
-Known limitations:
-
-1. Cat Comm requires vendor SDK or bridge wiring for full production communications.
-2. Proprietary parser expansion depends on validated captures/specs.
-3. Prometheus exporter endpoint is planned but not yet fully exposed.
-
-## Documentation
-
-Additional documentation:
-
-1. [docs/ECM-Data.md](docs/ECM-Data.md): production runbook and operational guidance.
-2. [MANUAL_TECNICO.html](MANUAL_TECNICO.html): deep technical manual and code break-down.
-
+Se quiser, eu posso adicionar uma secao CONTRIBUTING.md padrao com padrao de branch, checklist de PR e convencoes de commit para deixar o fluxo de colaboracao ainda mais organizado.
