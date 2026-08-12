@@ -13,6 +13,7 @@ pub mod ecu_ecm;
 pub mod ecu_hcm;
 pub mod ecu_icm;
 pub mod ecu_tcm;
+pub mod electrical;
 pub mod implement;
 pub mod j1939;
 pub mod network_mgmt;
@@ -67,6 +68,10 @@ pub use ecu_hcm::{EcuHcm, HydActuator, PumpMode};
 pub use ecu_icm::{EcuIcm, LampColor};
 pub use ecu_tcm::{
     AutoShiftMode, ClutchState, Direction, EcuTcm, GearRange, ShiftQuality, TransmissionType,
+};
+pub use electrical::{
+    ElectricalBranch, ElectricalBranchKind, ElectricalControlPoint, ElectricalFaultMode,
+    ElectricalLine, ElectricalLoadRequest, ElectricalSnapshot, ElectricalSystem,
 };
 pub use ecu_vcm::{EcuVcm, VehicleMode};
 pub use gps::{GpsFixQuality, GpsModule, Satellite};
@@ -201,6 +206,7 @@ pub struct HeavyMachinery {
     pub icm: EcuIcm, // Instrument Cluster
     pub hcm: EcuHcm, // Hydraulic Control Module
     pub abs: EcuAbs, // ABS / ESP / TCS
+    pub electrical: ElectricalSystem,
 
     // ─ Diagnostic services (one UDS server per ECU in real life) ──────────
     pub uds_ecm: UdsServer, // ECM diagnostic endpoint
@@ -273,6 +279,7 @@ impl HeavyMachinery {
             icm: EcuIcm::new(),
             hcm: EcuHcm::new(),
             abs: EcuAbs::new(),
+            electrical: ElectricalSystem::new(),
             uds_ecm: UdsServer::new("ECM #1", j1939::addr::ECM_1),
             uds_tcm: UdsServer::new("TCM", j1939::addr::TRANSMISSION),
             nvm: NvmStore::new(),
@@ -306,11 +313,61 @@ impl HeavyMachinery {
     /// Master simulation tick — called every 16 ms (≈ 60 Hz).
     pub fn tick(&mut self, dt: f64) {
         let step_started = Instant::now();
+        let body_load_requested_a = {
+            let mut load = 0.0;
+            if self.bcm.work_lights_front {
+                load += 18.0;
+            }
+            if self.bcm.work_lights_rear {
+                load += 14.0;
+            }
+            if self.bcm.road_lights {
+                load += 8.0;
+            }
+            if self.bcm.beacon_light {
+                load += 4.0;
+            }
+            if self.bcm.hazard_lights {
+                load += 6.0;
+            }
+            if self.bcm.cab_interior_light {
+                load += 2.0;
+            }
+            if self.bcm.hvac_on {
+                load += 15.0;
+            }
+            if self.bcm.horn_active {
+                load += 8.0;
+            }
+            load
+        };
+        let electrical_loads = ElectricalLoadRequest {
+            bcm_supply_a: 5.0 + body_load_requested_a,
+            vcm_supply_a: 4.0,
+            ecm_supply_a: if matches!(self.boot.ignition, IgnitionState::On | IgnitionState::Cranking | IgnitionState::Running) { 6.5 } else { 0.0 },
+            tcm_supply_a: if matches!(self.boot.ignition, IgnitionState::On | IgnitionState::Cranking | IgnitionState::Running) { 3.2 } else { 0.0 },
+            abs_supply_a: if matches!(self.boot.ignition, IgnitionState::On | IgnitionState::Cranking | IgnitionState::Running) { 7.5 } else { 0.0 },
+            hcm_supply_a: if matches!(self.boot.ignition, IgnitionState::On | IgnitionState::Cranking | IgnitionState::Running) { 4.8 } else { 0.0 },
+            icm_supply_a: if matches!(self.boot.ignition, IgnitionState::Accessory | IgnitionState::On | IgnitionState::Cranking | IgnitionState::Running) { 1.8 } else { 0.0 },
+            body_load_a: body_load_requested_a,
+            hs_can_a: 0.15,
+            ms_can_a: 0.08,
+        };
+        self.electrical.tick(
+            self.boot.ignition,
+            self.bcm.battery_voltage,
+            self.ecm.alternator_v,
+            &electrical_loads,
+            &self.bcm.fuses,
+            dt,
+        );
+        let powered_sas = self.electrical.powered_sas();
+
         // 1. ── Boot sequence ─────────────────────────────────────────────────
         //    Updates ECU boot state machines, generates address-claim frames.
         let trans_neutral = self.tcm.is_neutral;
         self.boot.engine_running = self.ecm.is_running();
-        let boot_frames = self.boot.tick(dt, &mut self.gateway, trans_neutral);
+        let boot_frames = self.boot.tick(dt, &mut self.gateway, trans_neutral, &powered_sas);
         for f in boot_frames {
             self.gateway.transmit(f);
         }
@@ -355,6 +412,9 @@ impl HeavyMachinery {
             };
             self.ecm.tick(thr, total_engine_load, dt)
         } else {
+            self.ecm.rpm = 0.0;
+            self.ecm.actual_torque_nm = 0.0;
+            self.ecm.alternator_v = self.bcm.battery_voltage;
             Vec::new()
         };
 
@@ -372,6 +432,7 @@ impl HeavyMachinery {
                 dt,
             )
         } else {
+            self.tcm.output_torque_nm = 0.0;
             Vec::new()
         };
 

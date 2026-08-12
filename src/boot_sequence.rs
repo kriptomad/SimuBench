@@ -315,6 +315,7 @@ impl BootSequence {
         dt: f64,
         gateway: &mut CanGateway,
         trans_neutral: bool,
+        powered_sas: &[u8],
     ) -> Vec<J1939Frame> {
         self.elapsed += dt;
         self.sequence_timer += dt;
@@ -325,27 +326,18 @@ impl BootSequence {
 
         let mut frames: Vec<J1939Frame> = Vec::new();
 
-        match self.ignition {
-            IgnitionState::Off => {
-                // Nothing to do — all ECUs off
-            }
-
-            IgnitionState::Accessory => {
-                // Only BCM and ICM get power in accessory
-                self.boot_ecu(addr::CAB, dt, &mut frames);
-                self.boot_ecu(addr::INSTRUMENT, dt, &mut frames);
-            }
-
-            IgnitionState::On | IgnitionState::Cranking | IgnitionState::Running => {
-                // All ECUs boot in parallel
-                for i in 0..self.ecus.len() {
-                    let sa = self.ecus[i].sa;
-                    self.boot_ecu(sa, dt, &mut frames);
-                }
-                // Check if all critical ECUs are online
-                self.check_all_critical_online();
+        for i in 0..self.ecus.len() {
+            let sa = self.ecus[i].sa;
+            if powered_sas.contains(&sa) {
+                self.boot_ecu(sa, dt, &mut frames);
+            } else if self.ecus[i].stage != EcuBootStage::Unpowered {
+                self.ecus[i].stage = EcuBootStage::Unpowered;
+                self.ecus[i].stage_timer = 0.0;
+                self.ecus[i].online_at = None;
             }
         }
+
+        self.check_all_critical_online();
 
         // Crank → Running transition (engine fires)
         if self.ignition == IgnitionState::Cranking && self.engine_running {

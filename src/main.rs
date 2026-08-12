@@ -14,6 +14,7 @@ use auto_breaking::{
     boot_sequence::EcuBootStage,
     can_gateway::BusState,
     CalibrationReport,
+    ElectricalControlPoint, ElectricalFaultMode,
     ecu_abs::EspCondition,
     ecu_ecm::AftertreatmentState,
     ecu_tcm::{AutoShiftMode, ClutchState, Direction},
@@ -71,6 +72,11 @@ enum Cmd {
     ToggleBeacon,
     Honk,
     CycleWiper,
+    ToggleHvac,
+    ResetBcmFuses,
+    ElectricalSetBranchFault(String, ElectricalFaultMode),
+    ElectricalSetControlFault(ElectricalControlPoint, ElectricalFaultMode),
+    ElectricalResetFaults,
     // Implements
     SetPtoMode(PtoMode),
     SetHitchTarget(f64),
@@ -139,6 +145,7 @@ enum Cmd {
 enum Tab {
     Help,
     Cluster,
+    Electrical,
     CanBus,
     Events,
     EcuNet,
@@ -896,6 +903,15 @@ impl App {
                 Cmd::ToggleBeacon => self.bench.bcm.toggle_beacon(),
                 Cmd::Honk => self.bench.bcm.honk(),
                 Cmd::CycleWiper => self.bench.bcm.cycle_wiper(),
+                Cmd::ToggleHvac => self.bench.bcm.toggle_hvac(),
+                Cmd::ResetBcmFuses => self.bench.bcm.reset_all_fuses(),
+                Cmd::ElectricalSetBranchFault(id, fault) => {
+                    self.bench.electrical.set_branch_fault(&id, fault)
+                }
+                Cmd::ElectricalSetControlFault(point, fault) => {
+                    self.bench.electrical.set_control_fault(point, fault)
+                }
+                Cmd::ElectricalResetFaults => self.bench.electrical.reset_faults(),
                 // Implements
                 Cmd::SetPtoMode(m) => {
                     self.bench.implement.pto_rear_enabled = m != PtoMode::Off;
@@ -1728,6 +1744,7 @@ impl eframe::App for App {
             match self.tab {
                 Tab::Help => ui.push_id("tab::help", |ui| self.tab_help(ui)),
                 Tab::Cluster => ui.push_id("tab::cluster", |ui| self.tab_cluster(ui)),
+                Tab::Electrical => ui.push_id("tab::electrical", |ui| self.tab_electrical(ui)),
                 Tab::CanBus => ui.push_id("tab::can", |ui| self.tab_can(ui)),
                 Tab::Events => ui.push_id("tab::events", |ui| self.tab_events(ui)),
                 Tab::EcuNet => ui.push_id("tab::ecu_net", |ui| self.tab_ecu_net(ui)),
@@ -1759,6 +1776,7 @@ impl App {
                     &[
                         (Tab::Help, "❓ HELP"),
                         (Tab::Cluster, "🎛 CLUSTER"),
+                        (Tab::Electrical, "⚡ ELECTRICAL"),
                         (Tab::Engine, "⚙ ENGINE"),
                         (Tab::Implements, "🌾 IMPL"),
                         (Tab::Autonomous, "🤖 AD"),
@@ -1849,7 +1867,7 @@ impl App {
     fn ux_alerts(&self) -> Vec<(Color32, String)> {
         let mut alerts = Vec::new();
         match self.tab {
-            Tab::Cluster | Tab::Engine | Tab::Implements => {
+            Tab::Cluster | Tab::Electrical | Tab::Engine | Tab::Implements => {
                 if !self.bench.engine_running() {
                     alerts.push((
                         Color32::YELLOW,
@@ -1860,6 +1878,14 @@ impl App {
                     alerts.push((
                         Color32::RED,
                         "RED STOP ativo: existe falha critica impactando a operacao.".to_string(),
+                    ));
+                }
+                if matches!(self.tab, Tab::Electrical)
+                    && self.bench.bcm.fuses.iter().any(|f| f.blown)
+                {
+                    alerts.push((
+                        Color32::RED,
+                        "Existe ao menos um fusivel aberto: rearme antes de validar o ramo afetado.".to_string(),
                     ));
                 }
             }
@@ -1938,6 +1964,28 @@ impl App {
                 (
                     format!("Gear {}", self.bench.tcm.gear_label),
                     Color32::YELLOW,
+                ),
+            ],
+            Tab::Electrical => vec![
+                (
+                    format!("Batt {:.1} V", self.bench.bcm.battery_voltage),
+                    if self.bench.bcm.battery_voltage < 11.8 {
+                        Color32::RED
+                    } else {
+                        Color32::GREEN
+                    },
+                ),
+                (
+                    format!("Load {:.0} A", self.bench.bcm.total_load_amps),
+                    Color32::YELLOW,
+                ),
+                (
+                    format!("Load shed {}", if self.bench.vcm.power.load_shed_active { "on" } else { "off" }),
+                    if self.bench.vcm.power.load_shed_active {
+                        Color32::RED
+                    } else {
+                        Color32::from_gray(180)
+                    },
                 ),
             ],
             Tab::CanBus => vec![
@@ -2244,6 +2292,11 @@ impl App {
                 "Use ignition -> throttle/brake -> direction to validate baseline vehicle response.",
                 "Lamps: RED=critical stop, AMBER=warning, ABS/ESP=assist active.",
             ),
+            Tab::Electrical => (
+                "Electrical",
+                "Use esta aba para enxergar alimentacao, fusiveis, ramos ECU e referencias de chicote do modelo atual.",
+                "Valores de bitola/capacitancia sao baseline de simulacao e devem ser substituidos por dados OEM quando houver harness real.",
+            ),
             Tab::CanBus => (
                 "CAN Bus",
                 "Start in Signals, then Trace, then Network for RCA. Freeze before exporting evidence.",
@@ -2372,6 +2425,17 @@ impl App {
                     self.cmds.push(Cmd::Reset);
                 }
             }
+            Tab::Electrical => {
+                if ui.button("Toggle HVAC").clicked() {
+                    self.cmds.push(Cmd::ToggleHvac);
+                }
+                if ui.button("Reset fuses").clicked() {
+                    self.cmds.push(Cmd::ResetBcmFuses);
+                }
+                if ui.button("Toggle work lights").clicked() {
+                    self.cmds.push(Cmd::ToggleWorkLights);
+                }
+            }
             Tab::Events => {
                 if ui.button("Clear events").clicked() {
                     self.events.clear();
@@ -2491,6 +2555,47 @@ impl App {
                 }
             }
         }
+    }
+
+    fn electrical_wire_mm2(current_a: f64) -> f64 {
+        if current_a <= 5.0 {
+            0.75
+        } else if current_a <= 10.0 {
+            1.0
+        } else if current_a <= 15.0 {
+            1.5
+        } else if current_a <= 25.0 {
+            2.5
+        } else if current_a <= 40.0 {
+            4.0
+        } else if current_a <= 60.0 {
+            6.0
+        } else if current_a <= 100.0 {
+            16.0
+        } else {
+            25.0
+        }
+    }
+
+    fn electrical_cap_nf_per_m(gauge_mm2: f64, twisted_pair: bool) -> f64 {
+        if twisted_pair {
+            0.05
+        } else if gauge_mm2 <= 1.0 {
+            0.09
+        } else if gauge_mm2 <= 2.5 {
+            0.11
+        } else if gauge_mm2 <= 6.0 {
+            0.13
+        } else {
+            0.16
+        }
+    }
+
+    fn electrical_node_online(&self, sa: u8) -> bool {
+        self.bench
+            .boot
+            .ecu_by_sa(sa)
+            .is_some_and(|ecu| ecu.is_online())
     }
 
     fn tab_ecm_live_data(&mut self, ui: &mut Ui) {
@@ -7217,6 +7322,351 @@ impl App {
                 self.cmds.push(Cmd::LeakExportCalibrationJson(path));
             }
         }
+    }
+
+    fn tab_electrical(&mut self, ui: &mut Ui) {
+        let bcm = &self.bench.bcm;
+        let vcm = &self.bench.vcm;
+        let electrical = self.bench.electrical.clone();
+        let snapshot = electrical.snapshot.clone();
+        let branches = electrical.branches.clone();
+        let ecm_on = self.electrical_node_online(auto_breaking::j1939::addr::ECM_1);
+        let tcm_on = self.electrical_node_online(auto_breaking::j1939::addr::TRANSMISSION);
+        let abs_on = self.electrical_node_online(auto_breaking::j1939::addr::BRAKES);
+        let hcm_on = self.electrical_node_online(auto_breaking::j1939::addr::HITCH);
+        let bcm_on = self.electrical_node_online(auto_breaking::j1939::addr::CAB);
+        let icm_on = self.electrical_node_online(auto_breaking::j1939::addr::INSTRUMENT);
+        let body_load_a = branches
+            .iter()
+            .find(|b| b.id == "BODY-LOAD")
+            .map(|b| b.actual_current_a)
+            .unwrap_or(0.0);
+        let battery_low = bcm.battery_voltage < 11.8;
+        let any_blown = bcm.fuses.iter().any(|f| f.blown) || branches.iter().any(|b| b.blown);
+
+        ScrollArea::vertical()
+            .id_salt("electrical::page_scroll")
+            .auto_shrink([false, false])
+            .show(ui, |ui| {
+                ui.group(|ui| {
+                    ui.label(
+                        RichText::new("ELECTRICAL SCHEME — live topology + harness baseline")
+                            .size(12.0)
+                            .color(Color32::from_rgb(110, 180, 255))
+                            .strong(),
+                    );
+                    ui.label(
+                        RichText::new(
+                            "Live values come from BCM/VCM/boot state. Wire gauge and capacitance are engineering baseline assumptions for the current simulation, not OEM-certified harness data.",
+                        )
+                        .size(9.8)
+                        .color(Color32::from_gray(170)),
+                    );
+                });
+
+                ui.add_space(6.0);
+                ui.horizontal_wrapped(|ui| {
+                    if ui.button("Work Lights").clicked() {
+                        self.cmds.push(Cmd::ToggleWorkLights);
+                    }
+                    if ui.button("Road Lights").clicked() {
+                        self.cmds.push(Cmd::ToggleRoadLights);
+                    }
+                    if ui.button("Beacon").clicked() {
+                        self.cmds.push(Cmd::ToggleBeacon);
+                    }
+                    if ui.button("HVAC").clicked() {
+                        self.cmds.push(Cmd::ToggleHvac);
+                    }
+                    if ui.button("Horn").clicked() {
+                        self.cmds.push(Cmd::Honk);
+                    }
+                    if ui.button("Wiper").clicked() {
+                        self.cmds.push(Cmd::CycleWiper);
+                    }
+                    if ui
+                        .add_enabled(any_blown, Button::new("Reset all fuses"))
+                        .clicked()
+                    {
+                        self.cmds.push(Cmd::ResetBcmFuses);
+                    }
+                    if ui.button("Reset electrical faults").clicked() {
+                        self.cmds.push(Cmd::ElectricalResetFaults);
+                    }
+                });
+
+                ui.add_space(6.0);
+                egui::Frame::group(ui.style())
+                    .fill(Color32::from_gray(15))
+                    .show(ui, |ui| {
+                        ui.label(
+                            RichText::new("30 / 15 / 31 + RELAY / GROUND CONTROL")
+                                .size(11.0)
+                                .color(Color32::from_rgb(80, 155, 255)),
+                        );
+                        ui.horizontal_wrapped(|ui| {
+                            ui.label(RichText::new(format!("Line30 {:.2}V", snapshot.line30_v)).color(Color32::YELLOW));
+                            ui.label(RichText::new(format!("Line15-ACC {:.2}V", snapshot.line15_acc_v)).color(Color32::LIGHT_BLUE));
+                            ui.label(RichText::new(format!("Line15-IGN {:.2}V", snapshot.line15_ign_v)).color(Color32::LIGHT_BLUE));
+                            ui.label(RichText::new(format!("Line31 drop {:.2}V", snapshot.ground_drop_v)).color(Color32::from_rgb(255, 140, 80)));
+                            ui.label(RichText::new(format!("Total I {:.1}A", snapshot.total_current_a)).color(Color32::from_gray(190)));
+                        });
+                        for (point, title, fault) in [
+                            (ElectricalControlPoint::MainGround, "Main ground", electrical.main_ground_fault),
+                            (ElectricalControlPoint::AccessoryRelay, "Accessory relay", electrical.accessory_relay_fault),
+                            (ElectricalControlPoint::IgnitionRelay, "Ignition relay", electrical.ignition_relay_fault),
+                        ] {
+                            ui.horizontal_wrapped(|ui| {
+                                let c = if fault == ElectricalFaultMode::None { Color32::GREEN } else { Color32::RED };
+                                ui.label(RichText::new(format!("{}: {}", title, fault)).color(c).strong());
+                                for (label, mode) in [
+                                    ("OK", ElectricalFaultMode::None),
+                                    ("OPEN", ElectricalFaultMode::OpenCircuit),
+                                    ("HI-R", ElectricalFaultMode::HighResistance),
+                                ] {
+                                    if ui.small_button(label).clicked() {
+                                        self.cmds.push(Cmd::ElectricalSetControlFault(point, mode));
+                                    }
+                                }
+                            });
+                        }
+                    });
+
+                ui.columns(2, |cols| {
+                    egui::Frame::group(cols[0].style())
+                        .fill(Color32::from_gray(15))
+                        .show(&mut cols[0], |ui| {
+                            ui.label(
+                                RichText::new("POWER OVERVIEW")
+                                    .size(11.0)
+                                    .color(Color32::from_rgb(80, 155, 255)),
+                            );
+                            let batt_col = if battery_low {
+                                Color32::RED
+                            } else {
+                                Color32::GREEN
+                            };
+                            bar_gauge(ui, "Battery", bcm.battery_voltage - 9.0, 7.0, "V", 135.0, batt_col);
+                            digital_readout(ui, "Batt current", &format!("{:+.1} A", bcm.battery_current_a), Color32::from_gray(190));
+                            digital_readout(ui, "Alternator", &format!("{:.0} A", bcm.alternator_amps), Color32::from_rgb(110, 210, 110));
+                            digital_readout(ui, "ECM branch", if ecm_on { "energized" } else { "off" }, if ecm_on { Color32::GREEN } else { Color32::RED });
+                            digital_readout(ui, "TCM branch", if tcm_on { "energized" } else { "off" }, if tcm_on { Color32::GREEN } else { Color32::RED });
+                            digital_readout(ui, "Electrical", &format!("{:.2} kW", vcm.power.electrical_demand_kw), Color32::YELLOW);
+                            digital_readout(ui, "Total load", &format!("{:.1} kW", vcm.power.total_load_kw), if vcm.power.overload { Color32::RED } else { Color32::from_gray(190) });
+                            digital_readout(ui, "Load shed", if vcm.power.load_shed_active { vcm.power.load_shed_reason.unwrap_or("active") } else { "off" }, if vcm.power.load_shed_active { Color32::RED } else { Color32::GREEN });
+                            ui.separator();
+                            ui.label(
+                                RichText::new("FUSE MATRIX")
+                                    .size(11.0)
+                                    .color(Color32::from_rgb(80, 155, 255)),
+                            );
+                            ScrollArea::vertical()
+                                .id_salt("electrical::fuse_scroll")
+                                .max_height(260.0)
+                                .auto_shrink([false, false])
+                                .show(ui, |ui| {
+                                    for fuse in &bcm.fuses {
+                                        let gauge = Self::electrical_wire_mm2(fuse.rating_a);
+                                        let cap_total = 3.0 * Self::electrical_cap_nf_per_m(gauge, false);
+                                        let ratio = if fuse.rating_a > 0.0 {
+                                            (fuse.load_a / fuse.rating_a).clamp(0.0, 1.4)
+                                        } else {
+                                            0.0
+                                        };
+                                        let row_col = if fuse.blown {
+                                            Color32::RED
+                                        } else if ratio > 0.9 {
+                                            Color32::YELLOW
+                                        } else {
+                                            Color32::GREEN
+                                        };
+                                        egui::Frame::group(ui.style())
+                                            .fill(Color32::from_gray(20))
+                                            .show(ui, |ui| {
+                                                ui.horizontal(|ui| {
+                                                    ui.label(RichText::new(fuse.id).size(10.6).color(row_col).strong());
+                                                    ui.separator();
+                                                    ui.label(RichText::new(format!("{:.1}/{:.1} A", fuse.load_a, fuse.rating_a)).size(10.0).monospace().color(Color32::from_gray(195)));
+                                                    ui.separator();
+                                                    ui.label(RichText::new(format!("{:.2} mm2", gauge)).size(9.8).color(Color32::from_rgb(140, 210, 255)));
+                                                    ui.separator();
+                                                    ui.label(RichText::new(format!("C~{:.2} nF", cap_total)).size(9.8).color(Color32::from_gray(165)));
+                                                    if fuse.blown {
+                                                        ui.separator();
+                                                        ui.label(RichText::new("OPEN").size(9.8).color(Color32::RED).strong());
+                                                    }
+                                                });
+                                                ui.add(ProgressBar::new((ratio / 1.15).clamp(0.0, 1.0) as f32).text("fuse utilization"));
+                                            });
+                                    }
+                                });
+                        });
+
+                    egui::Frame::group(cols[1].style())
+                        .fill(Color32::from_gray(15))
+                        .show(&mut cols[1], |ui| {
+                            ui.label(
+                                RichText::new("LIVE ELECTRICAL TOPOLOGY")
+                                    .size(11.0)
+                                    .color(Color32::from_rgb(80, 155, 255)),
+                            );
+                            let (rect, _) = ui.allocate_exact_size(
+                                Vec2::new(ui.available_width(), 340.0),
+                                Sense::hover(),
+                            );
+                            let p = ui.painter_at(rect);
+                            p.rect_filled(rect, 6.0, Color32::from_gray(10));
+                            p.rect_stroke(rect, 6.0, Stroke::new(1.0, Color32::from_gray(55)));
+
+                            let map = |x: f32, y: f32| -> Pos2 {
+                                Pos2::new(rect.left() + x * rect.width(), rect.top() + y * rect.height())
+                            };
+                            let battery = map(0.12, 0.20);
+                            let alternator = map(0.12, 0.62);
+                            let fuse_box = map(0.35, 0.20);
+                            let bcm_p = map(0.56, 0.10);
+                            let vcm_p = map(0.56, 0.33);
+                            let hcm_p = map(0.56, 0.58);
+                            let icm_p = map(0.56, 0.82);
+                            let ecm_p = map(0.83, 0.10);
+                            let tcm_p = map(0.83, 0.33);
+                            let abs_p = map(0.83, 0.58);
+                            let body_p = map(0.35, 0.82);
+
+                            let draw_link = |p: &Painter, a: Pos2, b: Pos2, energized: bool, can_link: bool| {
+                                let col = if can_link {
+                                    if energized { Color32::from_rgb(90, 220, 220) } else { Color32::from_gray(60) }
+                                } else if energized {
+                                    Color32::from_rgb(255, 210, 90)
+                                } else {
+                                    Color32::from_gray(65)
+                                };
+                                p.line_segment([a, b], Stroke::new(if can_link { 2.0 } else { 2.8 }, col));
+                            };
+
+                            let draw_node = |p: &Painter, pos: Pos2, title: &str, detail: &str, active: bool, fill: Color32| {
+                                let r = Rect::from_center_size(pos, Vec2::new(96.0, 34.0));
+                                p.rect_filled(r, 5.0, if active { fill } else { Color32::from_gray(24) });
+                                p.rect_stroke(r, 5.0, Stroke::new(1.0, if active { Color32::WHITE } else { Color32::from_gray(75) }));
+                                p.text(r.center_top() + Vec2::new(0.0, 4.0), Align2::CENTER_TOP, title, FontId::proportional(11.0), Color32::WHITE);
+                                p.text(r.center_bottom() - Vec2::new(0.0, 4.0), Align2::CENTER_BOTTOM, detail, FontId::proportional(9.0), Color32::from_gray(225));
+                            };
+
+                            draw_link(&p, battery, fuse_box, branches.iter().any(|b| b.id == "BAT-MAIN" && b.energized), false);
+                            draw_link(&p, alternator, battery, branches.iter().any(|b| b.id == "ALT-B+" && b.energized), false);
+                            draw_link(&p, fuse_box, bcm_p, branches.iter().any(|b| b.id == "BCM-PWR" && b.energized), false);
+                            draw_link(&p, fuse_box, vcm_p, branches.iter().any(|b| b.id == "VCM-PWR" && b.energized), false);
+                            draw_link(&p, fuse_box, hcm_p, branches.iter().any(|b| b.id == "HCM-PWR" && b.energized), false);
+                            draw_link(&p, fuse_box, body_p, branches.iter().any(|b| b.id == "BODY-LOAD" && b.energized), false);
+                            draw_link(&p, bcm_p, icm_p, branches.iter().any(|b| b.id == "ICM-PWR" && b.energized), false);
+                            draw_link(&p, vcm_p, ecm_p, branches.iter().any(|b| b.id == "ECM-PWR" && b.energized), false);
+                            draw_link(&p, vcm_p, tcm_p, branches.iter().any(|b| b.id == "TCM-PWR" && b.energized), false);
+                            draw_link(&p, vcm_p, abs_p, branches.iter().any(|b| b.id == "ABS-PWR" && b.energized), false);
+                            draw_link(&p, bcm_p, vcm_p, branches.iter().any(|b| b.id == "MS-CAN-BODY" && b.energized), true);
+                            draw_link(&p, vcm_p, ecm_p, branches.iter().any(|b| b.id == "HS-CAN-1" && b.energized), true);
+                            draw_link(&p, vcm_p, tcm_p, branches.iter().any(|b| b.id == "HS-CAN-1" && b.energized), true);
+                            draw_link(&p, vcm_p, abs_p, branches.iter().any(|b| b.id == "HS-CAN-1" && b.energized), true);
+                            draw_link(&p, vcm_p, hcm_p, branches.iter().any(|b| b.id == "HS-CAN-1" && b.energized), true);
+                            draw_link(&p, bcm_p, icm_p, branches.iter().any(|b| b.id == "MS-CAN-BODY" && b.energized), true);
+
+                            draw_node(&p, battery, "BATTERY", &format!("{:.1} V / {:.0}%", bcm.battery_voltage, bcm.battery_soc_pct), true, if battery_low { Color32::from_rgb(110, 25, 25) } else { Color32::from_rgb(25, 95, 35) });
+                            draw_node(&p, alternator, "ALTERNATOR", &format!("{:.0} A", bcm.alternator_amps), bcm.alternator_amps > 0.5, Color32::from_rgb(80, 120, 30));
+                            draw_node(&p, fuse_box, "MAIN FUSE BOX", if any_blown { "open / short detected" } else { "all branches closed" }, true, if any_blown { Color32::from_rgb(100, 35, 20) } else { Color32::from_rgb(80, 80, 25) });
+                            draw_node(&p, bcm_p, "BCM", &format!("{:.0} A load", bcm.total_load_amps), bcm_on, Color32::from_rgb(30, 70, 105));
+                            draw_node(&p, vcm_p, "VCM", if vcm.power.load_shed_active { "load shed" } else { "power coord" }, true, Color32::from_rgb(55, 80, 120));
+                            draw_node(&p, hcm_p, "HCM", if hcm_on { "hyd online" } else { "offline" }, hcm_on, Color32::from_rgb(45, 95, 110));
+                            draw_node(&p, icm_p, "ICM", if icm_on { "cluster online" } else { "offline" }, icm_on, Color32::from_rgb(75, 70, 110));
+                            draw_node(&p, ecm_p, "ECM", if ecm_on { "engine online" } else { "offline" }, ecm_on, Color32::from_rgb(35, 105, 70));
+                            draw_node(&p, tcm_p, "TCM", if tcm_on { "trans online" } else { "offline" }, tcm_on, Color32::from_rgb(90, 90, 40));
+                            draw_node(&p, abs_p, "ABS/ESP", if abs_on { "brake online" } else { "offline" }, abs_on, Color32::from_rgb(110, 55, 45));
+                            draw_node(&p, body_p, "BODY LOADS", &format!("{:.0} A", body_load_a), body_load_a > 0.1, Color32::from_rgb(70, 55, 100));
+
+                            p.text(map(0.52, 0.03), Align2::CENTER_TOP, "yellow = power branch | cyan = CAN backbone", FontId::proportional(9.0), Color32::from_gray(170));
+                        });
+                });
+
+                ui.add_space(8.0);
+                egui::Frame::group(ui.style())
+                    .fill(Color32::from_gray(15))
+                    .show(ui, |ui| {
+                        ui.label(
+                            RichText::new("HARNESS / ELECTRICAL BRANCH REFERENCE")
+                                .size(11.0)
+                                .color(Color32::from_rgb(80, 155, 255)),
+                        );
+                        ui.label(
+                            RichText::new("Gauge, resistance, capacitance and drop below are computed from the current branch model. Fault buttons act on the live branch and affect ECU power in the simulation.")
+                                .size(9.6)
+                                .color(Color32::from_gray(160)),
+                        );
+                        ScrollArea::vertical()
+                            .id_salt("electrical::branch_scroll")
+                            .max_height(290.0)
+                            .auto_shrink([false, false])
+                            .show(ui, |ui| {
+                                for branch in &branches {
+                                    let cap_total = branch.capacitance_nf;
+                                    let branch_col = if branch.energized {
+                                        if branch.line == auto_breaking::ElectricalLine::HsCan || branch.line == auto_breaking::ElectricalLine::MsCan {
+                                            Color32::from_rgb(90, 220, 220)
+                                        } else {
+                                            Color32::from_rgb(255, 210, 90)
+                                        }
+                                    } else {
+                                        Color32::from_gray(90)
+                                    };
+                                    ui.push_id(branch.id, |ui| {
+                                        egui::Frame::group(ui.style())
+                                            .fill(Color32::from_gray(20))
+                                            .show(ui, |ui| {
+                                                ui.horizontal_wrapped(|ui| {
+                                                    ui.label(RichText::new(branch.id).size(10.5).color(branch_col).strong());
+                                                    ui.separator();
+                                                    ui.label(RichText::new(format!("{} -> {}", branch.from, branch.to)).size(10.0).color(Color32::from_gray(205)));
+                                                    ui.separator();
+                                                    ui.label(RichText::new(format!("Line {}", branch.line)).size(9.8).color(Color32::from_gray(170)));
+                                                    ui.separator();
+                                                    ui.label(RichText::new(format!("Fuse {}", branch.fuse_id)).size(9.8).color(Color32::from_gray(170)));
+                                                    ui.separator();
+                                                    ui.label(RichText::new(format!("{}", branch.fault)).size(9.8).color(if branch.fault == ElectricalFaultMode::None { Color32::GREEN } else { Color32::RED }));
+                                                });
+                                                ui.label(
+                                                    RichText::new(format!(
+                                                        "Ireq={:.2} A | Iact={:.2} A | V={:.2} V | R={:.4} ohm | bitola {:.2} mm2 | comprimento {:.1} m | C {:.2} nF | {}",
+                                                        branch.requested_current_a,
+                                                        branch.actual_current_a,
+                                                        branch.voltage_v,
+                                                        branch.resistance_ohm,
+                                                        branch.gauge_mm2,
+                                                        branch.length_m,
+                                                        cap_total,
+                                                        branch.note
+                                                    ))
+                                                    .size(9.6)
+                                                    .monospace()
+                                                    .color(Color32::from_gray(180)),
+                                                );
+                                                ui.horizontal_wrapped(|ui| {
+                                                    for (label, mode) in [
+                                                        ("OK", ElectricalFaultMode::None),
+                                                        ("OPEN", ElectricalFaultMode::OpenCircuit),
+                                                        ("SHORT", ElectricalFaultMode::ShortToGround),
+                                                        ("HI-R", ElectricalFaultMode::HighResistance),
+                                                    ] {
+                                                        if ui.small_button(label).clicked() {
+                                                            self.cmds.push(Cmd::ElectricalSetBranchFault(branch.id.to_string(), mode));
+                                                        }
+                                                    }
+                                                    if branch.blown {
+                                                        ui.label(RichText::new("branch fuse blown").size(9.6).color(Color32::RED));
+                                                    }
+                                                });
+                                            });
+                                    });
+                                }
+                            });
+                    });
+            });
     }
 }
 

@@ -326,4 +326,10 @@ impl EcuBcm {
     pub fn toggle_hvac(&mut self) {
         self.hvac_on = !self.hvac_on;
     }
+
+    pub fn reset_all_fuses(&mut self) {
+        for fuse in &mut self.fuses {
+            fuse.blown = false;
+        }
+    }
 }
