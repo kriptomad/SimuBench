@@ -1,0 +1,29 @@
+[package]
+name = "auto_breaking"
+version = "0.3.0"
+edition = "2021"
+
+[features]
+default = []
+advanced_observability = ["dep:tracing", "dep:tracing-subscriber"]
+new_integrator = []
+
+[dependencies]
+eframe    = { version = "0.29", default-features = true }
+egui_plot = "0.29"
+chrono    = "0.4"
+serde     = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+tracing = { version = "0.1", optional = true }
+tracing-subscriber = { version = "0.3", optional = true, features = ["fmt", "json"] }
+thiserror = "2.0"
+flate2 = "1.0"
+# crossterm removed — replaced by egui desktop GUI
+
+[dev-dependencies]
+proptest = "1.5"
+criterion = { version = "0.5", features = ["html_reports"] }
+
+[[bench]]
+name = "solver_bench"
+harness = false

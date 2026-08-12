@@ -1,0 +1,19 @@
+    Blocking waiting for file lock on build directory
+warning: unused import: `adas::ParkZone`
+ --> src\main.rs:3:5
+  |
+3 |     adas::ParkZone,
+  |     ^^^^^^^^^^^^^^
+  |
+  = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused variable: `offset_chars`
+   --> src\main.rs:211:9
+    |
+211 |     let offset_chars = (s.lane_offset * 5.0).clamp(-10.0, 10.0) as i32;
+    |         ^^^^^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_offset_chars`
+    |
+    = note: `#[warn(unused_variables)]` (part of `#[warn(unused)]`) on by default
+
+warning: `auto_breaking` (bin "auto_breaking") generated 2 warnings (run `cargo fix --bin "auto_breaking" -p auto_breaking` to apply 2 suggestions)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 2.82s

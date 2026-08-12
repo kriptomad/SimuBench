@@ -1,0 +1,19 @@
+[package]
+name = "auto_breaking-fuzz"
+version = "0.0.1"
+edition = "2021"
+publish = false
+
+[package.metadata]
+cargo-fuzz = true
+
+[dependencies]
+libfuzzer-sys = "0.4"
+auto_breaking = { path = ".." }
+
+[[bin]]
+name = "j1939_frame_from_raw"
+path = "fuzz_targets/j1939_frame_from_raw.rs"
+test = false
+doc = false
+bench = false

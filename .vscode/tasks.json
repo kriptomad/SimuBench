@@ -1,0 +1,319 @@
+{
+	"version": "2.0.0",
+	"tasks": [
+		{
+			"label": "cargo build",
+			"type": "shell",
+			"command": "cargo build",
+			"problemMatcher": [
+				"$rustc"
+			],
+			"group": "build"
+		},
+		{
+			"label": "cargo run",
+			"type": "shell",
+			"command": "cargo run --release",
+			"isBackground": true,
+			"problemMatcher": []
+		},
+		{
+			"label": "cargo build",
+			"type": "shell",
+			"command": "cargo build",
+			"problemMatcher": [
+				"$rustc"
+			],
+			"group": "build"
+		},
+		{
+			"label": "cargo build",
+			"type": "shell",
+			"command": "cargo build",
+			"problemMatcher": [
+				"$rustc"
+			],
+			"group": "build"
+		},
+		{
+			"label": "cargo build",
+			"type": "shell",
+			"command": "cargo build",
+			"problemMatcher": [
+				"$rustc"
+			],
+			"group": "build"
+		},
+		{
+			"label": "cargo build",
+			"type": "shell",
+			"command": "cargo build",
+			"problemMatcher": [
+				"$rustc"
+			],
+			"group": "build"
+		},
+		{
+			"label": "cargo build",
+			"type": "shell",
+			"command": "cargo build",
+			"problemMatcher": [
+				"$rustc"
+			],
+			"group": "build"
+		},
+		{
+			"label": "cargo build",
+			"type": "shell",
+			"command": "cargo build",
+			"problemMatcher": [
+				"$rustc"
+			],
+			"group": "build"
+		},
+		{
+			"label": "cargo build",
+			"type": "shell",
+			"command": "cargo build",
+			"problemMatcher": [
+				"$rustc"
+			],
+			"group": "build"
+		},
+		{
+			"label": "cargo build",
+			"type": "shell",
+			"command": "cargo build",
+			"problemMatcher": [
+				"$rustc"
+			],
+			"group": "build"
+		},
+		{
+			"label": "cargo test",
+			"type": "shell",
+			"command": "cargo test",
+			"problemMatcher": [
+				"$rustc"
+			],
+			"group": "test"
+		},
+		{
+			"label": "cargo build",
+			"type": "shell",
+			"command": "cargo build",
+			"problemMatcher": [
+				"$rustc"
+			],
+			"group": "build"
+		},
+		{
+			"label": "cargo test",
+			"type": "shell",
+			"command": "cargo test",
+			"problemMatcher": [
+				"$rustc"
+			],
+			"group": "test"
+		},
+		{
+			"label": "cargo build",
+			"type": "shell",
+			"command": "cargo build",
+			"problemMatcher": [
+				"$rustc"
+			],
+			"group": "build"
+		},
+		{
+			"label": "cargo test",
+			"type": "shell",
+			"command": "cargo test",
+			"problemMatcher": [
+				"$rustc"
+			],
+			"group": "test"
+		},
+		{
+			"label": "cargo build",
+			"type": "shell",
+			"command": "cargo build",
+			"problemMatcher": [
+				"$rustc"
+			],
+			"group": "build"
+		},
+		{
+			"label": "cargo test",
+			"type": "shell",
+			"command": "cargo test",
+			"problemMatcher": [
+				"$rustc"
+			],
+			"group": "test"
+		},
+		{
+			"label": "cargo build",
+			"type": "shell",
+			"command": "cargo build",
+			"problemMatcher": [
+				"$rustc"
+			],
+			"group": "build"
+		},
+		{
+			"label": "cargo test",
+			"type": "shell",
+			"command": "cargo test",
+			"problemMatcher": [
+				"$rustc"
+			],
+			"group": "test"
+		},
+		{
+			"label": "cargo test",
+			"type": "shell",
+			"command": "cargo test",
+			"problemMatcher": [
+				"$rustc"
+			],
+			"group": "test"
+		},
+		{
+			"label": "cargo build",
+			"type": "shell",
+			"command": "cargo build",
+			"problemMatcher": [
+				"$rustc"
+			],
+			"group": "build"
+		},
+		{
+			"label": "cargo test",
+			"type": "shell",
+			"command": "cargo test",
+			"problemMatcher": [
+				"$rustc"
+			],
+			"group": "test"
+		},
+		{
+			"label": "cargo test",
+			"type": "shell",
+			"command": "cargo test",
+			"problemMatcher": [
+				"$rustc"
+			],
+			"group": "test"
+		},
+		{
+			"label": "cargo fmt check",
+			"type": "shell",
+			"command": "cargo fmt -- --check",
+			"problemMatcher": [],
+			"group": "build"
+		},
+		{
+			"label": "cargo clippy deny warnings",
+			"type": "shell",
+			"command": "cargo clippy --workspace --all-targets -- -D warnings",
+			"problemMatcher": [
+				"$rustc"
+			],
+			"group": "build"
+		},
+		{
+			"label": "cargo fmt check",
+			"type": "shell",
+			"command": "cargo fmt -- --check",
+			"problemMatcher": [],
+			"group": "build"
+		},
+		{
+			"label": "cargo clippy workspace",
+			"type": "shell",
+			"command": "cargo clippy --workspace --all-targets",
+			"problemMatcher": [
+				"$rustc"
+			],
+			"group": "build"
+		},
+		{
+			"label": "cargo test",
+			"type": "shell",
+			"command": "cargo test",
+			"problemMatcher": [
+				"$rustc"
+			],
+			"group": "test"
+		},
+		{
+			"label": "cargo fmt check",
+			"type": "shell",
+			"command": "cargo fmt -- --check",
+			"problemMatcher": [],
+			"group": "build"
+		},
+		{
+			"label": "cargo clippy io_mock strict",
+			"type": "shell",
+			"command": "cargo clippy --test io_mock -- -D warnings",
+			"problemMatcher": [
+				"$rustc"
+			],
+			"group": "build"
+		},
+		{
+			"label": "cargo test io_mock",
+			"type": "shell",
+			"command": "cargo test --test io_mock",
+			"problemMatcher": [
+				"$rustc"
+			],
+			"group": "test"
+		},
+		{
+			"label": "cargo fmt check",
+			"type": "shell",
+			"command": "cargo fmt -- --check",
+			"problemMatcher": [],
+			"group": "build"
+		},
+		{
+			"label": "cargo clippy io_mock strict",
+			"type": "shell",
+			"command": "cargo clippy --test io_mock -- -D warnings",
+			"problemMatcher": [
+				"$rustc"
+			],
+			"group": "build"
+		},
+		{
+			"label": "cargo test io_mock",
+			"type": "shell",
+			"command": "cargo test --test io_mock",
+			"problemMatcher": [
+				"$rustc"
+			],
+			"group": "test"
+		},
+		{
+			"label": "cargo test",
+			"type": "shell",
+			"command": "cargo test",
+			"problemMatcher": [
+				"$rustc"
+			],
+			"group": "test"
+		},
+		{
+			"label": "cargo clippy io_mock",
+			"type": "shell",
+			"command": "cargo clippy --test io_mock",
+			"problemMatcher": [
+				"$rustc"
+			],
+			"group": "build"
+		}
+	]
+}
