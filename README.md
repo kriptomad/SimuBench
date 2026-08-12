@@ -8,6 +8,13 @@ This project provides a hardware-agnostic interface for live ECM telemetry and c
 
 ## 2. Windows-first quickstart
 
+This repository contains two binaries:
+
+1. `auto_breaking` (main desktop app)
+2. `simulator_cli` (CLI tool)
+
+The default run target is `auto_breaking`, so plain `cargo run` starts the desktop app.
+
 Build:
 
 ```powershell
@@ -30,6 +37,13 @@ Simulation mode:
 
 ```powershell
 cargo run -- --hw-mode=sim
+```
+
+Run a specific binary explicitly:
+
+```powershell
+cargo run --bin auto_breaking -- --hw-mode=sim
+cargo run --bin simulator_cli -- <args>
 ```
 
 ## 3. ECM-Live Data workflow
