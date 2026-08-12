@@ -255,6 +255,4 @@ Suites de referencia:
 - [docs/ECM-Data.md](docs/ECM-Data.md): runbook de dados ECM
 - [CHANGELOG.md](CHANGELOG.md): historico de mudancas
 
-## Licenca e contribuicao
 
-Se quiser, eu posso adicionar uma secao CONTRIBUTING.md padrao com padrao de branch, checklist de PR e convencoes de commit para deixar o fluxo de colaboracao ainda mais organizado.
