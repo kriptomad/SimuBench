@@ -174,6 +174,12 @@ pub struct BootSequence {
     pub elapsed: f64,
 }
 
+impl Default for BootSequence {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl BootSequence {
     pub fn new() -> Self {
         // Register all ECUs with their J1939 NAMEs.
@@ -454,9 +460,8 @@ impl BootSequence {
 
     fn update_interlocks(&mut self, trans_neutral: bool) {
         for il in &mut self.safety_interlocks {
-            match il.id {
-                "TRANS_NEUTRAL" => il.satisfied = trans_neutral,
-                _ => {} // others set externally
+            if il.id == "TRANS_NEUTRAL" {
+                il.satisfied = trans_neutral;
             }
         }
     }
@@ -511,8 +516,8 @@ impl BootSequence {
 fn build_address_claim(ts: f64, name: u64, sa: u8) -> J1939Frame {
     let mut data = [0u8; 8];
     // NAME is 8 bytes, little-endian
-    for i in 0..8 {
-        data[i] = ((name >> (i * 8)) & 0xFF) as u8;
+    for (i, b) in data.iter_mut().enumerate() {
+        *b = ((name >> (i * 8)) & 0xFF) as u8;
     }
     // PGN 60928 = 0xEE00, priority 6
     let raw_id = J1939Frame::build_id(6, j1939::pgn::ECAN, sa, 0xFF);

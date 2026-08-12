@@ -112,7 +112,7 @@ pub fn j1939_pgn(can_id: u32) -> u32 {
     // 29-bit CAN ID for J1939: priority(3), reserved(1), dp(1), pf(8), ps(8), sa(8).
     let pf = ((can_id >> 16) & 0xFF) as u8;
     let ps = ((can_id >> 8) & 0xFF) as u8;
-    let dp = ((can_id >> 24) & 0x01) as u32;
+    let dp = (can_id >> 24) & 0x01 ;
 
     if pf < 240 {
         (dp << 16) | ((pf as u32) << 8)

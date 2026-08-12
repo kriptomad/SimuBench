@@ -70,6 +70,7 @@ impl SensorSuite {
     }
 
     /// Update all sensor readings from vehicle state and traffic
+    #[allow(clippy::too_many_arguments)]
     pub fn update(
         &mut self,
         vehicle_speed: f64,
@@ -127,7 +128,7 @@ impl SensorSuite {
             .forward_targets
             .iter()
             .filter(|t| t.is_in_path)
-            .min_by(|a, b| a.distance.partial_cmp(&b.distance).unwrap())
+            .min_by(|a, b| a.distance.total_cmp(&b.distance))
         {
             self.ultrasonic[1] = nearest.distance.min(8.0); // front center
         } else {
@@ -143,7 +144,7 @@ impl SensorSuite {
 
         // --- TSR ---------------------------------------------------------
         // Change speed limit sign periodically
-        if ((elapsed / 30.0) as u32) % 2 == 0 {
+        if ((elapsed / 30.0) as u32).is_multiple_of(2) {
             self.speed_limit_kmh = Some(80);
         } else {
             self.speed_limit_kmh = Some(120);

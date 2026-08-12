@@ -21,6 +21,7 @@ tracing-subscriber = { version = "0.3", optional = true, features = ["fmt", "jso
 thiserror = "2.0"
 flate2 = "1.0"
 serialport = "4.5"
+rfd = "0.15"
 # crossterm removed — replaced by egui desktop GUI
 
 [target.'cfg(target_os = "linux")'.dependencies]

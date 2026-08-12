@@ -125,6 +125,12 @@ pub struct V2xModule {
     noise_t: f64,
 }
 
+impl Default for V2xModule {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl V2xModule {
     pub fn new() -> Self {
         V2xModule {
@@ -151,6 +157,7 @@ impl V2xModule {
         }
     }
 
+    #[allow(clippy::too_many_arguments)]
     pub fn update(
         &mut self,
         lat: f64,
@@ -212,7 +219,7 @@ impl V2xModule {
         // ─ Simulate SPaT messages from intersections ──────────────────────────
         self.spat_messages.clear();
         let spat_dist = 150.0 + (nt * 0.02).sin() * 50.0;
-        let phase_cycle = (elapsed % 90.0) as f64;
+        let phase_cycle = elapsed % 90.0;
         let (phase, ttc) = if phase_cycle < 45.0 {
             (TrafficPhase::Green, 45.0 - phase_cycle)
         } else if phase_cycle < 50.0 {
@@ -415,6 +422,12 @@ pub enum GeofenceAlert {
     Both,
 }
 
+impl Default for TelematicsModule {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl TelematicsModule {
     pub fn new() -> Self {
         let geofences = vec![
@@ -465,6 +478,7 @@ impl TelematicsModule {
         }
     }
 
+    #[allow(clippy::too_many_arguments)]
     pub fn update(
         &mut self,
         lat: f64,

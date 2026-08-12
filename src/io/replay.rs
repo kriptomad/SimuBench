@@ -171,15 +171,13 @@ mod tests {
         let rec = frame_to_record(&f, "rx", None, None);
         let got = record_to_frame(&rec).expect("frame from record");
         assert_eq!(rec.ts, 12345);
-        match got {
-            Frame::Can(cf) => {
-                assert_eq!(cf.id, 0x123);
-                assert_eq!(cf.dlc, 8);
-                assert_eq!(cf.len, 8);
-                assert_eq!(cf.data, [1, 2, 3, 4, 5, 6, 7, 8]);
-                assert_eq!(cf.timestamp_ms, Some(12345));
-            }
-            _ => panic!("expected can frame"),
+        assert!(matches!(got, Frame::Can(_)), "expected can frame");
+        if let Frame::Can(cf) = got {
+            assert_eq!(cf.id, 0x123);
+            assert_eq!(cf.dlc, 8);
+            assert_eq!(cf.len, 8);
+            assert_eq!(cf.data, [1, 2, 3, 4, 5, 6, 7, 8]);
+            assert_eq!(cf.timestamp_ms, Some(12345));
         }
     }
 }

@@ -146,6 +146,12 @@ pub struct Adaptations {
     pub injector_drift: [u32; 6],
 }
 
+impl Default for Adaptations {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl Adaptations {
     pub fn new() -> Self {
         Adaptations {
@@ -222,6 +228,12 @@ pub struct NvmStore {
 
     /// Total writes across all blocks
     pub total_writes: u64,
+}
+
+impl Default for NvmStore {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl NvmStore {

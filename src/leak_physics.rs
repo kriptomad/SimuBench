@@ -251,6 +251,7 @@ pub struct LeakCircuit {
 }
 
 impl LeakCircuit {
+    #[allow(clippy::too_many_arguments)]
     pub fn new(
         name: &str,
         application: &str,
@@ -500,6 +501,12 @@ pub struct LeakPhysicsRig {
     pub alerts: Vec<LeakAlert>,
     pub total_leak_lpm: f64,
     pub last_results: Vec<CircuitResult>,
+}
+
+impl Default for LeakPhysicsRig {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl LeakPhysicsRig {

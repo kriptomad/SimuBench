@@ -59,6 +59,7 @@ impl CanBus {
     }
 
     /// Publish all periodic ECU messages
+    #[allow(clippy::too_many_arguments)]
     pub fn broadcast_all(
         &mut self,
         speed: f64,

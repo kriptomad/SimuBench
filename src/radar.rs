@@ -255,7 +255,7 @@ impl RadarSensor {
         self.targets
             .iter()
             .filter(|t| t.azimuth_deg.abs() < 5.0 && t.range_m > 0.5)
-            .min_by(|a, b| a.range_m.partial_cmp(&b.range_m).unwrap())
+            .min_by(|a, b| a.range_m.total_cmp(&b.range_m))
     }
 }
 
@@ -285,6 +285,12 @@ pub struct RadarSuite {
     pub bsm_right: bool,
     pub cross_traffic_left: bool,
     pub cross_traffic_right: bool,
+}
+
+impl Default for RadarSuite {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl RadarSuite {

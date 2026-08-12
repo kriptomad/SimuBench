@@ -1145,9 +1145,9 @@ impl J1939Frame {
         let sa = (raw_id & 0xFF) as u8;
 
         let (pgn, da) = if pf < 0xF0 {
-            (((dp << 17) | ((pf as u32) << 8)) as u32, ps)
+            (((dp << 17) | ((pf as u32) << 8)), ps)
         } else {
-            (((dp << 17) | ((pf as u32) << 8) | (ps as u32)) as u32, 0xFF)
+            (((dp << 17) | ((pf as u32) << 8) | (ps as u32)), 0xFF)
         };
 
         let mut arr = [0xFFu8; 8];
@@ -1183,7 +1183,7 @@ impl J1939Frame {
         };
         for spn in def.spns {
             let end_byte =
-                spn.byte_offset + ((spn.bit_offset as usize + spn.bit_length as usize + 7) / 8);
+                spn.byte_offset + (spn.bit_offset as usize + spn.bit_length as usize).div_ceil(8);
             if end_byte > self.dlc as usize {
                 continue;
             }
@@ -1349,6 +1349,7 @@ impl Builder {
         J1939Frame::from_raw(ts, J1939Frame::build_id(6, pgn::HOURS, sa, 0xFF), &d)
     }
 
+    #[allow(clippy::too_many_arguments)]
     pub fn adas1(
         ts: f64,
         lka_on: bool,
@@ -1487,6 +1488,12 @@ pub struct J1939Bus {
     pub filter_sa: Option<u8>,
 }
 
+impl Default for J1939Bus {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl J1939Bus {
     pub fn new() -> Self {
         Self {
@@ -1523,8 +1530,8 @@ impl J1939Bus {
 
     pub fn visible_frames(&self) -> impl Iterator<Item = &J1939Frame> {
         self.frames.iter().filter(|f| {
-            self.filter_pgn.map_or(true, |p| f.pgn == p)
-                && self.filter_sa.map_or(true, |s| f.sa == s)
+            self.filter_pgn.is_none_or(|p| f.pgn == p)
+                && self.filter_sa.is_none_or(|s| f.sa == s)
         })
     }
 }

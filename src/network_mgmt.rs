@@ -152,6 +152,12 @@ pub struct NmEvent {
     pub reason: &'static str,
 }
 
+impl Default for NetworkManager {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl NetworkManager {
     pub fn new() -> Self {
         // Register all ECUs that participate in NM

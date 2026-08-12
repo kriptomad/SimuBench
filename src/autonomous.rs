@@ -180,6 +180,12 @@ impl std::fmt::Display for SafetyStatus {
     }
 }
 
+impl Default for AutonomousController {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl AutonomousController {
     pub fn new() -> Self {
         AutonomousController {
@@ -235,6 +241,7 @@ impl AutonomousController {
 
     /// Master AD controller tick.
     /// Returns (throttle, brake, steer) overrides — None if no override.
+    #[allow(clippy::too_many_arguments)]
     pub fn tick(
         &mut self,
         ego_speed_kmh: f64,
@@ -439,7 +446,7 @@ impl AutonomousController {
             self.planned_path.push(Waypoint {
                 x: t * preview_dist,
                 y: -self.lane.offset_m * (1.0 - t), // converge to centre
-                speed_ms: speed_ms,
+                speed_ms,
                 curvature: self.lane.curvature_1_m,
             });
         }

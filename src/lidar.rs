@@ -265,8 +265,8 @@ impl LidarSensor {
                 if min_dist < self.max_range_m && min_dist > self.min_range_m {
                     let noise_m = n(nt + az * 0.01 + ring as f64 * 0.1) * 0.02; // ±2cm noise
                     let d = (min_dist + noise_m) as f32;
-                    let px = (d * dir_x as f32 * vert_rad.cos() as f32) as f32;
-                    let py = (d * dir_y as f32 * vert_rad.cos() as f32) as f32;
+                    let px = d * dir_x as f32 * vert_rad.cos() as f32;
+                    let py = d * dir_y as f32 * vert_rad.cos() as f32;
                     let pz = (self.ground_level + z_per_m * min_dist) as f32;
 
                     self.points.push(LidarPoint {
@@ -301,7 +301,7 @@ impl LidarSensor {
 
     fn cluster_obstacles(&mut self, world: &[WorldObstacle]) {
         self.clusters.clear();
-        for (_, obs) in world.iter().enumerate() {
+        for obs in world.iter() {
             let dist = (obs.x.powi(2) + obs.y.powi(2)).sqrt();
             if dist > self.max_range_m {
                 continue;

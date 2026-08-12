@@ -49,9 +49,9 @@ impl Gauge {
 
     pub fn update(&mut self, val: f64) {
         self.value = val.clamp(self.min, self.max);
-        self.in_warning = self.warn_hi.map_or(false, |w| self.value > w)
-            || self.warn_lo.map_or(false, |l| self.value < l);
-        self.in_critical = self.crit_hi.map_or(false, |c| self.value > c);
+        self.in_warning = self.warn_hi.is_some_and(|w| self.value > w)
+            || self.warn_lo.is_some_and(|l| self.value < l);
+        self.in_critical = self.crit_hi.is_some_and(|c| self.value > c);
     }
 
     /// Fraction 0-1 of gauge arc
@@ -100,6 +100,12 @@ pub struct TripComputer {
     pub avg_speed_kmh: f64,
     samples: u64,
     speed_sum: f64,
+}
+
+impl Default for TripComputer {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl TripComputer {
@@ -181,6 +187,12 @@ pub struct EcuIcm {
 
     // ─ TX timer ─────────────────────────────────────────────────────────────
     t_heartbeat: f64,
+}
+
+impl Default for EcuIcm {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl EcuIcm {

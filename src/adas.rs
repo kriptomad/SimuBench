@@ -127,7 +127,7 @@ impl AdasModule {
                 .forward_targets
                 .iter()
                 .filter(|t| t.is_in_path && t.relative_speed > 0.0)
-                .min_by(|a, b| a.distance.partial_cmp(&b.distance).unwrap())
+                .min_by(|a, b| a.distance.total_cmp(&b.distance))
             {
                 let ttc = target.distance / (target.relative_speed / 3.6).max(0.01);
                 self.aeb_ttc = ttc;
@@ -157,7 +157,7 @@ impl AdasModule {
                 .forward_targets
                 .iter()
                 .filter(|t| t.is_in_path)
-                .min_by(|a, b| a.distance.partial_cmp(&b.distance).unwrap());
+                .min_by(|a, b| a.distance.total_cmp(&b.distance));
 
             let (_target_speed, speed_error) = if let Some(t) = lead {
                 let safe_dist = vehicle_speed / 3.6 * self.acc_headway_time;

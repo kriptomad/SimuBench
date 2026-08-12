@@ -218,6 +218,12 @@ pub struct HeavyMachinery {
     pub metrics: SimMetrics,
 }
 
+impl Default for HeavyMachinery {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl HeavyMachinery {
     pub fn new() -> Self {
         let mut gw = CanGateway::new();
@@ -302,7 +308,7 @@ impl HeavyMachinery {
         let ecm_alive = self
             .boot
             .ecu_by_sa(j1939::addr::ECM_1)
-            .map_or(false, |e| e.is_online());
+            .is_some_and(|e| e.is_online());
         let ecm_frames = if ecm_alive
             || matches!(
                 self.boot.ignition,
@@ -322,7 +328,7 @@ impl HeavyMachinery {
         let tcm_alive = self
             .boot
             .ecu_by_sa(j1939::addr::TRANSMISSION)
-            .map_or(false, |e| e.is_online());
+            .is_some_and(|e| e.is_online());
         let tcm_frames = if tcm_alive {
             self.tcm.tick(
                 self.ecm.rpm,
@@ -635,7 +641,7 @@ impl HeavyMachinery {
         self.metrics
             .on_step(step_started.elapsed().as_secs_f64() * 1000.0);
 
-        if (self.metrics.steps_completed % 120) == 0 {
+        if self.metrics.steps_completed.is_multiple_of(120) {
             observability::log_structured(&StructuredEvent {
                 timestamp: self.elapsed,
                 level: "INFO",
@@ -752,12 +758,11 @@ impl HeavyMachinery {
                         self.ecm.red_lamp = true;
                     }
                 }
-                "AC_HIGH" => {
-                    if self.bcm.hvac_on {
+                "AC_HIGH"
+                    if self.bcm.hvac_on => {
                         let cooling_loss = (rep.leak_lpm / 1.5).clamp(0.0, 1.0);
                         self.bcm.cab_temp_c += (0.22 + cooling_loss * 0.55) * dt;
                     }
-                }
                 _ => {}
             }
         }

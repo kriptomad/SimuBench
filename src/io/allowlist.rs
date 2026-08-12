@@ -149,7 +149,7 @@ pub fn parse_mask(mask: &str) -> Result<u32, HwError> {
 
 fn match_hex_pattern(pattern: &str, bytes: &[u8]) -> bool {
     let compact: String = pattern.chars().filter(|c| !c.is_whitespace()).collect();
-    if compact.len() % 2 != 0 {
+    if !compact.len().is_multiple_of(2) {
         return false;
     }
 

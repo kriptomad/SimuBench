@@ -6,6 +6,7 @@
 #![allow(float_literal_f32_fallback)]
 
 pub mod io;
+mod ecm_mock_provider;
 mod widgets;
 
 use auto_breaking::{
@@ -25,13 +26,16 @@ use chrono::Local;
 use eframe::{egui, NativeOptions};
 use egui::*;
 use egui_plot::{Line, Plot, PlotPoints};
-use std::collections::HashMap;
+use rfd::FileDialog;
+use std::collections::{BTreeMap, HashMap};
+use std::path::PathBuf;
 use std::time::Duration;
 use widgets::{arc_gauge, bar_gauge, digital_readout, direction_selector, warning_lamp};
 
 const DT: f64 = 1.0 / 60.0;
 const PLOT_WINDOW: usize = 600;
 const EVENT_MAX: usize = 500;
+type TraceRow = (f64, u32, u8, u8, String, String, String);
 
 // ═════════════════════════════════════════════════════════════════════════════
 // Command queue — ALL mutations to bench go through here, no closures needed
@@ -94,10 +98,10 @@ enum Cmd {
     LeakApplyManual,
     LeakPredictScenarios,
     LeakAddCustomCircuit,
-    LeakExportReportCsv,
-    LeakExportReportJson,
-    LeakExportPredCsv,
-    LeakExportPredJson,
+    LeakExportReportCsv(String),
+    LeakExportReportJson(String),
+    LeakExportPredCsv(String),
+    LeakExportPredJson(String),
     LeakRunMonteCarlo,
     // CAN network controls
     CanInjectBitError(usize),
@@ -106,8 +110,8 @@ enum Cmd {
     CanInjectBabbling(usize),
     CanClearBusInjections(usize),
     CanClearAllInjections,
-    CanExportSnapshotCsv,
-    CanExportSnapshotJson,
+    CanExportSnapshotCsv(String),
+    CanExportSnapshotJson(String),
     // Simulation
     #[allow(dead_code)]
     Pause,
@@ -293,6 +297,7 @@ struct App {
     can_filter: String,
     can_bus_idx: usize,
     can_note: String,
+    can_trace_tree: bool,
     sig_map: HashMap<(u32, u8), Signal>,
     // (ts, raw_id, sa, dlc, hex_data, pgn[sa], decoded_str)
     trace_snap: Vec<(f64, u32, u8, u8, String, String, String)>,
@@ -349,6 +354,9 @@ struct App {
     leak_scenario_dt: f64,
     leak_predictions: Vec<ScenarioPrediction>,
     leak_note: String,
+    leak_view_yaw_deg: f32,
+    leak_view_pitch_deg: f32,
+    leak_view_zoom: f32,
 
     // Plots
     pl_rpm: Vec<[f64; 2]>,
@@ -358,6 +366,7 @@ struct App {
     pl_coolant: Vec<[f64; 2]>,
     pl_dpf: Vec<[f64; 2]>,
     pl_boost: Vec<[f64; 2]>,
+    pl_hyd: Vec<[f64; 2]>,
 
     ticks: u64,
 }
@@ -368,7 +377,8 @@ impl App {
         vis.panel_fill = Color32::from_gray(14);
         cc.egui_ctx.set_visuals(vis);
 
-        let bench = HeavyMachinery::new();
+        let mut bench = HeavyMachinery::new();
+        bench.tcm.set_direction(Direction::Forward);
         let fuel = bench.ecm.fuel_level_pct;
         let def = bench.ecm.def_level_pct;
         let cool = bench.ecm.coolant_temp_c;
@@ -398,6 +408,7 @@ impl App {
             trace_snap: Vec::new(),
             can_bus_idx: 0,
             can_note: String::new(),
+            can_trace_tree: true,
             events: Vec::new(),
             ev_pause: false,
             ev_filter: String::new(),
@@ -433,6 +444,9 @@ impl App {
             leak_scenario_dt: 0.05,
             leak_predictions: Vec::new(),
             leak_note: String::new(),
+            leak_view_yaw_deg: 25.0,
+            leak_view_pitch_deg: 20.0,
+            leak_view_zoom: 1.0,
             pl_rpm: vec![],
             pl_spd: vec![],
             pl_torque: vec![],
@@ -440,7 +454,62 @@ impl App {
             pl_coolant: vec![],
             pl_dpf: vec![],
             pl_boost: vec![],
+            pl_hyd: vec![],
             ticks: 0,
+        }
+    }
+
+    fn pick_save_path(default_name: &str, ext: &str) -> Option<String> {
+        let default_dir = PathBuf::from("reports");
+        let _ = std::fs::create_dir_all(&default_dir);
+        FileDialog::new()
+            .set_directory(default_dir)
+            .set_file_name(default_name)
+            .add_filter(ext, &[ext])
+            .save_file()
+            .map(|p| p.display().to_string())
+    }
+
+    fn refresh_mock_ecm_live_from_sim(&mut self) {
+        let e = &self.bench.ecm;
+        self.ecm_live_snapshot.engine_speed_rpm = Some(e.rpm);
+        self.ecm_live_snapshot.accel_pedal_pct = Some(e.active_throttle);
+        self.ecm_live_snapshot.coolant_temp_c = Some(e.coolant_temp_c);
+        self.ecm_live_snapshot.fuel_temp_c = Some(e.fuel_temp_c);
+        self.ecm_live_snapshot.oil_pressure_kpa = Some(e.oil_pressure_kpa);
+        self.ecm_live_snapshot.last_seen_pgn = Some(61444);
+        self.ecm_live_snapshot.source_address = Some(0x00);
+        self.ecm_live_last_update_ms = now_ms();
+    }
+
+    fn ecm_treeview(&self, ui: &mut Ui, mock_mode: bool) {
+        ui.separator();
+        ui.label(if mock_mode {
+            "ECM Explorer (Mock/CAT ET style)"
+        } else {
+            "ECM Explorer (CAT ET style)"
+        });
+
+        let nodes = ecm_mock_provider::build_mock_ecm_tree(&self.bench, &self.ecm_live_snapshot);
+        for node in nodes {
+            CollapsingHeader::new(format!("{} (SA 0x{:02X})", node.name, node.source_address))
+                .default_open(node.source_address == 0x00)
+                .show(ui, |ui| {
+                    for f in node.functions {
+                        CollapsingHeader::new(f.name).default_open(false).show(ui, |ui| {
+                            Grid::new(format!("ecm_tree_{}_{}", node.source_address, f.name))
+                                .num_columns(3)
+                                .show(ui, |ui| {
+                                    for p in f.params {
+                                        ui.label(p.key);
+                                        ui.label(format!("{:.3}", p.value));
+                                        ui.label(p.unit);
+                                        ui.end_row();
+                                    }
+                                });
+                        });
+                    }
+                });
         }
     }
 
@@ -693,25 +762,19 @@ impl App {
                     self.sync_leak_manual_from_selected();
                     self.leak_note = "Circuito custom adicionado".into();
                 }
-                Cmd::LeakExportReportCsv => {
-                    let ts = Local::now().format("%Y%m%d_%H%M%S");
-                    let path = format!("reports/leak_report_{}.csv", ts);
+                Cmd::LeakExportReportCsv(path) => {
                     self.leak_note = match self.bench.export_leak_report_csv(&path) {
                         Ok(_) => format!("CSV salvo em {}", path),
                         Err(e) => format!("Falha export CSV: {}", e),
                     };
                 }
-                Cmd::LeakExportReportJson => {
-                    let ts = Local::now().format("%Y%m%d_%H%M%S");
-                    let path = format!("reports/leak_report_{}.json", ts);
+                Cmd::LeakExportReportJson(path) => {
                     self.leak_note = match self.bench.export_leak_report_json(&path) {
                         Ok(_) => format!("JSON salvo em {}", path),
                         Err(e) => format!("Falha export JSON: {}", e),
                     };
                 }
-                Cmd::LeakExportPredCsv => {
-                    let ts = Local::now().format("%Y%m%d_%H%M%S");
-                    let path = format!("reports/leak_predictions_{}.csv", ts);
+                Cmd::LeakExportPredCsv(path) => {
                     self.leak_note = match self
                         .bench
                         .export_leak_predictions_csv(&path, &self.leak_predictions)
@@ -720,9 +783,7 @@ impl App {
                         Err(e) => format!("Falha export pred CSV: {}", e),
                     };
                 }
-                Cmd::LeakExportPredJson => {
-                    let ts = Local::now().format("%Y%m%d_%H%M%S");
-                    let path = format!("reports/leak_predictions_{}.json", ts);
+                Cmd::LeakExportPredJson(path) => {
                     self.leak_note = match self
                         .bench
                         .export_leak_predictions_json(&path, &self.leak_predictions)
@@ -778,17 +839,13 @@ impl App {
                     self.bench.can_net.clear_injections(None);
                     self.can_note = "Injecoes limpas em todos os barramentos".into();
                 }
-                Cmd::CanExportSnapshotCsv => {
-                    let ts = Local::now().format("%Y%m%d_%H%M%S");
-                    let path = format!("reports/can_network_snapshot_{}.csv", ts);
+                Cmd::CanExportSnapshotCsv(path) => {
                     self.can_note = match self.bench.export_can_snapshot_csv(&path) {
                         Ok(_) => format!("Snapshot CSV salvo em {}", path),
                         Err(e) => format!("Falha snapshot CSV: {}", e),
                     };
                 }
-                Cmd::CanExportSnapshotJson => {
-                    let ts = Local::now().format("%Y%m%d_%H%M%S");
-                    let path = format!("reports/can_network_snapshot_{}.json", ts);
+                Cmd::CanExportSnapshotJson(path) => {
                     self.can_note = match self.bench.export_can_snapshot_json(&path) {
                         Ok(_) => format!("Snapshot JSON salvo em {}", path),
                         Err(e) => format!("Falha snapshot JSON: {}", e),
@@ -797,6 +854,7 @@ impl App {
                 // Simulation
                 Cmd::Reset => {
                     self.bench.reset();
+                    self.bench.tcm.set_direction(Direction::Forward);
                     self.throttle = 0.0;
                     self.brake = 0.0;
                     self.sig_map.clear();
@@ -810,6 +868,7 @@ impl App {
                         &mut self.pl_coolant,
                         &mut self.pl_dpf,
                         &mut self.pl_boost,
+                        &mut self.pl_hyd,
                     ] {
                         v.clear();
                     }
@@ -933,11 +992,9 @@ impl App {
                 format!(
                     "Key → {:?}  [{}]",
                     ign,
-                    self.bench
+                    if self.bench
                         .boot
-                        .crank_inhibited
-                        .then_some("INHIBITED")
-                        .unwrap_or("OK")
+                        .crank_inhibited { "INHIBITED" } else { "OK" }
                 ),
                 EventLevel::Info
             );
@@ -1045,8 +1102,8 @@ impl App {
         }
         self.prev_regen = regen;
         // Coolant overheat
-        if ecm.coolant_temp_c > 102.0 && self.prev_rpm > 400.0 {
-            if t as u32 % 5 == 0 {
+        if ecm.coolant_temp_c > 102.0 && self.prev_rpm > 400.0
+            && (t as u32).is_multiple_of(5) {
                 // throttle event rate
                 ev!(
                     "ECM",
@@ -1054,10 +1111,9 @@ impl App {
                     EventLevel::Critical
                 );
             }
-        }
         // DEF warning
-        if ecm.def_level_pct < 10.0 && ecm.def_level_pct > 0.0 {
-            if t as u32 % 30 == 0 {
+        if ecm.def_level_pct < 10.0 && ecm.def_level_pct > 0.0
+            && (t as u32).is_multiple_of(30) {
                 ev!(
                     "SCR",
                     format!(
@@ -1067,7 +1123,6 @@ impl App {
                     EventLevel::Warn
                 );
             }
-        }
         // Boot events
         let mode = format!("{}", self.bench.vcm.mode);
         if mode != self.prev_mode {
@@ -1078,8 +1133,8 @@ impl App {
         let nm_state = format!("{}", self.bench.net_mgmt.bus_state);
         let _ = nm_state; // could add NM events
                           // TCS
-        if abs.tcs_system_active {
-            if t as u32 % 2 == 0 {
+        if abs.tcs_system_active
+            && (t as u32).is_multiple_of(2) {
                 ev!(
                     "TCS",
                     format!(
@@ -1090,7 +1145,6 @@ impl App {
                     EventLevel::Warn
                 );
             }
-        }
     }
 
     fn push_plots(&mut self) {
@@ -1110,6 +1164,7 @@ impl App {
         p!(self.pl_coolant, self.bench.ecm.coolant_temp_c);
         p!(self.pl_dpf, self.bench.ecm.dpf_soot_pct);
         p!(self.pl_boost, self.bench.ecm.boost_pressure_kpa);
+        p!(self.pl_hyd, self.bench.hcm.system_pressure_bar);
     }
 
     fn auto_sequence(&mut self) {
@@ -1120,6 +1175,13 @@ impl App {
             _ => {}
         }
     }
+}
+
+fn now_ms() -> u64 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_millis() as u64)
+        .unwrap_or(0)
 }
 
 // ═════════════════════════════════════════════════════════════════════════════
@@ -1194,6 +1256,9 @@ impl eframe::App for App {
             self.ecm_live_snapshot = feed.latest_snapshot();
             self.ecm_live_last_update_ms = feed.last_update_ms();
             self.ecm_live_frames_total = feed.frames_total();
+        } else if matches!(self.hw_cfg.mode, io::hw::HwMode::Sim) {
+            self.refresh_mock_ecm_live_from_sim();
+            self.ecm_live_frames_total = self.ecm_live_frames_total.saturating_add(1);
         }
         ctx.request_repaint();
 
@@ -1344,17 +1409,20 @@ impl App {
     fn tab_ecm_live_data(&mut self, ui: &mut Ui) {
         ui.heading("ECM-Live Data");
         ui.add_space(6.0);
+        let live_mode = matches!(self.hw_cfg.mode, io::hw::HwMode::Live);
 
-        if !matches!(self.hw_cfg.mode, io::hw::HwMode::Live) {
+        if !live_mode {
             ui.colored_label(
                 Color32::YELLOW,
-                "Live mode is disabled. Start with --hw-mode=live and either --vendor-name=cat_comm (Windows), --serial-port, or --can-if.",
+                "SIM mode active: showing mock ECM view. Switch to --hw-mode=live for hardware Detect/Connect/Retrieve.",
             );
-            return;
+            if self.ecm_detected_sas.is_empty() {
+                self.ecm_detected_sas = vec![0x00];
+            }
         }
 
         ui.horizontal(|ui| {
-            if ui.button("Detect").clicked() {
+            if ui.add_enabled(live_mode, Button::new("Detect")).clicked() {
                 match io::live_runner::detect_ecms(&self.hw_cfg, Duration::from_secs(3)) {
                     Ok(res) => {
                         self.ecm_detected_sas = res.source_addresses;
@@ -1376,7 +1444,7 @@ impl App {
                 }
             }
 
-            let can_connect = !self.ecm_detected_sas.is_empty();
+            let can_connect = live_mode && !self.ecm_detected_sas.is_empty();
             if ui
                 .add_enabled(can_connect, Button::new("Connect"))
                 .clicked()
@@ -1400,7 +1468,7 @@ impl App {
                 }
             }
 
-            let can_retrieve = self.ecm_connected && self.ecm_live_feed.is_none();
+            let can_retrieve = live_mode && self.ecm_connected && self.ecm_live_feed.is_none();
             if ui
                 .add_enabled(can_retrieve, Button::new("Retrieve Data"))
                 .clicked()
@@ -1441,13 +1509,15 @@ impl App {
             {
                 if let Some(feed) = &self.ecm_live_feed {
                     let ts = chrono::Local::now().format("%Y%m%d_%H%M%S").to_string();
-                    let path = format!("reports/ecm_live_{}.csv", ts);
-                    match feed.export_csv(&path) {
-                        Ok(()) => {
-                            self.ecm_live_status = format!("CSV exported to {}", path);
-                        }
-                        Err(e) => {
-                            self.ecm_live_status = format!("CSV export failed: {e}");
+                    let name = format!("ecm_live_{}.csv", ts);
+                    if let Some(path) = Self::pick_save_path(&name, "csv") {
+                        match feed.export_csv(&path) {
+                            Ok(()) => {
+                                self.ecm_live_status = format!("CSV exported to {}", path);
+                            }
+                            Err(e) => {
+                                self.ecm_live_status = format!("CSV export failed: {e}");
+                            }
                         }
                     }
                 }
@@ -1616,6 +1686,8 @@ impl App {
             );
             ui.end_row();
         });
+
+        self.ecm_treeview(ui, !live_mode);
     }
 
     fn toolbar(&mut self, ui: &mut Ui) {
@@ -2441,10 +2513,18 @@ impl App {
             }
             ui.separator();
             if ui.button("Export CSV").clicked() {
-                self.cmds.push(Cmd::CanExportSnapshotCsv);
+                let ts = Local::now().format("%Y%m%d_%H%M%S");
+                let name = format!("can_network_snapshot_{}.csv", ts);
+                if let Some(path) = Self::pick_save_path(&name, "csv") {
+                    self.cmds.push(Cmd::CanExportSnapshotCsv(path));
+                }
             }
             if ui.button("Export JSON").clicked() {
-                self.cmds.push(Cmd::CanExportSnapshotJson);
+                let ts = Local::now().format("%Y%m%d_%H%M%S");
+                let name = format!("can_network_snapshot_{}.json", ts);
+                if let Some(path) = Self::pick_save_path(&name, "json") {
+                    self.cmds.push(Cmd::CanExportSnapshotJson(path));
+                }
             }
         });
         ui.separator();
@@ -2522,7 +2602,7 @@ impl App {
 
         ui.separator();
         ui.columns(2, |cols| {
-            egui::Frame::group(&cols[0].style())
+            egui::Frame::group(cols[0].style())
                 .fill(Color32::from_gray(15))
                 .show(&mut cols[0], |ui| {
                     ui.label(
@@ -2547,7 +2627,7 @@ impl App {
                     }
                 });
 
-            egui::Frame::group(&cols[1].style())
+            egui::Frame::group(cols[1].style())
                 .fill(Color32::from_gray(15))
                 .show(&mut cols[1], |ui| {
                     ui.label(
@@ -2680,7 +2760,82 @@ impl App {
             });
     }
 
-    fn can_trace(&self, ui: &mut Ui) {
+    fn can_trace(&mut self, ui: &mut Ui) {
+        ui.horizontal(|ui| {
+            ui.label(RichText::new("Trace View:").size(10.8).color(Color32::GRAY));
+            ui.selectable_value(&mut self.can_trace_tree, false, "Table");
+            ui.selectable_value(&mut self.can_trace_tree, true, "Tree");
+        });
+        ui.separator();
+
+        if self.can_trace_tree {
+            let mut by_sa: BTreeMap<u8, Vec<TraceRow>> = BTreeMap::new();
+            for row in self.trace_snap.iter().rev().take(500) {
+                by_sa.entry(row.2).or_default().push(row.clone());
+            }
+
+            ScrollArea::vertical()
+                .auto_shrink([false, false])
+                .max_height(ui.available_height())
+                .show(ui, |ui| {
+                    for (sa, rows) in by_sa {
+                        CollapsingHeader::new(format!("Node SA 0x{:02X} ({} frames)", sa, rows.len()))
+                            .default_open(sa == 0x00 || sa == 0x03)
+                            .show(ui, |ui| {
+                                let mut by_pgn: BTreeMap<String, Vec<TraceRow>> = BTreeMap::new();
+                                for r in rows {
+                                    by_pgn.entry(r.5.clone()).or_default().push(r);
+                                }
+                                for (pgn, mut frames) in by_pgn {
+                                    frames.sort_by(|a, b| a.0.partial_cmp(&b.0).unwrap_or(std::cmp::Ordering::Equal));
+                                    CollapsingHeader::new(format!("{} ({})", pgn, frames.len()))
+                                        .default_open(false)
+                                        .show(ui, |ui| {
+                                            for (ts, raw_id, _sa, dlc, hex, _pgn_sa, decoded) in
+                                                frames.iter().rev().take(12).rev()
+                                            {
+                                                ui.horizontal_wrapped(|ui| {
+                                                    ui.label(
+                                                        RichText::new(format!("t={:8.3}s", ts))
+                                                            .monospace()
+                                                            .size(10.0)
+                                                            .color(Color32::from_gray(130)),
+                                                    );
+                                                    ui.label(
+                                                        RichText::new(format!("ID={:08X}", raw_id))
+                                                            .monospace()
+                                                            .size(10.0)
+                                                            .color(Color32::LIGHT_BLUE),
+                                                    );
+                                                    ui.label(
+                                                        RichText::new(format!("DLC={}", dlc))
+                                                            .monospace()
+                                                            .size(10.0)
+                                                            .color(Color32::from_gray(140)),
+                                                    );
+                                                    ui.label(
+                                                        RichText::new(hex)
+                                                            .monospace()
+                                                            .size(10.0)
+                                                            .color(Color32::from_gray(200)),
+                                                    );
+                                                    if !decoded.is_empty() {
+                                                        ui.label(
+                                                            RichText::new(decoded)
+                                                                .size(10.0)
+                                                                .color(Color32::from_gray(190)),
+                                                        );
+                                                    }
+                                                });
+                                            }
+                                        });
+                                }
+                            });
+                    }
+                });
+            return;
+        }
+
         egui::Grid::new("trace_hdr")
             .num_columns(6)
             .min_col_width(50.0)
@@ -3044,7 +3199,7 @@ impl App {
             .show(ui, |ui| {
                 ui.columns(3, |cols| {
                     // Col 0: Engine core
-                    egui::Frame::group(&cols[0].style())
+                    egui::Frame::group(cols[0].style())
                         .fill(Color32::from_gray(16))
                         .show(&mut cols[0], |ui| {
                             ui.label(
@@ -3151,7 +3306,7 @@ impl App {
                             );
                         });
                     // Col 1: Temperatures & pressures
-                    egui::Frame::group(&cols[1].style())
+                    egui::Frame::group(cols[1].style())
                         .fill(Color32::from_gray(16))
                         .show(&mut cols[1], |ui| {
                             ui.label(
@@ -3276,7 +3431,7 @@ impl App {
                             );
                         });
                     // Col 2: Aftertreatment + DTCs
-                    egui::Frame::group(&cols[2].style())
+                    egui::Frame::group(cols[2].style())
                         .fill(Color32::from_gray(16))
                         .show(&mut cols[2], |ui| {
                             ui.label(
@@ -3634,7 +3789,7 @@ impl App {
         );
         ui.columns(3, |cols| {
             let ils = &self.bench.boot.safety_interlocks;
-            let per = (ils.len() + 2) / 3;
+            let per = ils.len().div_ceil(3);
             for (ci, col) in cols.iter_mut().enumerate() {
                 for il in ils.iter().skip(ci * per).take(per) {
                     let (sym, c) = if il.satisfied {
@@ -3647,7 +3802,7 @@ impl App {
                     col.horizontal(|ui| {
                         ui.label(RichText::new(sym).size(13.0).color(c));
                         ui.label(
-                            RichText::new(&format!("{}: {}", il.id, il.description))
+                            RichText::new(format!("{}: {}", il.id, il.description))
                                 .size(10.5)
                                 .color(Color32::from_gray(185)),
                         );
@@ -4060,7 +4215,7 @@ impl App {
                     digital_readout(
                         ui,
                         "ISOBUS",
-                        &if imp.isobus_connected {
+                        if imp.isobus_connected {
                             "CONNECTED"
                         } else {
                             "disconnected"
@@ -4163,7 +4318,7 @@ impl App {
             .show(ui, |ui| {
                 ui.columns(3, |cols| {
                     // ── Fuel & DEF ──────────────────────────────────────────────
-                    egui::Frame::group(&cols[0].style())
+                    egui::Frame::group(cols[0].style())
                         .fill(Color32::from_gray(15))
                         .show(&mut cols[0], |ui| {
                             ui.label(
@@ -4254,7 +4409,7 @@ impl App {
                         });
 
                     // ── Temperatures ────────────────────────────────────────────
-                    egui::Frame::group(&cols[1].style())
+                    egui::Frame::group(cols[1].style())
                         .fill(Color32::from_gray(15))
                         .show(&mut cols[1], |ui| {
                             ui.label(
@@ -4339,7 +4494,7 @@ impl App {
                         });
 
                     // ── Transmission & BCM ──────────────────────────────────────
-                    egui::Frame::group(&cols[2].style())
+                    egui::Frame::group(cols[2].style())
                         .fill(Color32::from_gray(15))
                         .show(&mut cols[2], |ui| {
                             ui.label(
@@ -4527,7 +4682,7 @@ impl App {
         ScrollArea::vertical().auto_shrink([false, false]).max_height(ui.available_height()).show(ui, |ui| {
             ui.columns(3, |cols| {
                 // Left: circuit list + runtime status
-                egui::Frame::group(&cols[0].style()).fill(Color32::from_gray(15)).show(&mut cols[0], |ui| {
+                egui::Frame::group(cols[0].style()).fill(Color32::from_gray(15)).show(&mut cols[0], |ui| {
                     ui.label(RichText::new("RUNTIME CIRCUITS").size(11.5).color(Color32::from_rgb(80,155,255)));
                     ui.separator();
                     for (i, name, app, comp, oil) in &circuits {
@@ -4557,10 +4712,98 @@ impl App {
                             ui.label(RichText::new(format!("{}: {}", a.circuit_name, a.message)).size(10.0).color(Color32::RED));
                         }
                     }
+
+                    ui.separator();
+                    ui.label(RichText::new("3D PHYSICS/LEAK VIEW").size(11.0).color(Color32::from_rgb(80,155,255)));
+                    ui.horizontal(|ui| {
+                        ui.label("Yaw");
+                        ui.add(Slider::new(&mut self.leak_view_yaw_deg, -180.0..=180.0).show_value(true));
+                        ui.label("Pitch");
+                        ui.add(Slider::new(&mut self.leak_view_pitch_deg, -80.0..=80.0).show_value(true));
+                        ui.label("Zoom");
+                        ui.add(Slider::new(&mut self.leak_view_zoom, 0.4..=2.5).show_value(true));
+                    });
+                    let (rect, _resp) = ui.allocate_exact_size(
+                        Vec2::new(ui.available_width() - 4.0, 180.0),
+                        Sense::hover(),
+                    );
+                    let p = ui.painter_at(rect);
+                    p.rect_filled(rect, 4.0, Color32::from_gray(10));
+                    p.rect_stroke(rect, 4.0, Stroke::new(1.0, Color32::from_gray(60)));
+
+                    let yaw = self.leak_view_yaw_deg.to_radians();
+                    let pitch = self.leak_view_pitch_deg.to_radians();
+                    let zoom = self.leak_view_zoom;
+                    let center = rect.center();
+                    let scale = 70.0 * zoom;
+
+                    let project = |x: f32, y: f32, z: f32| -> Pos2 {
+                        let cy = yaw.cos();
+                        let sy = yaw.sin();
+                        let cp = pitch.cos();
+                        let sp = pitch.sin();
+
+                        let xr = x * cy + z * sy;
+                        let zr = -x * sy + z * cy;
+                        let yr = y * cp - zr * sp;
+                        let zr2 = y * sp + zr * cp + 8.0;
+                        let f = scale / zr2.max(0.3);
+                        Pos2::new(center.x + xr * f, center.y - yr * f)
+                    };
+
+                    let axis = [
+                        ([-2.2, 0.0, 0.0], [2.2, 0.0, 0.0], Color32::from_rgb(220, 90, 90)),
+                        ([0.0, 0.0, -2.2], [0.0, 0.0, 2.2], Color32::from_rgb(90, 220, 90)),
+                        ([0.0, 0.0, 0.0], [0.0, 2.2, 0.0], Color32::from_rgb(90, 140, 255)),
+                    ];
+                    for (a, b, c) in axis {
+                        p.line_segment(
+                            [project(a[0], a[1], a[2]), project(b[0], b[1], b[2])],
+                            Stroke::new(1.2, c),
+                        );
+                    }
+
+                    for (i, r) in reports.iter().take(8).enumerate() {
+                        let x = -1.8 + i as f32 * 0.5;
+                        let h = (r.leak_lpm as f32 * 0.9).clamp(0.08, 1.8);
+                        let risk = (r.rupture_probability_pct as f32 / 100.0).clamp(0.0, 1.0);
+                        let col = Color32::from_rgb(
+                            (90.0 + 150.0 * risk) as u8,
+                            (210.0 - 120.0 * risk) as u8,
+                            90,
+                        );
+
+                        let y0 = 0.0f32;
+                        let y1 = h;
+                        let z0 = -0.15f32;
+                        let z1 = 0.15f32;
+                        let x0 = x;
+                        let x1 = x + 0.3;
+
+                        let corners = [
+                            project(x0, y0, z0),
+                            project(x1, y0, z0),
+                            project(x1, y1, z0),
+                            project(x0, y1, z0),
+                            project(x0, y0, z1),
+                            project(x1, y0, z1),
+                            project(x1, y1, z1),
+                            project(x0, y1, z1),
+                        ];
+
+                        let edges = [
+                            (0, 1), (1, 2), (2, 3), (3, 0),
+                            (4, 5), (5, 6), (6, 7), (7, 4),
+                            (0, 4), (1, 5), (2, 6), (3, 7),
+                        ];
+                        for (a, b) in edges {
+                            p.line_segment([corners[a], corners[b]], Stroke::new(1.0, col));
+                        }
+                    }
                 });
 
                 // Middle: manual params
-                egui::Frame::group(&cols[1].style()).fill(Color32::from_gray(15)).show(&mut cols[1], |ui| {
+                egui::Frame::group(cols[1].style()).fill(Color32::from_gray(15)).show(&mut cols[1], |ui| {
                     ui.label(RichText::new("MANUAL ENGINEERING INPUT").size(11.5).color(Color32::from_rgb(80,155,255)));
                     ui.label(RichText::new("Use this for production-calibrated pressure/oring/oil settings").size(9.8).color(Color32::from_gray(140)));
                     ui.separator();
@@ -4619,7 +4862,7 @@ impl App {
                 });
 
                 // Right: custom circuit + scenario table
-                egui::Frame::group(&cols[2].style()).fill(Color32::from_gray(15)).show(&mut cols[2], |ui| {
+                egui::Frame::group(cols[2].style()).fill(Color32::from_gray(15)).show(&mut cols[2], |ui| {
                     ui.label(RichText::new("CUSTOM CIRCUIT BUILDER").size(11.5).color(Color32::from_rgb(80,155,255)));
                     ui.horizontal(|ui| {
                         ui.label("Name");
@@ -4719,16 +4962,32 @@ impl App {
             self.cmds.push(Cmd::LeakAddCustomCircuit);
         }
         if do_export_report_csv {
-            self.cmds.push(Cmd::LeakExportReportCsv);
+            let ts = Local::now().format("%Y%m%d_%H%M%S");
+            let name = format!("leak_report_{}.csv", ts);
+            if let Some(path) = Self::pick_save_path(&name, "csv") {
+                self.cmds.push(Cmd::LeakExportReportCsv(path));
+            }
         }
         if do_export_report_json {
-            self.cmds.push(Cmd::LeakExportReportJson);
+            let ts = Local::now().format("%Y%m%d_%H%M%S");
+            let name = format!("leak_report_{}.json", ts);
+            if let Some(path) = Self::pick_save_path(&name, "json") {
+                self.cmds.push(Cmd::LeakExportReportJson(path));
+            }
         }
         if do_export_pred_csv {
-            self.cmds.push(Cmd::LeakExportPredCsv);
+            let ts = Local::now().format("%Y%m%d_%H%M%S");
+            let name = format!("leak_predictions_{}.csv", ts);
+            if let Some(path) = Self::pick_save_path(&name, "csv") {
+                self.cmds.push(Cmd::LeakExportPredCsv(path));
+            }
         }
         if do_export_pred_json {
-            self.cmds.push(Cmd::LeakExportPredJson);
+            let ts = Local::now().format("%Y%m%d_%H%M%S");
+            let name = format!("leak_predictions_{}.json", ts);
+            if let Some(path) = Self::pick_save_path(&name, "json") {
+                self.cmds.push(Cmd::LeakExportPredJson(path));
+            }
         }
         if do_monte_carlo {
             self.cmds.push(Cmd::LeakRunMonteCarlo);
@@ -4746,7 +5005,7 @@ impl App {
             .show(ui, |ui| {
                 ui.columns(2, |cols| {
                     // GPS
-                    egui::Frame::group(&cols[0].style())
+                    egui::Frame::group(cols[0].style())
                         .fill(Color32::from_gray(15))
                         .show(&mut cols[0], |ui| {
                             let g = &self.bench.gps;
@@ -4854,7 +5113,7 @@ impl App {
                             }
                         });
                     // IMU
-                    egui::Frame::group(&cols[1].style())
+                    egui::Frame::group(cols[1].style())
                         .fill(Color32::from_gray(15))
                         .show(&mut cols[1], |ui| {
                             let imu = &self.bench.imu;
@@ -4864,7 +5123,7 @@ impl App {
                                     .color(Color32::from_rgb(80, 155, 255)),
                             );
                             ui.columns(3, |c| {
-                                egui::Frame::dark_canvas(&c[0].style()).show(&mut c[0], |ui| {
+                                egui::Frame::dark_canvas(c[0].style()).show(&mut c[0], |ui| {
                                     arc_gauge(
                                         ui,
                                         imu.roll_deg,
@@ -4878,7 +5137,7 @@ impl App {
                                         Some(-25.0),
                                     )
                                 });
-                                egui::Frame::dark_canvas(&c[1].style()).show(&mut c[1], |ui| {
+                                egui::Frame::dark_canvas(c[1].style()).show(&mut c[1], |ui| {
                                     arc_gauge(
                                         ui,
                                         imu.pitch_deg,
@@ -4892,7 +5151,7 @@ impl App {
                                         Some(-15.0),
                                     )
                                 });
-                                egui::Frame::dark_canvas(&c[2].style()).show(&mut c[2], |ui| {
+                                egui::Frame::dark_canvas(c[2].style()).show(&mut c[2], |ui| {
                                     arc_gauge(
                                         ui,
                                         imu.yaw_deg,
@@ -5450,7 +5709,7 @@ impl App {
                             digital_readout(
                                 ui,
                                 "BSM L",
-                                &if bsml { "⚠ OBJECT" } else { "clear  " },
+                                if bsml { "⚠ OBJECT" } else { "clear  " },
                                 if bsml {
                                     Color32::YELLOW
                                 } else {
@@ -5460,7 +5719,7 @@ impl App {
                             digital_readout(
                                 ui,
                                 "BSM R",
-                                &if bsmr { "⚠ OBJECT" } else { "clear  " },
+                                if bsmr { "⚠ OBJECT" } else { "clear  " },
                                 if bsmr {
                                     Color32::YELLOW
                                 } else {
@@ -5476,7 +5735,7 @@ impl App {
                             digital_readout(
                                 ui,
                                 "Detected",
-                                &if det_s { "YES" } else { "NO" },
+                                if det_s { "YES" } else { "NO" },
                                 if det_s { Color32::GREEN } else { Color32::RED },
                             );
                             digital_readout(
@@ -6242,7 +6501,7 @@ impl App {
                 100.0,
             ),
             (
-                &self.pl_boost,
+                &self.pl_hyd,
                 "HYD press",
                 Color32::from_rgb(0, 210, 210),
                 350.0,

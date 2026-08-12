@@ -53,6 +53,12 @@ pub struct PowerDistribution {
     pub load_shed_reason: Option<&'static str>,
 }
 
+impl Default for PowerDistribution {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl PowerDistribution {
     pub fn new() -> Self {
         PowerDistribution {
@@ -86,6 +92,12 @@ pub struct TorqueCoordination {
     pub limiting_source: &'static str,
 }
 
+impl Default for TorqueCoordination {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl TorqueCoordination {
     pub fn new() -> Self {
         TorqueCoordination {
@@ -106,7 +118,7 @@ impl TorqueCoordination {
         ];
         let (min_torque, reason) = limit
             .iter()
-            .min_by(|a, b| a.0.partial_cmp(&b.0).unwrap())
+            .min_by(|a, b| a.0.total_cmp(&b.0))
             .copied()
             .unwrap_or((1050.0, "none"));
         self.commanded_torque_nm = min_torque;
@@ -130,6 +142,12 @@ pub struct CommHealth {
     pub last_tcm_ts: f64,
     pub last_abs_ts: f64,
     pub last_hcm_ts: f64,
+}
+
+impl Default for CommHealth {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl CommHealth {
@@ -220,6 +238,12 @@ pub struct EcuVcm {
     t_dm13: f64,
 }
 
+impl Default for EcuVcm {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl EcuVcm {
     pub fn new() -> Self {
         EcuVcm {
@@ -243,6 +267,7 @@ impl EcuVcm {
         }
     }
 
+    #[allow(clippy::too_many_arguments)]
     pub fn tick(
         &mut self,
         elapsed: f64,

@@ -138,6 +138,12 @@ pub struct LaneDetection {
     pub ttld_s: f64,
 }
 
+impl Default for LaneDetection {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl LaneDetection {
     pub fn new() -> Self {
         LaneDetection {
@@ -234,6 +240,12 @@ pub struct CameraSystem {
     update_timer: f64,
     noise_t: f64,
     obj_id_counter: u32,
+}
+
+impl Default for CameraSystem {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl CameraSystem {
@@ -356,7 +368,7 @@ impl CameraSystem {
         self.signs.clear();
         // Speed limit sign simulation
         let sign_cycle = (elapsed / 45.0) as u32;
-        let speed_lim = if sign_cycle % 2 == 0 { 80 } else { 50 };
+        let speed_lim = if sign_cycle.is_multiple_of(2) { 80 } else { 50 };
         self.active_speed_limit = Some(speed_lim);
         if elapsed % 45.0 < 5.0 {
             self.signs.push(DetectedSign {
@@ -395,7 +407,7 @@ impl CameraSystem {
     pub fn closest_object(&self) -> Option<&DetectedObject> {
         self.objects_front
             .iter()
-            .min_by(|a, b| a.distance_m.partial_cmp(&b.distance_m).unwrap())
+            .min_by(|a, b| a.distance_m.total_cmp(&b.distance_m))
     }
 }
 
@@ -482,6 +494,12 @@ pub struct SensorFusion {
     pub ttc_critical: f64, // minimum TTC in path
     pub lead_dist_m: f64,
     id_counter: u32,
+}
+
+impl Default for SensorFusion {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl SensorFusion {

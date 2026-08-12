@@ -195,6 +195,12 @@ pub struct EcuHcm {
     sim_time_s: f64,
 }
 
+impl Default for EcuHcm {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl EcuHcm {
     pub fn new() -> Self {
         EcuHcm {

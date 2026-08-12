@@ -12,6 +12,7 @@ use std::f32::consts::PI;
 ///   • size       = diameter in pixels (suggest 140–200)
 ///   • warn/crit  = thresholds that change color (0.0 = ignore)
 ///   • low_warn   = optional low-side warning (e.g. oil pressure)
+#[allow(clippy::too_many_arguments)]
 pub fn arc_gauge(
     ui: &mut Ui,
     value: f64,

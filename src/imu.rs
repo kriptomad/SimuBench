@@ -105,6 +105,12 @@ pub struct Imu {
     vibe_amp: f64, // vibration amplitude from engine
 }
 
+impl Default for Imu {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl Imu {
     pub fn new() -> Self {
         let mut imu = Imu {
@@ -144,6 +150,7 @@ impl Imu {
 
     /// Update IMU with vehicle dynamics.
     /// `ax_ms2` = longitudinal acceleration, `yaw_rate` = deg/s, `rpm` = engine RPM
+    #[allow(clippy::too_many_arguments)]
     pub fn update(
         &mut self,
         ax_ms2: f64,

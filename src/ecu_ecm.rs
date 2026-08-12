@@ -193,6 +193,12 @@ pub struct EcuEcm {
     warmup_done: bool,
 }
 
+impl Default for EcuEcm {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl EcuEcm {
     pub fn new() -> Self {
         EcuEcm {

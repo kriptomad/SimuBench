@@ -128,6 +128,12 @@ pub struct HeavyEcm {
     warmup_complete: bool,
 }
 
+impl Default for HeavyEcm {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl HeavyEcm {
     pub fn new() -> Self {
         Self {

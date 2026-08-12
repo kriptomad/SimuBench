@@ -234,6 +234,12 @@ pub struct CanTransportProtocol {
     pub completed: Vec<(u32, u8, u8, Vec<u8>)>, // (pgn, sa, da, data)
 }
 
+impl Default for CanTransportProtocol {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl CanTransportProtocol {
     pub fn new() -> Self {
         CanTransportProtocol {
@@ -246,7 +252,7 @@ impl CanTransportProtocol {
     /// Queue a large J1939 message for BAM broadcast (> 8 bytes)
     pub fn send_bam(&mut self, ts: f64, pgn: u32, sa: u8, data: Vec<u8>) -> Vec<J1939Frame> {
         let total = data.len() as u16;
-        let packets = ((total + 6) / 7) as u8;
+        let packets = total.div_ceil(7) as u8;
         let mut frames = Vec::new();
 
         // TP.CM_BAM — announce the broadcast
@@ -845,7 +851,7 @@ impl CanBus {
         let frames: Vec<J1939Frame> = self.tx_queue.drain(..).collect();
         for frame in frames {
             // ─ Bit error injection (1 in 200) ───────────────────────────────
-            if self.inject_bit_error && self.total_tx % 200 == 0 {
+            if self.inject_bit_error && self.total_tx.is_multiple_of(200) {
                 if let Some(node) = nodes.get_mut(&frame.sa) {
                     node.tx_error();
                 }
@@ -860,7 +866,7 @@ impl CanBus {
                 continue;
             }
             // ─ Missing ACK injection ────────────────────────────────────────
-            if self.inject_missing_ack && self.total_tx % 75 == 0 {
+            if self.inject_missing_ack && self.total_tx.is_multiple_of(75) {
                 if let Some(node) = nodes.get_mut(&frame.sa) {
                     node.tx_error();
                 }
@@ -985,6 +991,12 @@ pub struct CanNetworkSnapshot {
     pub total_errors_all_buses: u64,
     pub online_nodes: usize,
     pub buses: Vec<BusSnapshot>,
+}
+
+impl Default for CanNetwork {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl CanNetwork {
@@ -1254,7 +1266,7 @@ impl CanNetwork {
             fs::create_dir_all(parent)?;
         }
         let data = serde_json::to_string_pretty(&self.snapshot()).map_err(|e| {
-            std::io::Error::new(std::io::ErrorKind::Other, format!("json serialize: {}", e))
+            std::io::Error::other(format!("json serialize: {}", e))
         })?;
         fs::write(path, data)
     }

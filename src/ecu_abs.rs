@@ -82,6 +82,12 @@ pub struct Wheel {
     abs_phase: f64,
 }
 
+impl Default for Wheel {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl Wheel {
     pub fn new() -> Self {
         Wheel {
@@ -181,6 +187,12 @@ pub struct EcuAbs {
     t_dm1: f64,
 }
 
+impl Default for EcuAbs {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl EcuAbs {
     pub fn new() -> Self {
         EcuAbs {
@@ -220,6 +232,7 @@ impl EcuAbs {
     // ─────────────────────────────────────────────────────────────────────────
     /// Main tick. Call with current vehicle state.
     /// Returns throttle cut fraction (0-1) and J1939 frames.
+    #[allow(clippy::too_many_arguments)]
     pub fn tick(
         &mut self,
         vehicle_speed_kmh: f64,
@@ -307,7 +320,7 @@ impl EcuAbs {
     }
 
     fn update_wheel_speeds(&mut self, vehicle_speed: f64, dt: f64) {
-        for (_, w) in self.wheels.iter_mut().enumerate() {
+        for w in self.wheels.iter_mut() {
             if w.abs_active {
                 // ABS is dumping pressure — wheel recovers toward vehicle speed
                 let recover_rate = 50.0 * dt; // 50 km/h/s recovery

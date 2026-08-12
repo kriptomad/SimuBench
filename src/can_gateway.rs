@@ -139,6 +139,12 @@ pub struct CanGateway {
     pub inject_missing_ack: bool,
 }
 
+impl Default for CanGateway {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl CanGateway {
     pub fn new() -> Self {
         CanGateway {
@@ -206,7 +212,7 @@ impl CanGateway {
 
         for frame in frames {
             // Fault injection: drop frame + log error
-            if self.inject_bit_error && self.total_tx % 100 == 0 {
+            if self.inject_bit_error && self.total_tx.is_multiple_of(100) {
                 self.total_errors += 1;
                 let ts = frame.timestamp;
                 let sa = frame.sa;
@@ -221,7 +227,7 @@ impl CanGateway {
                 }
                 continue;
             }
-            if self.inject_missing_ack && self.total_tx % 50 == 0 {
+            if self.inject_missing_ack && self.total_tx.is_multiple_of(50) {
                 self.total_errors += 1;
                 let ts = frame.timestamp;
                 let sa = frame.sa;

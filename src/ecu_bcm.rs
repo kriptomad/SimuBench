@@ -90,6 +90,12 @@ pub struct EcuBcm {
     t_heartbeat: f64,
 }
 
+impl Default for EcuBcm {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl EcuBcm {
     pub fn new() -> Self {
         let fuses = vec![
@@ -216,13 +222,10 @@ impl EcuBcm {
                         0.0
                     }
                 }
-                "HORN" => {
-                    if self.horn_active {
+                "HORN"
+                    if self.horn_active => {
                         8.0
-                    } else {
-                        0.0
                     }
-                }
                 _ => 0.0,
             };
             fuse.check();

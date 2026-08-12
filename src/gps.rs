@@ -112,6 +112,12 @@ pub struct GpsModule {
     pub update_rate_hz: f64,
 }
 
+impl Default for GpsModule {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl GpsModule {
     pub fn new() -> Self {
         // Start at a typical field location in Brazil (lat -22°, lon -47°)

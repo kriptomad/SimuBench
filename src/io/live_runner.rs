@@ -168,7 +168,10 @@ pub fn connect_ecm(cfg: &HwConfig, target_sa: Option<u8>) -> Result<(), HwError>
                 len: 8,
                 timestamp_ms: Some(now_ms()),
             });
-            let _ = adapter.send_frame(req);
+            if let Err(e) = adapter.send_frame(req) {
+                adapter.close()?;
+                return Err(e);
+            }
         }
 
         // Authentication/identification proxy: require at least one response from target or any ECM.

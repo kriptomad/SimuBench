@@ -205,6 +205,12 @@ pub struct EcuTcm {
     pub total_distance_km: f64,
 }
 
+impl Default for EcuTcm {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl EcuTcm {
     pub fn new() -> Self {
         EcuTcm {

@@ -293,7 +293,9 @@ impl UdsServer {
         }
         let service = request[0];
 
-        let response = match service {
+        
+
+        match service {
             0x10 => self.svc_session_control(request, elapsed),
             0x11 => self.svc_ecu_reset(request, elapsed),
             0x14 => self.svc_clear_dtc(request, elapsed),
@@ -307,9 +309,7 @@ impl UdsServer {
             0x37 => self.svc_request_transfer_exit(request, elapsed),
             0x3E => self.svc_tester_present(request, elapsed),
             _ => self.nrc(service, Nrc::ServiceNotSupported),
-        };
-
-        response
+        }
     }
 
     // ─────────────────────────────────────────────────────────────────────────
@@ -402,8 +402,8 @@ impl UdsServer {
                 self.freeze_frames.clear();
             }
             spn => {
-                self.active_dtcs.retain(|d| d.spn != spn as u32);
-                self.stored_dtcs.retain(|d| d.spn != spn as u32);
+                self.active_dtcs.retain(|d| d.spn != spn);
+                self.stored_dtcs.retain(|d| d.spn != spn);
             }
         }
         self.log(
@@ -689,7 +689,7 @@ impl UdsServer {
         let rid: u16 = ((rid_hi as u16) << 8) | rid_lo as u16;
 
         match rid {
-            r if r == did::ROUTINE_DPF_REGEN as u16 => match sub {
+            r if r == did::ROUTINE_DPF_REGEN => match sub {
                 0x01 => {
                     self.dpf_regen_routine_active = true;
                 }
@@ -698,7 +698,7 @@ impl UdsServer {
                 }
                 _ => {}
             },
-            r if r == did::ROUTINE_INJECTOR_TEST as u16 => match sub {
+            r if r == did::ROUTINE_INJECTOR_TEST => match sub {
                 0x01 => {
                     self.injector_test_active = true;
                 }
@@ -726,7 +726,7 @@ impl UdsServer {
         if self.security < SecurityLevel::Level3 {
             return self.nrc(0x34, Nrc::SecurityAccessDenied);
         }
-        if req.len() < 7 {
+        if req.len() < 8 {
             return self.nrc(0x34, Nrc::IncorrectMessageLength);
         }
         self.download_address = ((req[2] as u32) << 24)
@@ -734,7 +734,7 @@ impl UdsServer {
             | ((req[4] as u32) << 8)
             | req[5] as u32;
         self.download_expected_len =
-            ((req[5] as u32) << 24) | ((req[6] as u32) << 16) | (req[7].min(0) as u32); // simplified
+            ((req[4] as u32) << 24) | ((req[5] as u32) << 16) | ((req[6] as u32) << 8) | req[7] as u32;
         self.download_received_len = 0;
         self.download_block_num = 1;
         self.download_state = DownloadState::Requested;

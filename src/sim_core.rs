@@ -3,6 +3,9 @@
 
 pub trait SimState {
     fn len(&self) -> usize;
+    fn is_empty(&self) -> bool {
+        self.len() == 0
+    }
     fn get(&self, idx: usize) -> f64;
     fn set(&mut self, idx: usize, value: f64);
 }
