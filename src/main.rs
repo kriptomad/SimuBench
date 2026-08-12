@@ -7073,8 +7073,8 @@ impl App {
                                 Ok(s) => self.uds_log.push((
                                     false,
                                     format!(
-                                        "            LIVE flash ok: {} bytes / {} blocks",
-                                        s.bytes_sent, s.blocks_sent
+                                        "            LIVE flash ok: {} bytes / {} blocks / crc32=0x{:08X}",
+                                        s.bytes_sent, s.blocks_sent, s.crc32
                                     ),
                                 )),
                                 Err(e) => self

@@ -45,6 +45,7 @@ pub struct HwConfig {
     pub serial_parity: Option<String>,
     pub serial_stopbits: u8,
     pub can_interface: Option<String>,
+    pub ethernet_probe: Option<String>,
     pub enable_write: bool,
     pub allowlist_path: Option<PathBuf>,
     pub rate_limit_global_per_sec: u32,
@@ -53,6 +54,13 @@ pub struct HwConfig {
     pub write_retry_backoff_ms: u64,
     pub reconnect_backoff_base_ms: u64,
     pub reconnect_backoff_max_ms: u64,
+    pub uds_retry_count: u8,
+    pub uds_timeout_p2_ms: u64,
+    pub uds_timeout_p2star_ms: u64,
+    pub uds_st_min_ms: u64,
+    pub uds_block_size: u8,
+    pub j1939_idle_guard_ms: u64,
+    pub keep_channels_alive: bool,
     pub parser_max_frame_size: usize,
     pub dry_run: bool,
     pub use_isolation_hw: bool,
@@ -73,6 +81,7 @@ impl Default for HwConfig {
             serial_parity: Some("None".to_string()),
             serial_stopbits: 1,
             can_interface: None,
+            ethernet_probe: None,
             enable_write: false,
             allowlist_path: None,
             rate_limit_global_per_sec: 100,
@@ -81,6 +90,13 @@ impl Default for HwConfig {
             write_retry_backoff_ms: 200,
             reconnect_backoff_base_ms: 500,
             reconnect_backoff_max_ms: 30_000,
+            uds_retry_count: 3,
+            uds_timeout_p2_ms: 1_000,
+            uds_timeout_p2star_ms: 5_000,
+            uds_st_min_ms: 5,
+            uds_block_size: 0,
+            j1939_idle_guard_ms: 2_500,
+            keep_channels_alive: true,
             parser_max_frame_size: 4096,
             dry_run: true,
             use_isolation_hw: false,
@@ -125,6 +141,8 @@ impl HwConfig {
                     .map_err(|e| HwError::Unknown(format!("invalid --serial-baud value: {e}")))?;
             } else if let Some(v) = a.strip_prefix("--can-if=") {
                 cfg.can_interface = Some(v.to_string());
+            } else if let Some(v) = a.strip_prefix("--eth-probe=") {
+                cfg.ethernet_probe = Some(v.to_string());
             } else if let Some(v) = a.strip_prefix("--rate-limit-global=") {
                 cfg.rate_limit_global_per_sec = v.parse::<u32>().map_err(|e| {
                     HwError::Unknown(format!("invalid --rate-limit-global value: {e}"))
@@ -133,6 +151,34 @@ impl HwConfig {
                 cfg.rate_limit_per_id_per_sec = v.parse::<u32>().map_err(|e| {
                     HwError::Unknown(format!("invalid --rate-limit-per-id value: {e}"))
                 })?;
+            } else if let Some(v) = a.strip_prefix("--uds-retries=") {
+                cfg.uds_retry_count = v
+                    .parse::<u8>()
+                    .map_err(|e| HwError::Unknown(format!("invalid --uds-retries value: {e}")))?;
+            } else if let Some(v) = a.strip_prefix("--uds-timeout-p2-ms=") {
+                cfg.uds_timeout_p2_ms = v.parse::<u64>().map_err(|e| {
+                    HwError::Unknown(format!("invalid --uds-timeout-p2-ms value: {e}"))
+                })?;
+            } else if let Some(v) = a.strip_prefix("--uds-timeout-p2star-ms=") {
+                cfg.uds_timeout_p2star_ms = v.parse::<u64>().map_err(|e| {
+                    HwError::Unknown(format!("invalid --uds-timeout-p2star-ms value: {e}"))
+                })?;
+            } else if let Some(v) = a.strip_prefix("--uds-st-min-ms=") {
+                cfg.uds_st_min_ms = v.parse::<u64>().map_err(|e| {
+                    HwError::Unknown(format!("invalid --uds-st-min-ms value: {e}"))
+                })?;
+            } else if let Some(v) = a.strip_prefix("--uds-block-size=") {
+                cfg.uds_block_size = v.parse::<u8>().map_err(|e| {
+                    HwError::Unknown(format!("invalid --uds-block-size value: {e}"))
+                })?;
+            } else if let Some(v) = a.strip_prefix("--j1939-idle-guard-ms=") {
+                cfg.j1939_idle_guard_ms = v.parse::<u64>().map_err(|e| {
+                    HwError::Unknown(format!("invalid --j1939-idle-guard-ms value: {e}"))
+                })?;
+            } else if a == "--keep-channels-alive" {
+                cfg.keep_channels_alive = true;
+            } else if a == "--keep-channels-alive=false" {
+                cfg.keep_channels_alive = false;
             }
         }
         Ok(cfg)

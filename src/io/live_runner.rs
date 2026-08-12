@@ -2,6 +2,7 @@ use std::collections::BTreeSet;
 use std::collections::VecDeque;
 use std::fs::{self, File};
 use std::io::Write;
+use std::net::{TcpStream, ToSocketAddrs};
 use std::path::Path;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
@@ -107,6 +108,7 @@ pub fn detect_ecms(cfg: &HwConfig, timeout: Duration) -> Result<DetectResult, Hw
             "Detect requires --hw-mode=live".to_string(),
         ));
     }
+    check_live_channel_policy(cfg)?;
 
     let mut adapter = super::hw::open_real_adapter(cfg)?;
     adapter.init(cfg)?;
@@ -147,6 +149,7 @@ pub fn connect_ecm(cfg: &HwConfig, target_sa: Option<u8>) -> Result<(), HwError>
             "Connect requires --hw-mode=live".to_string(),
         ));
     }
+    check_live_channel_policy(cfg)?;
 
     let mut adapter = super::hw::open_real_adapter(cfg)?;
     adapter.init(cfg)?;
@@ -210,6 +213,7 @@ pub fn start_retrieve_data(cfg: HwConfig, target_sa: Option<u8>) -> Result<LiveF
             "Retrieve requires --hw-mode=live".to_string(),
         ));
     }
+    check_live_channel_policy(&cfg)?;
 
     let stop = Arc::new(AtomicBool::new(false));
     let latest_snapshot = Arc::new(Mutex::new(EcmSnapshot::default()));
@@ -328,62 +332,353 @@ fn optf(v: Option<f64>) -> String {
 pub struct FlashSummary {
     pub bytes_sent: usize,
     pub blocks_sent: usize,
+    pub crc32: u32,
 }
 
-fn encode_uds_frame(cfg: &HwConfig, target_sa: Option<u8>, req: &[u8]) -> Result<Frame, HwError> {
-    if cfg.can_interface.is_some() {
-        if req.len() > 7 {
-            return Err(HwError::Unknown(
-                "UDS single-frame over CAN supports up to 7-byte payload in this workflow"
-                    .to_string(),
-            ));
+fn j1939_uds_req_id(dst_sa: u8) -> u32 {
+    0x18DA0000 | ((dst_sa as u32) << 8) | 0xF9
+}
+
+fn is_uds_response_id(target_sa: Option<u8>, id: u32) -> bool {
+    let pf = ((id >> 16) & 0xFF) as u8;
+    let ps = ((id >> 8) & 0xFF) as u8;
+    let sa = (id & 0xFF) as u8;
+    pf == 0xDA && ps == 0xF9 && target_sa.is_none_or(|t| t == sa)
+}
+
+fn can_payload(cf: &CanFrame) -> &[u8] {
+    &cf.data[..cf.len.min(8)]
+}
+
+fn send_frame_retry(
+    adapter: &mut dyn super::hw::HardwareInterface,
+    frame: Frame,
+    retry_count: u8,
+    backoff_ms: u64,
+) -> Result<(), HwError> {
+    let max_tries = retry_count.saturating_add(1);
+    let mut try_idx = 0u8;
+    loop {
+        match adapter.send_frame(frame.clone()) {
+            Ok(()) => return Ok(()),
+            Err(HwError::Timeout)
+            | Err(HwError::RateLimited)
+            | Err(HwError::TransceiverError)
+            | Err(HwError::BusOff)
+                if try_idx + 1 < max_tries =>
+            {
+                try_idx = try_idx.saturating_add(1);
+                thread::sleep(Duration::from_millis(backoff_ms.max(1)));
+            }
+            Err(e) => return Err(e),
         }
-        let dst = target_sa.unwrap_or(0x00);
+    }
+}
+
+fn send_can_sf(
+    adapter: &mut dyn super::hw::HardwareInterface,
+    cfg: &HwConfig,
+    dst_sa: u8,
+    payload: &[u8],
+) -> Result<(), HwError> {
+    if payload.len() > 7 {
+        return Err(HwError::Unknown(
+            "CAN single-frame payload exceeds 7 bytes".to_string(),
+        ));
+    }
+
+    let mut data = [0u8; 8];
+    data[0] = payload.len() as u8;
+    if !payload.is_empty() {
+        data[1..(1 + payload.len())].copy_from_slice(payload);
+    }
+
+    let frame = Frame::Can(CanFrame {
+        id: j1939_uds_req_id(dst_sa),
+        dlc: 8,
+        data,
+        len: 8,
+        timestamp_ms: Some(now_ms()),
+    });
+    send_frame_retry(
+        adapter,
+        frame,
+        cfg.uds_retry_count,
+        cfg.write_retry_backoff_ms,
+    )
+}
+
+fn wait_for_fc(
+    adapter: &mut dyn super::hw::HardwareInterface,
+    cfg: &HwConfig,
+    target_sa: u8,
+    timeout: Duration,
+) -> Result<(u8, u64), HwError> {
+    let deadline = Instant::now() + timeout;
+    while Instant::now() < deadline {
+        match adapter.read_frame() {
+            Ok(Frame::Can(cf)) => {
+                if !is_uds_response_id(Some(target_sa), cf.id) {
+                    continue;
+                }
+                let p = can_payload(&cf);
+                if p.len() < 3 {
+                    continue;
+                }
+                let pci_type = (p[0] >> 4) & 0x0F;
+                if pci_type != 0x3 {
+                    continue;
+                }
+                let fs = p[0] & 0x0F;
+                if fs == 0x1 {
+                    return Err(HwError::RateLimited);
+                }
+                if fs == 0x2 {
+                    return Err(HwError::Timeout);
+                }
+                let bs = p[1];
+                let st_min = p[2] as u64;
+                return Ok((bs, st_min.max(cfg.uds_st_min_ms)));
+            }
+            Ok(_) => {}
+            Err(HwError::Timeout) => {}
+            Err(e) => return Err(e),
+        }
+    }
+    Err(HwError::Timeout)
+}
+
+fn send_can_multiframe(
+    adapter: &mut dyn super::hw::HardwareInterface,
+    cfg: &HwConfig,
+    dst_sa: u8,
+    payload: &[u8],
+) -> Result<(), HwError> {
+    if payload.len() <= 7 {
+        return send_can_sf(adapter, cfg, dst_sa, payload);
+    }
+    if payload.len() > 4095 {
+        return Err(HwError::Unknown(
+            "CAN ISO-TP payload too large (>4095 bytes)".to_string(),
+        ));
+    }
+
+    let total_len = payload.len();
+    let mut ff = [0u8; 8];
+    ff[0] = 0x10 | (((total_len >> 8) & 0x0F) as u8);
+    ff[1] = (total_len & 0xFF) as u8;
+    ff[2..8].copy_from_slice(&payload[..6]);
+
+    let ff_frame = Frame::Can(CanFrame {
+        id: j1939_uds_req_id(dst_sa),
+        dlc: 8,
+        data: ff,
+        len: 8,
+        timestamp_ms: Some(now_ms()),
+    });
+    send_frame_retry(
+        adapter,
+        ff_frame,
+        cfg.uds_retry_count,
+        cfg.write_retry_backoff_ms,
+    )?;
+
+    let (mut bs, mut st_min) = wait_for_fc(
+        adapter,
+        cfg,
+        dst_sa,
+        Duration::from_millis(cfg.uds_timeout_p2_ms.max(1)),
+    )?;
+    if cfg.uds_block_size > 0 {
+        bs = cfg.uds_block_size;
+    }
+    st_min = st_min.max(cfg.uds_st_min_ms);
+
+    let mut idx = 6usize;
+    let mut sn = 1u8;
+    let mut sent_in_block = 0u8;
+
+    while idx < payload.len() {
+        let end = (idx + 7).min(payload.len());
         let mut data = [0u8; 8];
-        data[0] = req.len() as u8;
-        let len = req.len();
-        data[1..=len].copy_from_slice(req);
-        let id = 0x18DA0000 | ((dst as u32) << 8) | 0xF9;
-        Ok(Frame::Can(CanFrame {
-            id,
+        data[0] = 0x20 | (sn & 0x0F);
+        let count = end - idx;
+        data[1..(1 + count)].copy_from_slice(&payload[idx..end]);
+
+        let cf = Frame::Can(CanFrame {
+            id: j1939_uds_req_id(dst_sa),
             dlc: 8,
             data,
             len: 8,
             timestamp_ms: Some(now_ms()),
-        }))
-    } else {
-        Ok(Frame::Serial(super::hw::SerialFrame {
-            bytes: req.to_vec(),
-            protocol_hint: Some("uds-raw".into()),
-            timestamp_ms: Some(now_ms()),
-        }))
+        });
+        send_frame_retry(adapter, cf, cfg.uds_retry_count, cfg.write_retry_backoff_ms)?;
+
+        idx = end;
+        sn = (sn + 1) & 0x0F;
+        sent_in_block = sent_in_block.saturating_add(1);
+
+        if st_min > 0 {
+            thread::sleep(Duration::from_millis(st_min));
+        }
+
+        if bs > 0 && sent_in_block >= bs && idx < payload.len() {
+            let (new_bs, new_st) = wait_for_fc(
+                adapter,
+                cfg,
+                dst_sa,
+                Duration::from_millis(cfg.uds_timeout_p2star_ms.max(1)),
+            )?;
+            sent_in_block = 0;
+            if cfg.uds_block_size == 0 {
+                bs = new_bs;
+            }
+            st_min = new_st.max(cfg.uds_st_min_ms);
+        }
     }
+
+    Ok(())
 }
 
-fn decode_uds_response(frame: &Frame) -> Option<Vec<u8>> {
-    match frame {
-        Frame::Serial(sf) => {
-            if sf.bytes.is_empty() {
-                None
-            } else {
-                Some(sf.bytes.clone())
-            }
+fn send_fc_cts(
+    adapter: &mut dyn super::hw::HardwareInterface,
+    cfg: &HwConfig,
+    target_sa: u8,
+) -> Result<(), HwError> {
+    let mut data = [0u8; 8];
+    data[0] = 0x30;
+    data[1] = cfg.uds_block_size;
+    data[2] = cfg.uds_st_min_ms.min(0x7F) as u8;
+
+    let frame = Frame::Can(CanFrame {
+        id: j1939_uds_req_id(target_sa),
+        dlc: 8,
+        data,
+        len: 8,
+        timestamp_ms: Some(now_ms()),
+    });
+    send_frame_retry(
+        adapter,
+        frame,
+        cfg.uds_retry_count,
+        cfg.write_retry_backoff_ms,
+    )
+}
+
+fn recv_can_uds_response(
+    adapter: &mut dyn super::hw::HardwareInterface,
+    cfg: &HwConfig,
+    target_sa: Option<u8>,
+    timeout: Duration,
+) -> Result<Vec<u8>, HwError> {
+    let mut deadline = Instant::now() + timeout;
+    let mut last_keepalive = Instant::now();
+
+    loop {
+        if Instant::now() >= deadline {
+            return Err(HwError::Timeout);
         }
-        Frame::Can(cf) => {
-            if cf.len == 0 {
-                return None;
+
+        match adapter.read_frame() {
+            Ok(Frame::Can(cf)) => {
+                if !is_uds_response_id(target_sa, cf.id) {
+                    continue;
+                }
+                let p = can_payload(&cf);
+                if p.is_empty() {
+                    continue;
+                }
+
+                let pci_type = (p[0] >> 4) & 0x0F;
+                if pci_type == 0x0 {
+                    let l = (p[0] & 0x0F) as usize;
+                    if p.len() < 1 + l {
+                        continue;
+                    }
+                    let payload = p[1..(1 + l)].to_vec();
+                    if payload.len() >= 3 && payload[0] == 0x7F && payload[2] == 0x78 {
+                        deadline = Instant::now()
+                            + Duration::from_millis(cfg.uds_timeout_p2star_ms.max(1));
+                        continue;
+                    }
+                    return Ok(payload);
+                }
+
+                if pci_type == 0x1 {
+                    if p.len() < 2 {
+                        continue;
+                    }
+                    let total_len = (((p[0] as usize) & 0x0F) << 8) | (p[1] as usize);
+                    if total_len == 0 {
+                        continue;
+                    }
+
+                    let src_sa = (cf.id & 0xFF) as u8;
+                    send_fc_cts(adapter, cfg, src_sa)?;
+
+                    let mut out = Vec::with_capacity(total_len);
+                    out.extend_from_slice(&p[2..p.len().min(8)]);
+                    let mut expected_sn = 1u8;
+
+                    while out.len() < total_len {
+                        match adapter.read_frame() {
+                            Ok(Frame::Can(seg)) => {
+                                if !is_uds_response_id(target_sa, seg.id) {
+                                    continue;
+                                }
+                                let sp = can_payload(&seg);
+                                if sp.is_empty() {
+                                    continue;
+                                }
+                                let t = (sp[0] >> 4) & 0x0F;
+                                if t != 0x2 {
+                                    continue;
+                                }
+                                let sn_cf = sp[0] & 0x0F;
+                                if sn_cf != expected_sn {
+                                    return Err(HwError::ParseError {
+                                        cause: "ISO-TP CF sequence mismatch".to_string(),
+                                        raw_data: format!(
+                                            "expected_sn={expected_sn}, got_sn={sn_cf}"
+                                        ),
+                                    });
+                                }
+                                expected_sn = (expected_sn + 1) & 0x0F;
+                                out.extend_from_slice(&sp[1..]);
+                            }
+                            Ok(_) => {}
+                            Err(HwError::Timeout) => {}
+                            Err(e) => return Err(e),
+                        }
+
+                        if Instant::now() >= deadline {
+                            return Err(HwError::Timeout);
+                        }
+                    }
+
+                    out.truncate(total_len);
+                    if out.len() >= 3 && out[0] == 0x7F && out[2] == 0x78 {
+                        deadline = Instant::now()
+                            + Duration::from_millis(cfg.uds_timeout_p2star_ms.max(1));
+                        continue;
+                    }
+                    return Ok(out);
+                }
             }
-            let raw = &cf.data[..cf.len.min(8)];
-            if raw.is_empty() {
-                return None;
+            Ok(Frame::Serial(_)) => {}
+            Err(HwError::Timeout) => {
+                if cfg.keep_channels_alive
+                    && cfg.can_interface.is_some()
+                    && last_keepalive.elapsed()
+                        >= Duration::from_millis(cfg.j1939_idle_guard_ms.max(250))
+                {
+                    if let Some(sa) = target_sa {
+                        let _ = send_can_sf(adapter, cfg, sa, &[0x3E, 0x00]);
+                    }
+                    last_keepalive = Instant::now();
+                }
             }
-            let sf_len = raw[0] as usize;
-            if sf_len > 0 && sf_len <= 7 && raw.len() > 1 {
-                let payload_len = sf_len.min(raw.len() - 1);
-                Some(raw[1..(1 + payload_len)].to_vec())
-            } else {
-                Some(raw.to_vec())
-            }
+            Err(e) => return Err(e),
         }
     }
 }
@@ -395,22 +690,67 @@ fn send_uds_and_wait(
     req: &[u8],
     timeout: Duration,
 ) -> Result<Vec<u8>, HwError> {
-    let frame = encode_uds_frame(cfg, target_sa, req)?;
-    adapter.send_frame(frame)?;
+    if cfg.can_interface.is_some() {
+        let dst_sa = target_sa.unwrap_or(0x00);
+        send_can_multiframe(adapter, cfg, dst_sa, req)?;
+        return recv_can_uds_response(adapter, cfg, target_sa, timeout);
+    }
+
+    let frame = Frame::Serial(super::hw::SerialFrame {
+        bytes: req.to_vec(),
+        protocol_hint: Some("uds-raw".into()),
+        timestamp_ms: Some(now_ms()),
+    });
+    send_frame_retry(
+        adapter,
+        frame,
+        cfg.uds_retry_count,
+        cfg.write_retry_backoff_ms,
+    )?;
 
     let deadline = Instant::now() + timeout;
     while Instant::now() < deadline {
         match adapter.read_frame() {
-            Ok(frame) => {
-                if let Some(resp) = decode_uds_response(&frame) {
-                    return Ok(resp);
+            Ok(Frame::Serial(sf)) => {
+                if sf.bytes.is_empty() {
+                    continue;
                 }
+                if sf.bytes.len() >= 3 && sf.bytes[0] == 0x7F && sf.bytes[2] == 0x78 {
+                    continue;
+                }
+                return Ok(sf.bytes);
             }
+            Ok(Frame::Can(_)) => {}
             Err(HwError::Timeout) => {}
             Err(e) => return Err(e),
         }
     }
     Err(HwError::Timeout)
+}
+
+fn check_live_channel_policy(cfg: &HwConfig) -> Result<(), HwError> {
+    if cfg.ethernet_probe.is_some() && cfg.can_interface.is_none() {
+        return Err(HwError::Unknown(
+            "ethernet/internet checks require CAN/J1939 active (--can-if) to keep channel continuity"
+                .to_string(),
+        ));
+    }
+
+    if let Some(target) = &cfg.ethernet_probe {
+        let mut addrs = target
+            .to_socket_addrs()
+            .map_err(|e| HwError::Unknown(format!("invalid --eth-probe target: {e}")))?;
+        let addr = addrs
+            .next()
+            .ok_or_else(|| HwError::Unknown("--eth-probe resolved no socket address".to_string()))?;
+        TcpStream::connect_timeout(&addr, Duration::from_millis(350)).map_err(|e| {
+            HwError::Unknown(format!(
+                "ethernet/internet check failed ({target}): {e}; preserving J1939 stability"
+            ))
+        })?;
+    }
+
+    Ok(())
 }
 
 pub fn live_clean_ecm(cfg: &HwConfig, target_sa: Option<u8>) -> Result<(), HwError> {
@@ -422,24 +762,31 @@ pub fn live_clean_ecm(cfg: &HwConfig, target_sa: Option<u8>) -> Result<(), HwErr
     if !cfg.write_effectively_enabled() {
         return Err(HwError::WriteBlockedAllowlist);
     }
+    check_live_channel_policy(cfg)?;
 
     let mut adapter = super::hw::open_real_adapter(cfg)?;
     adapter.init(cfg)?;
 
-    let _ = send_uds_and_wait(&mut *adapter, cfg, target_sa, &[0x10, 0x02], Duration::from_secs(1))?;
+    let _ = send_uds_and_wait(
+        &mut *adapter,
+        cfg,
+        target_sa,
+        &[0x10, 0x02],
+        Duration::from_millis(cfg.uds_timeout_p2_ms.max(1)),
+    )?;
     let _ = send_uds_and_wait(
         &mut *adapter,
         cfg,
         target_sa,
         &[0x14, 0xFF, 0xFF, 0xFF],
-        Duration::from_secs(1),
+        Duration::from_millis(cfg.uds_timeout_p2_ms.max(1)),
     )?;
     let _ = send_uds_and_wait(
         &mut *adapter,
         cfg,
         target_sa,
         &[0x31, 0x01, 0xDF, 0x04],
-        Duration::from_secs(1),
+        Duration::from_millis(cfg.uds_timeout_p2_ms.max(1)),
     )?;
 
     adapter.close()?;
@@ -462,12 +809,26 @@ pub fn live_flash_ecm_firmware(
     if !cfg.write_effectively_enabled() {
         return Err(HwError::WriteBlockedAllowlist);
     }
+    check_live_channel_policy(cfg)?;
 
     let mut adapter = super::hw::open_real_adapter(cfg)?;
     adapter.init(cfg)?;
+    let firmware_crc = crc32fast::hash(firmware);
 
-    let _ = send_uds_and_wait(&mut *adapter, cfg, target_sa, &[0x10, 0x02], Duration::from_secs(1))?;
-    let seed = send_uds_and_wait(&mut *adapter, cfg, target_sa, &[0x27, 0x05], Duration::from_secs(1))?;
+    let _ = send_uds_and_wait(
+        &mut *adapter,
+        cfg,
+        target_sa,
+        &[0x10, 0x02],
+        Duration::from_millis(cfg.uds_timeout_p2_ms.max(1)),
+    )?;
+    let seed = send_uds_and_wait(
+        &mut *adapter,
+        cfg,
+        target_sa,
+        &[0x27, 0x05],
+        Duration::from_millis(cfg.uds_timeout_p2_ms.max(1)),
+    )?;
     if seed.len() < 6 || seed[0] != 0x67 {
         adapter.close()?;
         return Err(HwError::Unknown("security seed response invalid".to_string()));
@@ -485,8 +846,20 @@ pub fn live_flash_ecm_firmware(
         ((key >> 8) & 0xFF) as u8,
         (key & 0xFF) as u8,
     ];
-    let _ = send_uds_and_wait(&mut *adapter, cfg, target_sa, &key_req, Duration::from_secs(1))?;
-    let _ = send_uds_and_wait(&mut *adapter, cfg, target_sa, &[0x10, 0x03], Duration::from_secs(1))?;
+    let _ = send_uds_and_wait(
+        &mut *adapter,
+        cfg,
+        target_sa,
+        &key_req,
+        Duration::from_millis(cfg.uds_timeout_p2_ms.max(1)),
+    )?;
+    let _ = send_uds_and_wait(
+        &mut *adapter,
+        cfg,
+        target_sa,
+        &[0x10, 0x03],
+        Duration::from_millis(cfg.uds_timeout_p2_ms.max(1)),
+    )?;
 
     let total_len = firmware.len() as u32;
     let req_dl = [
@@ -501,25 +874,100 @@ pub fn live_flash_ecm_firmware(
         ((total_len >> 8) & 0xFF) as u8,
         (total_len & 0xFF) as u8,
     ];
-    let _ = send_uds_and_wait(&mut *adapter, cfg, target_sa, &req_dl, Duration::from_secs(1))?;
+    let dl_rsp = send_uds_and_wait(
+        &mut *adapter,
+        cfg,
+        target_sa,
+        &req_dl,
+        Duration::from_millis(cfg.uds_timeout_p2_ms.max(1)),
+    )?;
+
+    let mut max_block_payload = 127usize;
+    if dl_rsp.len() >= 4 && dl_rsp[0] == 0x74 {
+        let mbl = ((dl_rsp[2] as u16) << 8) | dl_rsp[3] as u16;
+        if mbl > 2 {
+            max_block_payload = (mbl as usize).saturating_sub(2).max(1);
+        }
+    }
+    max_block_payload = max_block_payload.min(2048);
 
     let mut block = 1u8;
     let mut blocks = 0usize;
-    for chunk in firmware.chunks(5) {
+    for chunk in firmware.chunks(max_block_payload) {
         let mut req = Vec::with_capacity(chunk.len() + 2);
         req.push(0x36);
         req.push(block);
         req.extend_from_slice(chunk);
-        let _ = send_uds_and_wait(&mut *adapter, cfg, target_sa, &req, Duration::from_secs(2))?;
+        let ack = send_uds_and_wait(
+            &mut *adapter,
+            cfg,
+            target_sa,
+            &req,
+            Duration::from_millis(cfg.uds_timeout_p2star_ms.max(1)),
+        )?;
+        if ack.len() < 2 || ack[0] != 0x76 || ack[1] != block {
+            adapter.close()?;
+            return Err(HwError::Unknown(format!(
+                "transfer ack mismatch for block {block}"
+            )));
+        }
         block = block.wrapping_add(1);
         blocks += 1;
     }
 
-    let _ = send_uds_and_wait(&mut *adapter, cfg, target_sa, &[0x37, 0x00], Duration::from_secs(1))?;
+    let exit_req_crc = [
+        0x37,
+        ((firmware_crc >> 24) & 0xFF) as u8,
+        ((firmware_crc >> 16) & 0xFF) as u8,
+        ((firmware_crc >> 8) & 0xFF) as u8,
+        (firmware_crc & 0xFF) as u8,
+    ];
+    let exit = send_uds_and_wait(
+        &mut *adapter,
+        cfg,
+        target_sa,
+        &exit_req_crc,
+        Duration::from_millis(cfg.uds_timeout_p2star_ms.max(1)),
+    )
+    .or_else(|_| {
+        send_uds_and_wait(
+            &mut *adapter,
+            cfg,
+            target_sa,
+            &[0x37, 0x00],
+            Duration::from_millis(cfg.uds_timeout_p2star_ms.max(1)),
+        )
+    })?;
+    if exit.first().copied() != Some(0x77) {
+        adapter.close()?;
+        return Err(HwError::Unknown(
+            "transfer exit rejected during integrity verification".to_string(),
+        ));
+    }
+
+    let verify_req = [
+        0x31,
+        0x01,
+        0xF1,
+        0x90,
+        ((firmware_crc >> 24) & 0xFF) as u8,
+        ((firmware_crc >> 16) & 0xFF) as u8,
+        ((firmware_crc >> 8) & 0xFF) as u8,
+        (firmware_crc & 0xFF) as u8,
+    ];
+    let _ = send_uds_and_wait(
+        &mut *adapter,
+        cfg,
+        target_sa,
+        &verify_req,
+        Duration::from_millis(cfg.uds_timeout_p2star_ms.max(1)),
+    );
+
     adapter.close()?;
 
     Ok(FlashSummary {
         bytes_sent: firmware.len(),
         blocks_sent: blocks,
+        crc32: firmware_crc,
     })
 }

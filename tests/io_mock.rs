@@ -30,6 +30,13 @@ fn hw_config_parses_cli_flags() {
         "--allowlist=./allowlist.json".to_string(),
         "--enable-write".to_string(),
         "--noninteractive-approved".to_string(),
+        "--uds-retries=5".to_string(),
+        "--uds-timeout-p2-ms=1300".to_string(),
+        "--uds-timeout-p2star-ms=4500".to_string(),
+        "--uds-st-min-ms=10".to_string(),
+        "--uds-block-size=8".to_string(),
+        "--j1939-idle-guard-ms=3000".to_string(),
+        "--keep-channels-alive=false".to_string(),
     ];
 
     let cfg = HwConfig::from_cli_args(&args).expect("valid args");
@@ -41,6 +48,13 @@ fn hw_config_parses_cli_flags() {
     );
     // dry-run must keep writes disabled effectively
     assert!(!cfg.write_effectively_enabled());
+    assert_eq!(cfg.uds_retry_count, 5);
+    assert_eq!(cfg.uds_timeout_p2_ms, 1300);
+    assert_eq!(cfg.uds_timeout_p2star_ms, 4500);
+    assert_eq!(cfg.uds_st_min_ms, 10);
+    assert_eq!(cfg.uds_block_size, 8);
+    assert_eq!(cfg.j1939_idle_guard_ms, 3000);
+    assert!(!cfg.keep_channels_alive);
 }
 
 #[test]
