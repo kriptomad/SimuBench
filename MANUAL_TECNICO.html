@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Manual Técnico — Heavy Machinery ECU Bench</title>
+<title>Manual Técnico — SimuBench ECU Platform</title>
 <style>
   body { font-family: Calibri, Arial, sans-serif; font-size: 11pt; margin: 3cm; line-height: 1.5; color: #1a1a1a; }
   h1 { font-size: 22pt; color: #003366; border-bottom: 3px solid #003366; padding-bottom: 8px; margin-top: 40px; }
@@ -45,9 +45,9 @@
 <!-- ═══════════════════════ CAPA ═══════════════════════════════════════════ -->
 <div style="text-align:center; margin-top:100px; margin-bottom:80px;">
   <h1 style="font-size:28pt; border:none; color:#003366;">Manual Técnico</h1>
-  <h2 style="font-size:20pt; border:none; color:#0055a0;">Heavy Machinery ECU Simulation Bench</h2>
-  <p style="font-size:13pt; color:#555;">Documentação linha a linha de todos os módulos</p>
-  <p style="font-size:11pt; color:#888; margin-top:60px;">Versão 2.0 — 2026-08-11</p>
+    <h2 style="font-size:20pt; border:none; color:#0055a0;">SimuBench ECU Platform (Simulation + ECM-Live + Safety IO)</h2>
+    <p style="font-size:13pt; color:#555;">Documentação técnica completa do sistema atual</p>
+    <p style="font-size:11pt; color:#888; margin-top:60px;">Versão 3.0 — 2026-08-12</p>
   <p style="font-size:10pt; color:#aaa;">Rust · J1939 · CAN Multi-Bus · UDS ISO 14229 · OSEK NM · LIDAR · RADAR · GPS · IMU · AD SAE L2/L3 · V2X · Telematics · egui</p>
 </div>
 
@@ -83,6 +83,7 @@
   <li><a href="#lib">lib.rs — Orquestrador Central (HeavyMachinery)</a></li>
   <li><a href="#widgets">widgets.rs — Widgets de GUI</a></li>
   <li><a href="#main">main.rs — Aplicação Desktop (eframe/egui)</a></li>
+    <li><a href="#code_breakdown">Code Break-Down — Módulos e Fluxo Linha a Linha</a></li>
   <li><a href="#fluxo">Fluxo Completo de Dados</a></li>
   <li><a href="#glossario">Glossário Técnico</a></li>
 </ol>
@@ -90,10 +91,10 @@
 
 <!-- ═══════════════════════ 1. INTRODUÇÃO ══════════════════════════════════ -->
 <div class="page-break"></div>
-<h1 id="intro">1. Introdução e Arquitetura Geral — v2.0</h1>
+<h1 id="intro">1. Introdução e Arquitetura Geral — v3.0</h1>
 
 <div class="info-box">
-<strong>Versão 2.0</strong> — Esta versão expande o simulador para incluir sensores de veículos autônomos (GPS, IMU, LIDAR, RADAR, Câmera), rede CAN multi-barramento (6 buses independentes), VCM, AD SAE Level 2/3, V2X e Telematics. O sistema tem agora <strong>32+ módulos</strong> e ~15.000 linhas de código Rust.
+<strong>Versão 3.0</strong> — O sistema evoluiu de um bench focado em dinâmica/ABS para uma plataforma completa com simulação multi-ECU, ECM-Live Data operacional (Detect/Connect/Retrieve/Stop/Export CSV), camada de IO real (serial, SocketCAN, vendor template Cat Comm), allowlist/rate-limit e trilha de auditoria JSONL.
 </div>
 
 <p>
@@ -2423,6 +2424,161 @@ BenchApp::update() [continuação]
         Plots       → egui_plot com dados históricos
 </pre>
 
+<!-- ═══════════════════════ 26A. CODE BREAK-DOWN ═══════════════════════ -->
+<div class="page-break"></div>
+<h1 id="code_breakdown">26A. Code Break-Down — Módulos e Fluxo Linha a Linha</h1>
+
+<div class="warn-box">
+<strong>Nota de escopo:</strong> este break-down cobre o comportamento linha a linha dos <em>fluxos críticos</em> (segurança, IO live, decode e UI de operação). Em um projeto com dezenas de módulos e milhares de linhas, esta abordagem evita ruído e foca no que impacta segurança operacional e integração real.
+</div>
+
+<h2>A. Mapa rápido por módulo (estado atual)</h2>
+<table>
+  <tr><th>Módulo</th><th>Responsabilidade</th><th>Funções-chave</th></tr>
+  <tr><td><code>src/main.rs</code></td><td>Aplicação desktop, tabs, fluxo operacional ECM-Live</td><td><code>update()</code>, <code>tab_ecm_live_data()</code>, fila de comandos</td></tr>
+  <tr><td><code>src/io/hw.rs</code></td><td>Contrato de hardware, parsing de flags, política safe-by-default</td><td><code>HwConfig::from_cli_args</code>, <code>open_real_adapter</code>, <code>write_listen_only_startup_log</code></td></tr>
+  <tr><td><code>src/io/live_runner.rs</code></td><td>Pipeline Detect/Connect/Retrieve, histórico e export CSV</td><td><code>detect_ecms</code>, <code>connect_ecm</code>, <code>start_retrieve_data</code>, <code>LiveFeed::export_csv</code></td></tr>
+  <tr><td><code>src/io/ecm_params.rs</code></td><td>Decode de parâmetros J1939 para snapshot de alto nível</td><td><code>decode_can_frame</code>, <code>merge_snapshot</code></td></tr>
+  <tr><td><code>src/io/allowlist.rs</code></td><td>Autorização de TX por regra (CAN/serial)</td><td><code>Allowlist::from_path</code>, <code>is_allowed</code>, <code>rule_matches_frame</code></td></tr>
+  <tr><td><code>src/io/rate_limiter.rs</code></td><td>Limiter global + por CAN ID</td><td><code>TwoLevelRateLimiter::check_can</code>, <code>check_serial</code></td></tr>
+  <tr><td><code>src/io/replay.rs</code></td><td>Conversão frame↔JSONL e replay forense</td><td><code>frame_to_record</code>, <code>record_to_frame</code></td></tr>
+  <tr><td><code>src/io/serial_adapter.rs</code></td><td>I/O real em COM/TTY</td><td><code>open</code>, <code>read_frame</code>, <code>send_frame</code></td></tr>
+  <tr><td><code>src/io/socketcan_adapter.rs</code></td><td>I/O CAN nativo Linux</td><td><code>open</code>, <code>read_frame</code>, <code>send_frame</code></td></tr>
+  <tr><td><code>src/io/vendor_cat_comm.rs</code></td><td>Template Windows-first Cat Comm (fail-closed)</td><td><code>open</code>, contrato de integração bridge/SDK</td></tr>
+  <tr><td><code>src/io/mock.rs</code></td><td>Adapter mock para teste/CI sem hardware</td><td><code>inject_rx</code>, <code>read_frame</code>, <code>send_frame</code></td></tr>
+  <tr><td><code>tests/io_mock.rs</code></td><td>Teste de políticas e pipeline IO</td><td>13 cenários de integração mock</td></tr>
+</table>
+
+<h2>B. Break-down linha a linha dos fluxos críticos</h2>
+
+<h3>B.1 Bootstrap seguro e seleção de adapter (<code>src/io/hw.rs</code>)</h3>
+<pre>
+1) HwConfig::from_cli_args(args)
+    - percorre cada argumento CLI;
+    - converte flags em campos tipados (modo, portas, dry-run, limites, allowlist);
+    - rejeita valores inválidos com erro explícito.
+
+2) write_intent_enabled()
+    - retorna true somente quando existe intenção de escrita segura:
+      enable_write && allowlist_path.is_some() && noninteractive_approved.
+
+3) write_effectively_enabled()
+    - retorna true apenas se intenção segura + dry_run=false.
+    - regra-chave: dry-run sempre bloqueia TX físico.
+
+4) open_real_adapter(cfg)
+    - prioriza vendor_name=cat_comm em Windows (feature vendor-windows);
+    - depois tenta CAN interface;
+    - depois serial;
+    - sem interface válida => erro explícito (nada implícito/silencioso).
+
+5) write_listen_only_startup_log(cfg)
+    - cria diretório de log;
+    - grava sessão auditável (JSONL.GZ) com estado de segurança na inicialização;
+    - indexa sessões com write efetivo habilitado.
+</pre>
+
+<h3>B.2 Fluxo ECM-Live operacional (<code>src/io/live_runner.rs</code> + <code>src/main.rs</code>)</h3>
+<pre>
+1) UI tab_ecm_live_data() (main.rs)
+    - botão Detect chama detect_ecms(cfg, timeout);
+    - botão Connect chama connect_ecm(cfg, target_sa);
+    - botão Retrieve Data chama start_retrieve_data(cfg.clone(), target_sa);
+    - botão Stop sinaliza feed.stop();
+    - botão Export CSV chama feed.export_csv(path).
+
+2) detect_ecms()
+    - abre adapter real e inicializa;
+    - lê frames durante janela de timeout;
+    - coleta SAs candidatos por PGNs esperados;
+    - fecha adapter e retorna lista de alvos detectados.
+
+3) connect_ecm()
+    - executa handshake básico de requisições J1939;
+    - espera resposta no intervalo definido;
+    - falha por timeout se não houver retorno válido.
+
+4) start_retrieve_data()
+    - inicia thread dedicada de leitura;
+    - para cada frame RX: incrementa contadores, registra JSONL e decodifica snapshot;
+    - atualiza snapshot compartilhado para a UI;
+    - empilha histórico (rolling) para dashboard e export.
+
+5) LiveFeed::export_csv()
+    - garante diretório de saída;
+    - grava cabeçalho CSV;
+    - serializa cada ponto histórico com timestamp e parâmetros-chave.
+</pre>
+
+<h3>B.3 Decode de parâmetros ECM (<code>src/io/ecm_params.rs</code>)</h3>
+<pre>
+1) j1939_pgn(id)
+    - extrai o PGN do CAN ID estendido (29 bits).
+
+2) decode_can_frame(frame)
+    - identifica PGN relevante (EEC1, ET1, EFL/P1...);
+    - converte bytes crus para unidades físicas (rpm, °C, kPa, %);
+    - retorna estrutura parcial de parâmetros disponíveis naquele frame.
+
+3) merge_snapshot(snapshot, frame)
+    - aplica somente campos presentes no decode atual;
+    - preserva valores anteriores para campos ausentes;
+    - mantém snapshot consistente para UI/telemetria.
+</pre>
+
+<h3>B.4 Controle de escrita (allowlist + rate limit)</h3>
+<pre>
+1) Allowlist::from_path(path)
+    - lê JSON de regras;
+    - valida schema e consistência de campos;
+    - retorna estrutura pronta para matching.
+
+2) Allowlist::is_allowed(frame)
+    - para CAN: compara id/mask e janelas de bytes permitidas;
+    - para serial: aplica matching de padrão hex;
+    - sem match => bloqueio.
+
+3) TwoLevelRateLimiter::check_can(id)
+    - consome token global;
+    - consome token por ID;
+    - qualquer falha => RateLimited.
+
+4) Send path efetivo
+    - policy gate (hw.rs) + allowlist + rate limiter;
+    - dry-run=true: registra intenção e não transmite no barramento.
+</pre>
+
+<h3>B.5 Adapters físicos e testes</h3>
+<pre>
+1) serial_adapter.rs
+    - open(): abre COM com timeout e mapeia erros de permissão/porta;
+    - read_frame(): lê bytes e encapsula em SerialFrame;
+    - send_frame(): transmite payload e confirma flush.
+
+2) socketcan_adapter.rs
+    - ativa somente em Linux para SocketCAN;
+    - converte frame socketcan para CanFrame do domínio interno;
+    - envia frame com validações de ID e payload.
+
+3) vendor_cat_comm.rs
+    - template fail-closed para integração Cat Comm;
+    - define pontos de extensão para SDK/bridge sem liberar TX inseguro por padrão.
+
+4) tests/io_mock.rs
+    - valida parsing de flags, bloqueio padrão de escrita, dry-run,
+      allowlist, rate-limit e replay timestamp (13 testes).
+</pre>
+
+<h2>C. Leitura recomendada por ordem</h2>
+<ol>
+  <li><code>src/io/hw.rs</code> (contrato + segurança)</li>
+  <li><code>src/io/live_runner.rs</code> (orquestração ECM-Live)</li>
+  <li><code>src/io/ecm_params.rs</code> (decode físico)</li>
+  <li><code>src/main.rs</code> (operação na UI)</li>
+  <li><code>src/io/allowlist.rs</code> + <code>src/io/rate_limiter.rs</code> (controle de escrita)</li>
+  <li><code>src/io/serial_adapter.rs</code> / <code>src/io/socketcan_adapter.rs</code> / <code>src/io/vendor_cat_comm.rs</code></li>
+</ol>
+
 <!-- ═══════════════════════ 27. GLOSSÁRIO COMPLETO ═══════════════════════ -->
 <div class="page-break"></div>
 <h1 id="glossario">27. Glossário Técnico — Completo v2.0</h1>
@@ -2501,43 +2657,10 @@ BenchApp::update() [continuação]
 
 <hr>
 <p style="text-align:center; color:#888; font-size:10pt; margin-top:40px;">
-  Manual Técnico — Heavy Machinery ECU Bench v2.0<br>
-  Atualizado em 2026-08-11 | 32+ módulos | ~15.000 linhas Rust<br>
-  Rust · J1939 · CAN Multi-Bus · UDS ISO 14229 · OSEK NM · LIDAR · RADAR · GPS · IMU · SAE L2/L3 · V2X · Telematics · egui/eframe
+    Manual Técnico — SimuBench ECU Platform v3.0<br>
+    Atualizado em 2026-08-12 | Simulação multi-ECU + ECM-Live + Safety IO<br>
+    Rust · J1939 · CAN Multi-Bus · UDS ISO 14229 · OSEK NM · LIDAR · RADAR · GPS · IMU · SAE L2/L3 · V2X · Telematics · egui/eframe
 </p>
 
 </body>
 </html>
-  <tr><td><strong>BSFC</strong></td><td>Brake Specific Fuel Consumption — eficiência do motor: g de combustível por kWh de energia produzida</td></tr>
-  <tr><td><strong>CAN</strong></td><td>Controller Area Network — barramento serial diferencial criado pela Bosch, padrão automotivo mundial</td></tr>
-  <tr><td><strong>CRDI</strong></td><td>Common Rail Direct Injection — sistema de injeção direta com trilho de pressão comum (300-2000 bar)</td></tr>
-  <tr><td><strong>DA</strong></td><td>Destination Address — endereço de destino (0xFF = broadcast para todos)</td></tr>
-  <tr><td><strong>DEF</strong></td><td>Diesel Exhaust Fluid (AdBlue) — solução de ureia 32.5% usada no SCR para reduzir NOx</td></tr>
-  <tr><td><strong>DLC</strong></td><td>Data Length Code — número de bytes de payload (0-8 no CAN clássico)</td></tr>
-  <tr><td><strong>DPF</strong></td><td>Diesel Particulate Filter — filtro de fuligem; precisa de regeneração periódica para queimar partículas</td></tr>
-  <tr><td><strong>DTC</strong></td><td>Diagnostic Trouble Code — código de falha. Formato J1939: SPN + FMI + contador de ocorrências</td></tr>
-  <tr><td><strong>ECM</strong></td><td>Engine Control Module — ECU que controla o motor (injeção, turbo, emissões, governador)</td></tr>
-  <tr><td><strong>ECU</strong></td><td>Electronic Control Unit — computador embarcado que controla um sistema específico do veículo</td></tr>
-  <tr><td><strong>EGR</strong></td><td>Exhaust Gas Recirculation — recircula parte dos gases de escape para reduzir temperaturas e NOx</td></tr>
-  <tr><td><strong>ESP</strong></td><td>Electronic Stability Program — detecta e corrige sobreesterçamento/subesterçamento aplicando freios individualmente</td></tr>
-  <tr><td><strong>FMI</strong></td><td>Failure Mode Identifier — código 0-31 que descreve como o parâmetro falhou (tensão alta, aberta, intermitente...)</td></tr>
-  <tr><td><strong>ISOBUS</strong></td><td>ISO 11783 — perfil J1939 para equipamentos agrícolas. Define VT, Task Controller, Address Claiming específico</td></tr>
-  <tr><td><strong>J1939</strong></td><td>SAE J1939 — padrão de comunicação CAN para veículos pesados. Define PGNs, SPNs, endereçamento, diagnóstico</td></tr>
-  <tr><td><strong>KAM</strong></td><td>Keep Alive Memory — memória alimentada pela bateria mesmo com ignição off. Guarda adaptações</td></tr>
-  <tr><td><strong>Load-Sensing</strong></td><td>Sistema hidráulico onde a bomba ajusta deslocamento conforme demanda de pressão dos atuadores</td></tr>
-  <tr><td><strong>NM</strong></td><td>Network Management (OSEK NM) — coordena estados de sleep/wake dos nós CAN</td></tr>
-  <tr><td><strong>NVM</strong></td><td>Non-Volatile Memory — EEPROM ou Flash que mantém dados sem alimentação</td></tr>
-  <tr><td><strong>PF</strong></td><td>PDU Format — campo de 8 bits do CAN ID que define o tipo de PDU (broadcast ou peer-to-peer)</td></tr>
-  <tr><td><strong>PGN</strong></td><td>Parameter Group Number — identificador do tipo de mensagem J1939 (conjunto de SPNs)</td></tr>
-  <tr><td><strong>PTO</strong></td><td>Power Take-Off (TDP no Brasil) — saída mecânica que transmite potência do motor para implementos</td></tr>
-  <tr><td><strong>REC</strong></td><td>Receive Error Counter — contador ISO 11898: incrementa em erros de recepção, decrementa em acertos</td></tr>
-  <tr><td><strong>SA</strong></td><td>Source Address — endereço de 1 byte que identifica o remetente de um frame J1939 (0x00=ECM, 0x03=TCM...)</td></tr>
-  <tr><td><strong>SCR</strong></td><td>Selective Catalytic Reduction — injeta DEF no escapamento para converter NOx em N2 + H2O</td></tr>
-  <tr><td><strong>SPN</strong></td><td>Suspect Parameter Number — identificador de um parâmetro específico (SPN 190 = RPM do motor)</td></tr>
-  <tr><td><strong>TCM</strong></td><td>Transmission Control Module — ECU que controla o câmbio automático (relações, embreagens, shuttle)</td></tr>
-  <tr><td><strong>TCS</strong></td><td>Traction Control System — detecta giro excessivo das rodas motrizes e reduz torque/aplica freio</td></tr>
-  <tr><td><strong>TEC</strong></td><td>Transmit Error Counter — incrementa em erros de TX (+8 por erro), decrementa em sucesso (-1). TEC≥256 → Bus-Off</td></tr>
-  <tr><td><strong>UDS</strong></td><td>Unified Diagnostic Services (ISO 14229) — protocolo padrão para diagnóstico de ECU via CAN</td></tr>
-  <tr><td><strong>VGT</strong></td><td>Variable Geometry Turbocharger — turbo com pás ajustáveis que otimiza boost em toda a faixa de RPM</td></tr>
-  <tr><td><strong>VT</strong></td><td>Virtual Terminal (ISOBUS) — display padronizado de equipamentos agrícolas (ISO 11783-6)</td></tr>
-</table>
