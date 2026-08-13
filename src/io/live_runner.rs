@@ -6,14 +6,28 @@ use std::net::{TcpStream, ToSocketAddrs};
 use std::path::Path;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
+use std::sync::OnceLock;
 use std::thread;
 use std::time::{Duration, Instant};
 
 use super::ecm_params::{j1939_pgn, merge_snapshot, EcmSnapshot, PGN_EEC1, PGN_EFL_P1, PGN_ET1};
 use super::hw::{CanFrame, Frame, HwConfig, HwError, HwMode};
 use super::replay::{append_record, frame_to_record, JsonlRecord};
+use serde::{Deserialize, Serialize};
+use sha2::{Digest, Sha256};
 
-#[derive(Debug, Clone)]
+const DID_VIN: u16 = 0xF190;
+const DID_SW_VERSION: u16 = 0xF189;
+const DID_HW_VERSION: u16 = 0xF191;
+const DID_CALIBRATION_ID: u16 = 0xF180;
+const DID_ECU_SERIAL: u16 = 0xF18C;
+const DID_FINGERPRINT: u16 = 0xF184;
+const DID_BATTERY_VOLTAGE: u16 = 0xDD0E;
+const MIN_FLASH_SUPPLY_V: f64 = 11.8;
+
+static FLASH_AUDIT_CHAIN: OnceLock<Mutex<[u8; 32]>> = OnceLock::new();
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DetectResult {
     pub source_addresses: Vec<u8>,
 }
@@ -221,6 +235,14 @@ pub fn connect_ecm(cfg: &HwConfig, target_sa: Option<u8>) -> Result<(), HwError>
         }
     }
 
+    let identity = read_ecu_identity(&mut *adapter, cfg, target_sa)?;
+    if !cfg.allow_untrusted_ecu && identity.fingerprint.is_none() {
+        adapter.close()?;
+        return Err(HwError::Unknown(
+            "connect rejected: missing fingerprint DID 0xF184 on trusted profile".to_string(),
+        ));
+    }
+
     adapter.close()?;
     Ok(())
 }
@@ -367,6 +389,428 @@ pub struct FlashSummary {
     pub bytes_sent: usize,
     pub blocks_sent: usize,
     pub crc32: u32,
+    pub supply_voltage_v: f64,
+    pub vin: String,
+    pub sw_version: String,
+    pub hw_version: String,
+    pub calibration_id: String,
+    pub ecu_serial: String,
+    pub transport_diagnostics: FlashTransportDiagnostics,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct FlashTransportDiagnostics {
+    pub security_seed_positive: bool,
+    pub security_unlock_positive: bool,
+    pub request_download_positive: bool,
+    pub transfer_data_blocks_attempted: usize,
+    pub transfer_data_blocks_acked: usize,
+    pub request_transfer_exit_positive: bool,
+    pub fc_blocksize_seen: Option<u8>,
+    pub fc_stmin_seen_ms: Option<u64>,
+    pub wait_frame_count: u32,
+    pub sequence_error_count: u32,
+    pub flowcontrol_timeout_count: u32,
+}
+
+#[derive(Debug, Clone, Default)]
+struct BridgeDiagAggregate {
+    wait_frame_count: u32,
+    sequence_error_count: u32,
+    flowcontrol_timeout_count: u32,
+    fc_blocksize_seen: Option<u8>,
+    fc_stmin_seen_ms: Option<u64>,
+}
+
+#[derive(Debug, Deserialize)]
+struct BridgeDiagLine {
+    ts_ms: u64,
+    wait_frame_count_delta: Option<u32>,
+    sequence_error_count_delta: Option<u32>,
+    flowcontrol_timeout_count_delta: Option<u32>,
+    fc_blocksize: Option<u8>,
+    fc_stmin_ms: Option<u64>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct EcuIdentity {
+    pub vin: String,
+    pub sw_version: String,
+    pub hw_version: String,
+    pub calibration_id: String,
+    pub ecu_serial: String,
+    pub fingerprint: Option<String>,
+}
+
+#[derive(Debug, Clone)]
+struct FlashPreflight {
+    supply_voltage_v: f64,
+    identity: EcuIdentity,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct FlashPreflightReport {
+    pub supply_voltage_v: f64,
+    pub identity: EcuIdentity,
+    pub trusted_fingerprint: bool,
+}
+
+#[derive(Debug, Clone, Copy, Serialize)]
+pub enum FlashAuditStatus {
+    Ok,
+    Failed,
+}
+
+#[derive(Debug, Serialize)]
+struct FlashAuditEvent<'a> {
+    ts_ms: u64,
+    stage: &'a str,
+    status: FlashAuditStatus,
+    detail: String,
+    target_sa: Option<u8>,
+    dry_run: bool,
+    prev_hash: String,
+    event_hash: String,
+}
+
+fn hex_lower(bytes: &[u8]) -> String {
+    let mut s = String::with_capacity(bytes.len() * 2);
+    for b in bytes {
+        s.push_str(&format!("{b:02x}"));
+    }
+    s
+}
+
+fn append_flash_audit(
+    cfg: &HwConfig,
+    stage: &str,
+    status: FlashAuditStatus,
+    detail: impl Into<String>,
+    target_sa: Option<u8>,
+) {
+    let chain = FLASH_AUDIT_CHAIN.get_or_init(|| Mutex::new([0u8; 32]));
+    let mut chain_guard = match chain.lock() {
+        Ok(g) => g,
+        Err(poisoned) => poisoned.into_inner(),
+    };
+    let prev_hash = *chain_guard;
+    let detail_str = detail.into();
+    let canonical = format!(
+        "{}|{}|{:?}|{}|{:?}|{}",
+        now_ms(),
+        stage,
+        status,
+        detail_str,
+        target_sa,
+        cfg.dry_run
+    );
+    let mut hasher = Sha256::new();
+    hasher.update(prev_hash);
+    hasher.update(canonical.as_bytes());
+    let event_hash_arr: [u8; 32] = hasher.finalize().into();
+
+    let event = FlashAuditEvent {
+        ts_ms: now_ms(),
+        stage,
+        status,
+        detail: detail_str,
+        target_sa,
+        dry_run: cfg.dry_run,
+        prev_hash: hex_lower(&prev_hash),
+        event_hash: hex_lower(&event_hash_arr),
+    };
+    let serialized = serde_json::to_string(&event).unwrap_or_else(|_| {
+        format!(
+            "{{\"ts_ms\":{},\"stage\":\"{}\",\"status\":\"Failed\",\"detail\":\"audit_serialize_failed\",\"target_sa\":{},\"dry_run\":{}}}",
+            event.ts_ms,
+            stage,
+            target_sa
+                .map(|sa| sa.to_string())
+                .unwrap_or_else(|| "null".to_string()),
+            cfg.dry_run
+        )
+    });
+
+    let rec = JsonlRecord {
+        ts: now_ms(),
+        transport: "audit".to_string(),
+        dir: "flash-stage".to_string(),
+        id: None,
+        dlc: None,
+        data: Some(serialized),
+        raw_hex: None,
+        allowed: Some(cfg.write_effectively_enabled()),
+        dry_run: Some(cfg.dry_run),
+    };
+    let _ = append_record(&cfg.log_dir.join("ecm_flash_audit.jsonl"), &rec);
+    *chain_guard = event_hash_arr;
+}
+
+fn ensure_positive_response(
+    rsp: &[u8],
+    req_sid: u8,
+    stage: &str,
+    cfg: &HwConfig,
+    target_sa: Option<u8>,
+) -> Result<(), HwError> {
+    if rsp.is_empty() {
+        append_flash_audit(
+            cfg,
+            stage,
+            FlashAuditStatus::Failed,
+            "empty UDS response",
+            target_sa,
+        );
+        return Err(HwError::Unknown(format!(
+            "{stage}: empty UDS response for service 0x{req_sid:02X}"
+        )));
+    }
+
+    if rsp[0] == 0x7F {
+        let nrc = rsp.get(2).copied().unwrap_or(0x00);
+        let sid = rsp.get(1).copied().unwrap_or(0x00);
+        append_flash_audit(
+            cfg,
+            stage,
+            FlashAuditStatus::Failed,
+            format!("negative response SID=0x{sid:02X} NRC=0x{nrc:02X}"),
+            target_sa,
+        );
+        return Err(HwError::Unknown(format!(
+            "{stage}: UDS negative response SID=0x{sid:02X}, NRC=0x{nrc:02X}"
+        )));
+    }
+
+    let expected = req_sid.wrapping_add(0x40);
+    if rsp[0] != expected {
+        append_flash_audit(
+            cfg,
+            stage,
+            FlashAuditStatus::Failed,
+            format!(
+                "unexpected positive response SID=0x{:02X}, expected=0x{expected:02X}",
+                rsp[0]
+            ),
+            target_sa,
+        );
+        return Err(HwError::Unknown(format!(
+            "{stage}: unexpected response SID=0x{:02X}, expected=0x{expected:02X}",
+            rsp[0]
+        )));
+    }
+
+    append_flash_audit(
+        cfg,
+        stage,
+        FlashAuditStatus::Ok,
+        format!("positive response SID=0x{:02X}", rsp[0]),
+        target_sa,
+    );
+    Ok(())
+}
+
+fn read_did_ascii(
+    adapter: &mut dyn super::hw::HardwareInterface,
+    cfg: &HwConfig,
+    target_sa: Option<u8>,
+    did: u16,
+    stage: &str,
+) -> Result<String, HwError> {
+    let req = [0x22, (did >> 8) as u8, (did & 0xFF) as u8];
+    let rsp = send_uds_and_wait(
+        adapter,
+        cfg,
+        target_sa,
+        &req,
+        Duration::from_millis(cfg.uds_timeout_p2_ms.max(1)),
+    )?;
+    ensure_positive_response(&rsp, 0x22, stage, cfg, target_sa)?;
+    if rsp.len() < 3 {
+        return Err(HwError::ParseError {
+            cause: format!("{stage}: short DID response"),
+            raw_data: format!("len={}", rsp.len()),
+        });
+    }
+    let rsp_did = ((rsp[1] as u16) << 8) | rsp[2] as u16;
+    if rsp_did != did {
+        return Err(HwError::ParseError {
+            cause: format!("{stage}: DID echo mismatch"),
+            raw_data: format!("expected=0x{did:04X}, got=0x{rsp_did:04X}"),
+        });
+    }
+    let payload = &rsp[3..];
+    if payload.is_empty() {
+        return Err(HwError::ParseError {
+            cause: format!("{stage}: empty DID payload"),
+            raw_data: format!("did=0x{did:04X}"),
+        });
+    }
+    let text = String::from_utf8(payload.to_vec()).map_err(|_| HwError::ParseError {
+        cause: format!("{stage}: non-utf8 DID payload"),
+        raw_data: format!("did=0x{did:04X}, bytes={}", hex_lower(payload)),
+    })?;
+    Ok(text.trim().to_string())
+}
+
+fn read_did_battery_voltage(
+    adapter: &mut dyn super::hw::HardwareInterface,
+    cfg: &HwConfig,
+    target_sa: Option<u8>,
+) -> Result<f64, HwError> {
+    let req = [0x22, (DID_BATTERY_VOLTAGE >> 8) as u8, (DID_BATTERY_VOLTAGE & 0xFF) as u8];
+    let rsp = send_uds_and_wait(
+        adapter,
+        cfg,
+        target_sa,
+        &req,
+        Duration::from_millis(cfg.uds_timeout_p2_ms.max(1)),
+    )?;
+    ensure_positive_response(&rsp, 0x22, "preflight::battery_did", cfg, target_sa)?;
+    if rsp.len() < 5 {
+        return Err(HwError::ParseError {
+            cause: "preflight::battery_did short payload".to_string(),
+            raw_data: format!("len={}", rsp.len()),
+        });
+    }
+    let raw = u16::from_be_bytes([rsp[3], rsp[4]]);
+    Ok((raw as f64) * 0.05)
+}
+
+fn decode_battery_voltage_from_can(cf: &CanFrame) -> Option<f64> {
+    let pgn = j1939_pgn(cf.id);
+    if !matches!(pgn, 65271 | 65272) {
+        return None;
+    }
+    let p = can_payload(cf);
+    if p.len() < 2 {
+        return None;
+    }
+    let raw = u16::from_le_bytes([p[0], p[1]]);
+    if raw == 0xFFFF {
+        return None;
+    }
+    Some((raw as f64) * 0.05)
+}
+
+fn sample_supply_voltage_from_bus(
+    adapter: &mut dyn super::hw::HardwareInterface,
+    timeout: Duration,
+) -> Result<Option<f64>, HwError> {
+    let deadline = Instant::now() + timeout;
+    let mut max_v = f64::NEG_INFINITY;
+    while Instant::now() < deadline {
+        match adapter.read_frame() {
+            Ok(Frame::Can(cf)) => {
+                if let Some(v) = decode_battery_voltage_from_can(&cf) {
+                    max_v = max_v.max(v);
+                }
+            }
+            Ok(Frame::Serial(_)) => {}
+            Err(HwError::Timeout) => {}
+            Err(e) => return Err(e),
+        }
+    }
+    if max_v.is_finite() {
+        Ok(Some(max_v))
+    } else {
+        Ok(None)
+    }
+}
+
+fn read_ecu_identity(
+    adapter: &mut dyn super::hw::HardwareInterface,
+    cfg: &HwConfig,
+    target_sa: Option<u8>,
+) -> Result<EcuIdentity, HwError> {
+    let vin = read_did_ascii(adapter, cfg, target_sa, DID_VIN, "id::vin")?;
+    let sw = read_did_ascii(adapter, cfg, target_sa, DID_SW_VERSION, "id::sw")?;
+    let hw = read_did_ascii(adapter, cfg, target_sa, DID_HW_VERSION, "id::hw")?;
+    let cal = read_did_ascii(adapter, cfg, target_sa, DID_CALIBRATION_ID, "id::cal")?;
+    let serial = read_did_ascii(adapter, cfg, target_sa, DID_ECU_SERIAL, "id::serial")?;
+    let fingerprint = read_did_ascii(
+        adapter,
+        cfg,
+        target_sa,
+        DID_FINGERPRINT,
+        "id::fingerprint",
+    )
+    .ok();
+
+    Ok(EcuIdentity {
+        vin,
+        sw_version: sw,
+        hw_version: hw,
+        calibration_id: cal,
+        ecu_serial: serial,
+        fingerprint,
+    })
+}
+
+fn run_flash_preflight(
+    adapter: &mut dyn super::hw::HardwareInterface,
+    cfg: &HwConfig,
+    target_sa: Option<u8>,
+) -> Result<FlashPreflight, HwError> {
+    let supply_voltage = match sample_supply_voltage_from_bus(adapter, Duration::from_millis(500))? {
+        Some(v) => v,
+        None => read_did_battery_voltage(adapter, cfg, target_sa)?,
+    };
+    if supply_voltage < MIN_FLASH_SUPPLY_V {
+        return Err(HwError::Unknown(format!(
+            "preflight failed: supply voltage {:.2}V below minimum {:.2}V",
+            supply_voltage, MIN_FLASH_SUPPLY_V
+        )));
+    }
+
+    let identity = read_ecu_identity(adapter, cfg, target_sa)?;
+    if !cfg.allow_untrusted_ecu && identity.fingerprint.is_none() {
+        return Err(HwError::Unknown(
+            "preflight failed: ECU fingerprint DID 0xF184 not available; use trusted ECU profile or --allow-untrusted-ecu only in controlled bench".to_string(),
+        ));
+    }
+
+    Ok(FlashPreflight {
+        supply_voltage_v: supply_voltage,
+        identity,
+    })
+}
+
+pub fn live_read_ecm_identity(cfg: &HwConfig, target_sa: Option<u8>) -> Result<EcuIdentity, HwError> {
+    if cfg.mode != HwMode::Live {
+        return Err(HwError::Unknown(
+            "identity read requires --hw-mode=live".to_string(),
+        ));
+    }
+    check_live_channel_policy(cfg)?;
+
+    let mut adapter = super::hw::open_real_adapter(cfg)?;
+    adapter.init(cfg)?;
+    let identity = read_ecu_identity(&mut *adapter, cfg, target_sa)?;
+    adapter.close()?;
+    Ok(identity)
+}
+
+pub fn live_preflight_ecm(
+    cfg: &HwConfig,
+    target_sa: Option<u8>,
+) -> Result<FlashPreflightReport, HwError> {
+    if cfg.mode != HwMode::Live {
+        return Err(HwError::Unknown(
+            "preflight requires --hw-mode=live".to_string(),
+        ));
+    }
+    check_live_channel_policy(cfg)?;
+
+    let mut adapter = super::hw::open_real_adapter(cfg)?;
+    adapter.init(cfg)?;
+    let preflight = run_flash_preflight(&mut *adapter, cfg, target_sa)?;
+    adapter.close()?;
+
+    Ok(FlashPreflightReport {
+        supply_voltage_v: preflight.supply_voltage_v,
+        trusted_fingerprint: preflight.identity.fingerprint.is_some(),
+        identity: preflight.identity,
+    })
 }
 
 fn j1939_uds_req_id(dst_sa: u8) -> u32 {
@@ -746,6 +1190,13 @@ fn send_uds_and_wait(
     while Instant::now() < deadline {
         match adapter.read_frame() {
             Ok(Frame::Serial(sf)) => {
+                if sf
+                    .protocol_hint
+                    .as_deref()
+                    .is_some_and(|h| !h.eq_ignore_ascii_case("uds-raw"))
+                {
+                    continue;
+                }
                 if sf.bytes.is_empty() {
                     continue;
                 }
@@ -801,27 +1252,32 @@ pub fn live_clean_ecm(cfg: &HwConfig, target_sa: Option<u8>) -> Result<(), HwErr
     let mut adapter = super::hw::open_real_adapter(cfg)?;
     adapter.init(cfg)?;
 
-    let _ = send_uds_and_wait(
+    let session_rsp = send_uds_and_wait(
         &mut *adapter,
         cfg,
         target_sa,
         &[0x10, 0x02],
         Duration::from_millis(cfg.uds_timeout_p2_ms.max(1)),
     )?;
-    let _ = send_uds_and_wait(
+    ensure_positive_response(&session_rsp, 0x10, "clean::session", cfg, target_sa)?;
+
+    let clear_rsp = send_uds_and_wait(
         &mut *adapter,
         cfg,
         target_sa,
         &[0x14, 0xFF, 0xFF, 0xFF],
         Duration::from_millis(cfg.uds_timeout_p2_ms.max(1)),
     )?;
-    let _ = send_uds_and_wait(
+    ensure_positive_response(&clear_rsp, 0x14, "clean::clear_dtc", cfg, target_sa)?;
+
+    let routine_rsp = send_uds_and_wait(
         &mut *adapter,
         cfg,
         target_sa,
         &[0x31, 0x01, 0xDF, 0x04],
         Duration::from_millis(cfg.uds_timeout_p2_ms.max(1)),
     )?;
+    ensure_positive_response(&routine_rsp, 0x31, "clean::routine", cfg, target_sa)?;
 
     adapter.close()?;
     Ok(())
@@ -844,18 +1300,58 @@ pub fn live_flash_ecm_firmware(
         return Err(HwError::WriteBlockedAllowlist);
     }
     check_live_channel_policy(cfg)?;
+    let flash_start_ms = now_ms();
+
+    append_flash_audit(
+        cfg,
+        "flash::start",
+        FlashAuditStatus::Ok,
+        format!("payload_bytes={}", firmware.len()),
+        target_sa,
+    );
 
     let mut adapter = super::hw::open_real_adapter(cfg)?;
     adapter.init(cfg)?;
     let firmware_crc = crc32fast::hash(firmware);
+    let mut transfer_data_blocks_attempted = 0usize;
+    let mut transfer_data_blocks_acked = 0usize;
+    let wait_frame_count = 0u32;
+    let sequence_error_count = 0u32;
+    let flowcontrol_timeout_count = 0u32;
 
-    let _ = send_uds_and_wait(
+    let preflight = run_flash_preflight(&mut *adapter, cfg, target_sa)?;
+    append_flash_audit(
+        cfg,
+        "flash::preflight",
+        FlashAuditStatus::Ok,
+        format!(
+            "supply_v={:.2}, vin={}, sw={}, hw={}, cal={}, serial={}, fp_present={}",
+            preflight.supply_voltage_v,
+            preflight.identity.vin,
+            preflight.identity.sw_version,
+            preflight.identity.hw_version,
+            preflight.identity.calibration_id,
+            preflight.identity.ecu_serial,
+            preflight.identity.fingerprint.is_some()
+        ),
+        target_sa,
+    );
+
+    let default_session_rsp = send_uds_and_wait(
         &mut *adapter,
         cfg,
         target_sa,
         &[0x10, 0x02],
         Duration::from_millis(cfg.uds_timeout_p2_ms.max(1)),
     )?;
+    ensure_positive_response(
+        &default_session_rsp,
+        0x10,
+        "flash::default_session",
+        cfg,
+        target_sa,
+    )?;
+
     let seed = send_uds_and_wait(
         &mut *adapter,
         cfg,
@@ -863,7 +1359,15 @@ pub fn live_flash_ecm_firmware(
         &[0x27, 0x05],
         Duration::from_millis(cfg.uds_timeout_p2_ms.max(1)),
     )?;
-    if seed.len() < 6 || seed[0] != 0x67 {
+    ensure_positive_response(&seed, 0x27, "flash::security_seed", cfg, target_sa)?;
+    if seed.len() < 6 {
+        append_flash_audit(
+            cfg,
+            "flash::security_seed",
+            FlashAuditStatus::Failed,
+            format!("short seed response len={}", seed.len()),
+            target_sa,
+        );
         adapter.close()?;
         return Err(HwError::Unknown("security seed response invalid".to_string()));
     }
@@ -880,19 +1384,28 @@ pub fn live_flash_ecm_firmware(
         ((key >> 8) & 0xFF) as u8,
         (key & 0xFF) as u8,
     ];
-    let _ = send_uds_and_wait(
+    let unlock_rsp = send_uds_and_wait(
         &mut *adapter,
         cfg,
         target_sa,
         &key_req,
         Duration::from_millis(cfg.uds_timeout_p2_ms.max(1)),
     )?;
-    let _ = send_uds_and_wait(
+    ensure_positive_response(&unlock_rsp, 0x27, "flash::security_unlock", cfg, target_sa)?;
+
+    let prog_session_rsp = send_uds_and_wait(
         &mut *adapter,
         cfg,
         target_sa,
         &[0x10, 0x03],
         Duration::from_millis(cfg.uds_timeout_p2_ms.max(1)),
+    )?;
+    ensure_positive_response(
+        &prog_session_rsp,
+        0x10,
+        "flash::programming_session",
+        cfg,
+        target_sa,
     )?;
 
     let total_len = firmware.len() as u32;
@@ -915,6 +1428,7 @@ pub fn live_flash_ecm_firmware(
         &req_dl,
         Duration::from_millis(cfg.uds_timeout_p2_ms.max(1)),
     )?;
+    ensure_positive_response(&dl_rsp, 0x34, "flash::request_download", cfg, target_sa)?;
 
     let mut max_block_payload = 127usize;
     if dl_rsp.len() >= 4 && dl_rsp[0] == 0x74 {
@@ -932,19 +1446,46 @@ pub fn live_flash_ecm_firmware(
         req.push(0x36);
         req.push(block);
         req.extend_from_slice(chunk);
-        let ack = send_uds_and_wait(
+        transfer_data_blocks_attempted += 1;
+        let ack = match send_uds_and_wait(
             &mut *adapter,
             cfg,
             target_sa,
             &req,
             Duration::from_millis(cfg.uds_timeout_p2star_ms.max(1)),
-        )?;
-        if ack.len() < 2 || ack[0] != 0x76 || ack[1] != block {
+        ) {
+            Ok(v) => v,
+            Err(HwError::Timeout) => {
+                append_flash_audit(
+                    cfg,
+                    "flash::transfer_data",
+                    FlashAuditStatus::Failed,
+                    format!("timeout waiting transfer ack block={block}"),
+                    target_sa,
+                );
+                adapter.close()?;
+                return Err(HwError::Timeout);
+            }
+            Err(e) => {
+                adapter.close()?;
+                return Err(e);
+            }
+        };
+        ensure_positive_response(&ack, 0x36, "flash::transfer_data", cfg, target_sa)?;
+        if ack.len() < 2 || ack[1] != block {
+            append_flash_audit(
+                cfg,
+                "flash::transfer_data",
+                FlashAuditStatus::Failed,
+                format!("ack block mismatch expected={block} got={}", ack.get(1).copied().unwrap_or(0xFF)),
+                target_sa,
+            );
             adapter.close()?;
             return Err(HwError::Unknown(format!(
                 "transfer ack mismatch for block {block}"
             )));
         }
+        transfer_data_blocks_acked += 1;
         block = block.wrapping_add(1);
         blocks += 1;
     }
@@ -972,7 +1513,15 @@ pub fn live_flash_ecm_firmware(
             Duration::from_millis(cfg.uds_timeout_p2star_ms.max(1)),
         )
     })?;
+    ensure_positive_response(&exit, 0x37, "flash::transfer_exit", cfg, target_sa)?;
     if exit.first().copied() != Some(0x77) {
+        append_flash_audit(
+            cfg,
+            "flash::transfer_exit",
+            FlashAuditStatus::Failed,
+            "transfer exit rejected",
+            target_sa,
+        );
         adapter.close()?;
         return Err(HwError::Unknown(
             "transfer exit rejected during integrity verification".to_string(),
@@ -989,26 +1538,94 @@ pub fn live_flash_ecm_firmware(
         ((firmware_crc >> 8) & 0xFF) as u8,
         (firmware_crc & 0xFF) as u8,
     ];
-    let _ = send_uds_and_wait(
+    let verify_rsp = send_uds_and_wait(
         &mut *adapter,
         cfg,
         target_sa,
         &verify_req,
         Duration::from_millis(cfg.uds_timeout_p2star_ms.max(1)),
-    );
+    )?;
+    ensure_positive_response(&verify_rsp, 0x31, "flash::verify_routine", cfg, target_sa)?;
 
     adapter.close()?;
+
+    append_flash_audit(
+        cfg,
+        "flash::complete",
+        FlashAuditStatus::Ok,
+        format!("bytes={} blocks={} crc32=0x{firmware_crc:08X}", firmware.len(), blocks),
+        target_sa,
+    );
+
+    let bridge_diag = read_bridge_diag_since(cfg, flash_start_ms);
 
     Ok(FlashSummary {
         bytes_sent: firmware.len(),
         blocks_sent: blocks,
         crc32: firmware_crc,
+        supply_voltage_v: preflight.supply_voltage_v,
+        vin: preflight.identity.vin,
+        sw_version: preflight.identity.sw_version,
+        hw_version: preflight.identity.hw_version,
+        calibration_id: preflight.identity.calibration_id,
+        ecu_serial: preflight.identity.ecu_serial,
+        transport_diagnostics: FlashTransportDiagnostics {
+            security_seed_positive: true,
+            security_unlock_positive: true,
+            request_download_positive: true,
+            transfer_data_blocks_attempted,
+            transfer_data_blocks_acked,
+            request_transfer_exit_positive: true,
+            fc_blocksize_seen: bridge_diag.fc_blocksize_seen.or(Some(cfg.uds_block_size)),
+            fc_stmin_seen_ms: bridge_diag.fc_stmin_seen_ms.or(Some(cfg.uds_st_min_ms)),
+            wait_frame_count: wait_frame_count.saturating_add(bridge_diag.wait_frame_count),
+            sequence_error_count: sequence_error_count
+                .saturating_add(bridge_diag.sequence_error_count),
+            flowcontrol_timeout_count: flowcontrol_timeout_count
+                .saturating_add(bridge_diag.flowcontrol_timeout_count),
+        },
     })
+}
+
+fn read_bridge_diag_since(cfg: &HwConfig, since_ms: u64) -> BridgeDiagAggregate {
+    let path = cfg.log_dir.join("cat_comm_bridge_diag.jsonl");
+    let content = match fs::read_to_string(path) {
+        Ok(v) => v,
+        Err(_) => return BridgeDiagAggregate::default(),
+    };
+
+    let mut agg = BridgeDiagAggregate::default();
+    for line in content.lines() {
+        let Ok(r) = serde_json::from_str::<BridgeDiagLine>(line) else {
+            continue;
+        };
+        if r.ts_ms < since_ms {
+            continue;
+        }
+        agg.wait_frame_count = agg
+            .wait_frame_count
+            .saturating_add(r.wait_frame_count_delta.unwrap_or(0));
+        agg.sequence_error_count = agg
+            .sequence_error_count
+            .saturating_add(r.sequence_error_count_delta.unwrap_or(0));
+        agg.flowcontrol_timeout_count = agg
+            .flowcontrol_timeout_count
+            .saturating_add(r.flowcontrol_timeout_count_delta.unwrap_or(0));
+        if r.fc_blocksize.is_some() {
+            agg.fc_blocksize_seen = r.fc_blocksize;
+        }
+        if r.fc_stmin_ms.is_some() {
+            agg.fc_stmin_seen_ms = r.fc_stmin_ms;
+        }
+    }
+    agg
 }
 
 #[cfg(test)]
 mod tests {
+    use super::ensure_positive_response;
     use super::is_uds_response_id;
+    use crate::io::hw::HwConfig;
 
     #[test]
     fn uds_response_id_matches_expected_target() {
@@ -1027,5 +1644,33 @@ mod tests {
         assert!(!is_uds_response_id(Some(0x00), wrong_pf));
         assert!(!is_uds_response_id(Some(0x00), wrong_ps));
         assert!(!is_uds_response_id(Some(0x00), wrong_sa));
+    }
+
+    #[test]
+    fn ensure_positive_response_accepts_expected_sid() {
+        let cfg = HwConfig::default();
+        let rsp = [0x50, 0x02, 0x00, 0x00];
+        let result = ensure_positive_response(&rsp, 0x10, "test::session", &cfg, Some(0x00));
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn ensure_positive_response_rejects_negative_response_code() {
+        let cfg = HwConfig::default();
+        let rsp = [0x7F, 0x10, 0x22];
+        let result = ensure_positive_response(&rsp, 0x10, "test::session", &cfg, Some(0x00));
+        assert!(result.is_err());
+        let msg = format!("{}", result.err().expect("error expected"));
+        assert!(msg.contains("NRC=0x22"), "unexpected error: {msg}");
+    }
+
+    #[test]
+    fn ensure_positive_response_rejects_unexpected_sid() {
+        let cfg = HwConfig::default();
+        let rsp = [0x62, 0xF1, 0x90];
+        let result = ensure_positive_response(&rsp, 0x10, "test::session", &cfg, Some(0x00));
+        assert!(result.is_err());
+        let msg = format!("{}", result.err().expect("error expected"));
+        assert!(msg.contains("expected=0x50"), "unexpected error: {msg}");
     }
 }

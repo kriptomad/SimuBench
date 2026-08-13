@@ -1,0 +1,112 @@
+{
+  "generated_at_ms": 1786622968863,
+  "mode": "sim",
+  "target_sa": null,
+  "strict_mode": false,
+  "execute_flash": false,
+  "artifact": null,
+  "detect": null,
+  "preflight": null,
+  "identity": null,
+  "conformance_summary": {
+    "passed": true,
+    "services": [
+      {
+        "service_sid": "0x27",
+        "passed": true,
+        "evidence": "flash path not executed"
+      },
+      {
+        "service_sid": "0x34",
+        "passed": true,
+        "evidence": "flash path not executed"
+      },
+      {
+        "service_sid": "0x36",
+        "passed": true,
+        "evidence": "flash path not executed"
+      },
+      {
+        "service_sid": "0x37",
+        "passed": true,
+        "evidence": "flash path not executed"
+      }
+    ]
+  },
+  "phases": [
+    {
+      "phase": 1,
+      "title": "Baseline e Compliance",
+      "status": "Passed",
+      "details": "runbook e protocolo presentes"
+    },
+    {
+      "phase": 2,
+      "title": "Plataforma Fisica Real",
+      "status": "Passed",
+      "details": "sim_harness=true: elapsed=6.00s steps=360 speed=0.00kmh"
+    },
+    {
+      "phase": 3,
+      "title": "Conexao Confiavel",
+      "status": "Passed",
+      "details": "can_health=0.924 errors=0"
+    },
+    {
+      "phase": 4,
+      "title": "Leitura e Identidade ECM",
+      "status": "Passed",
+      "details": "vin_ok=true sw_ok=true vin_len=20 sw_len=15"
+    },
+    {
+      "phase": 5,
+      "title": "Validacao de Artefato",
+      "status": "Blocked",
+      "details": "forneca --firmware=<arquivo.bin>"
+    },
+    {
+      "phase": 6,
+      "title": "Flash Seguro (Preflight)",
+      "status": "Passed",
+      "details": "battery_v=12.94"
+    },
+    {
+      "phase": 7,
+      "title": "Diagnostico e Debug",
+      "status": "Passed",
+      "details": "uds_retry=3 p2=1000 p2*= 5000 runtime=true: session_sid=0x50 vin_sid=0x62 tester_sid=0x7E"
+    },
+    {
+      "phase": 8,
+      "title": "Governanca e Seguranca",
+      "status": "Failed",
+      "details": "allowlist_present=false noninteractive_approved=false write_effective=false"
+    },
+    {
+      "phase": 9,
+      "title": "Confiabilidade e Stress",
+      "status": "Passed",
+      "details": "rate_global=100 rate_per_id=10 reconnect=500..30000 ms stress=true: max_speed=0.00 fuel=84.92%"
+    },
+    {
+      "phase": 10,
+      "title": "Industrializacao",
+      "status": "Passed",
+      "details": "pipeline de build/test encontrado"
+    },
+    {
+      "phase": 11,
+      "title": "Homologacao Final",
+      "status": "Passed",
+      "details": "json=reports\\production_phase_report_1786622968863.json md=reports\\production_phase_report_1786622968863.md sha256=bf8ae41987e0e9d459685177db391d7648078499dda7dcb3e206bd971ba0ebc0"
+    },
+    {
+      "phase": 12,
+      "title": "Gate de Producao",
+      "status": "Failed",
+      "details": "ha falhas bloqueantes nas fases anteriores"
+    }
+  ],
+  "overall_passed": false,
+  "report_sha256": "bf8ae41987e0e9d459685177db391d7648078499dda7dcb3e206bd971ba0ebc0"
+}

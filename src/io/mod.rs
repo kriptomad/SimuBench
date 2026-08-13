@@ -1,9 +1,12 @@
 pub mod allowlist;
+pub mod artifact;
 pub mod ecm_params;
 pub mod hw;
 pub mod live_runner;
 pub mod metrics;
 pub mod mock;
+#[cfg(not(test))]
+pub mod production_program;
 pub mod rate_limiter;
 pub mod replay;
 pub mod serial_adapter;

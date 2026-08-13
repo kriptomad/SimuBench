@@ -1,6 +1,9 @@
 use std::env;
+use std::path::Path;
+use std::path::PathBuf;
 
 use auto_breaking::HeavyMachinery;
+use auto_breaking::io;
 
 fn arg_value(args: &[String], name: &str) -> Option<String> {
     args.iter()
@@ -13,8 +16,82 @@ fn has_flag(args: &[String], name: &str) -> bool {
     args.iter().any(|a| a == name)
 }
 
+fn arg_value_prefixed(args: &[String], prefix: &str) -> Option<String> {
+    args.iter()
+        .find_map(|a| a.strip_prefix(prefix).map(|v| v.to_string()))
+}
+
 fn main() {
     let args: Vec<String> = env::args().collect();
+
+    if has_flag(&args, "--validate-cat-bridge") {
+        let cfg = match io::hw::HwConfig::from_cli_args(&args) {
+            Ok(v) => v,
+            Err(e) => {
+                eprintln!("bridge validate config error: {}", e);
+                std::process::exit(2);
+            }
+        };
+
+        match io::hw::probe_live_adapter(&cfg) {
+            Ok(info) => {
+                println!(
+                    "bridge_validate=ok mode={:?} capabilities={} adapter_info={}",
+                    cfg.mode,
+                    cfg.capabilities_summary(),
+                    info
+                );
+                return;
+            }
+            Err(e) => {
+                eprintln!("bridge_validate=failed error={}", e);
+                std::process::exit(1);
+            }
+        }
+    }
+
+    if has_flag(&args, "--run-production-phases") {
+        let cfg = match io::hw::HwConfig::from_cli_args(&args) {
+            Ok(v) => v,
+            Err(e) => {
+                eprintln!("production-phase config error: {}", e);
+                std::process::exit(2);
+            }
+        };
+        let target_sa = arg_value_prefixed(&args, "--target-sa=")
+            .and_then(|v| u8::from_str_radix(v.trim_start_matches("0x"), 16).ok())
+            .or_else(|| arg_value_prefixed(&args, "--target-sa-dec=").and_then(|v| v.parse::<u8>().ok()));
+        let firmware = arg_value_prefixed(&args, "--firmware=").map(PathBuf::from);
+        let report_dir = arg_value_prefixed(&args, "--phase-report-dir=")
+            .map(PathBuf::from)
+            .unwrap_or_else(|| PathBuf::from("reports"));
+        let options = io::production_program::ProgramOptions {
+            strict_mode: !has_flag(&args, "--allow-blocked-phases"),
+            execute_flash: has_flag(&args, "--execute-flash"),
+        };
+
+        let result = io::production_program::run_all_phases(
+            &cfg,
+            target_sa,
+            firmware.as_deref().map(Path::new),
+            &report_dir,
+            options,
+        );
+        match result {
+            Ok(path) => {
+                println!(
+                    "production_phases=done report_json={} mode={:?}",
+                    path.display(),
+                    cfg.mode
+                );
+                return;
+            }
+            Err(e) => {
+                eprintln!("production phases failed: {}", e);
+                std::process::exit(1);
+            }
+        }
+    }
 
     let seed = arg_value(&args, "--seed")
         .and_then(|s| s.parse::<u64>().ok())

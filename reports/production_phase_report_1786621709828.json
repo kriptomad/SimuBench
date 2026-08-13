@@ -1,0 +1,84 @@
+{
+  "generated_at_ms": 1786621709828,
+  "mode": "sim",
+  "target_sa": null,
+  "artifact": null,
+  "detect": null,
+  "preflight": null,
+  "identity": null,
+  "phases": [
+    {
+      "phase": 1,
+      "title": "Baseline e Compliance",
+      "status": "Passed",
+      "details": "runbook e protocolo presentes"
+    },
+    {
+      "phase": 2,
+      "title": "Plataforma Fisica Real",
+      "status": "Blocked",
+      "details": "requer --hw-mode=live"
+    },
+    {
+      "phase": 3,
+      "title": "Conexao Confiavel",
+      "status": "Blocked",
+      "details": "hardware live indisponivel"
+    },
+    {
+      "phase": 4,
+      "title": "Leitura e Identidade ECM",
+      "status": "Blocked",
+      "details": "requer modo live"
+    },
+    {
+      "phase": 5,
+      "title": "Validacao de Artefato",
+      "status": "Blocked",
+      "details": "forneca --firmware=<arquivo.bin>"
+    },
+    {
+      "phase": 6,
+      "title": "Flash Seguro (Preflight)",
+      "status": "Blocked",
+      "details": "requer modo live"
+    },
+    {
+      "phase": 7,
+      "title": "Diagnostico e Debug",
+      "status": "Passed",
+      "details": "uds_retry=3 p2=1000 p2*= 5000"
+    },
+    {
+      "phase": 8,
+      "title": "Governanca e Seguranca",
+      "status": "Failed",
+      "details": "allowlist_present=false noninteractive_approved=false"
+    },
+    {
+      "phase": 9,
+      "title": "Confiabilidade e Stress",
+      "status": "Passed",
+      "details": "rate_global=100 rate_per_id=10 reconnect=500..30000 ms"
+    },
+    {
+      "phase": 10,
+      "title": "Industrializacao",
+      "status": "Passed",
+      "details": "pipeline de build/test encontrado"
+    },
+    {
+      "phase": 11,
+      "title": "Homologacao Final",
+      "status": "Passed",
+      "details": "dossie json/markdown sera gerado"
+    },
+    {
+      "phase": 12,
+      "title": "Gate de Producao",
+      "status": "Failed",
+      "details": "ha falhas bloqueantes nas fases anteriores"
+    }
+  ],
+  "overall_passed": false
+}

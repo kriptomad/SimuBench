@@ -3,6 +3,7 @@ const WHEELBASE: f64 = 2.7; // m
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum WheelState {
     Rolling,
+    Braking,   // normal brake pressure applied, no lockup
     Skidding,
     AbsActive,
     TcsLimited,
@@ -91,7 +92,7 @@ impl ChassisControl {
                 self.abs_active = true;
                 self.abs_cycles += 1;
             } else if user_brake > 0.05 {
-                self.wheel_states[i] = WheelState::AbsActive;
+                self.wheel_states[i] = WheelState::Braking; // normal braking, not ABS
             } else {
                 self.wheel_states[i] = WheelState::Rolling;
                 self.wheel_velocities[i] = vehicle_speed; // sync

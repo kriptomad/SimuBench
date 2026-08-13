@@ -171,10 +171,12 @@ impl Imu {
             * ((2.0 * PI * vibe_freq * n).sin() + 0.3 * (4.0 * PI * vibe_freq * n).sin());
 
         // ─ True accelerations in body frame ──────────────────────────────────
-        let g_component = 9.81 * (grade_pct / 100.0).atan().sin(); // grade
+        // Gravity projects onto body Z (cosine of pitch) and X (sine of pitch)
+        let pitch_rad = (grade_pct / 100.0).atan();
+        let g_component = 9.81 * pitch_rad.sin();
         let true_ax = ax_ms2 - g_component;
         let true_ay = lat_acc_ms2;
-        let true_az = -9.81;
+        let true_az = -9.81 * pitch_rad.cos(); // reduced Z-component on grade
 
         // ─ Add noise, bias and vibration ─────────────────────────────────────
         let an = |seed: f64, amp: f64| {
@@ -185,11 +187,15 @@ impl Imu {
         self.accel_z = true_az + self.accel_bias[2] + an(n * 3.7, ACCEL_NOISE) + vibe * 0.8;
 
         let yaw_rate_rad = yaw_rate_degs * PI / 180.0;
+        // Roll rate: derived from lateral acceleration and speed (bank angle dynamics)
+        let roll_rate_rad = lat_acc_ms2 / (ax_ms2.hypot(lat_acc_ms2) + 9.81).max(1.0) * 0.5;
+        // Pitch rate: derived from longitudinal acceleration on grade changes
+        let pitch_rate_rad = -ax_ms2 / 9.81 * 0.3;
         // Gyro bias drifts slowly
         self.gyro_bias[2] += an(n * 0.5, GYRO_DRIFT) * dt;
-        self.gyro_x = 0.0 + self.gyro_bias[0] + an(n * 4.1, GYRO_NOISE);
-        self.gyro_y = 0.0 + self.gyro_bias[1] + an(n * 5.3, GYRO_NOISE);
-        self.gyro_z = yaw_rate_rad + self.gyro_bias[2] + an(n * 6.7, GYRO_NOISE);
+        self.gyro_x = roll_rate_rad  + self.gyro_bias[0] + an(n * 4.1, GYRO_NOISE);
+        self.gyro_y = pitch_rate_rad + self.gyro_bias[1] + an(n * 5.3, GYRO_NOISE);
+        self.gyro_z = yaw_rate_rad   + self.gyro_bias[2] + an(n * 6.7, GYRO_NOISE);
 
         // Calibrated values
         self.accel_cal = [
@@ -232,8 +238,11 @@ impl Imu {
         self.lateral_g = self.lin_accel_y / 9.81;
         self.vertical_g = self.accel_cal[2].abs() / 9.81;
 
-        // ─ Temperature ───────────────────────────────────────────────────────
-        self.temperature_c += (35.0 + rpm / 2200.0 * 15.0 - self.temperature_c) * dt * 0.01;
+        // IMU temperature: ambient + electronics self-heat (~7°C); no coupling to engine RPM
+        let _ = rpm; // rpm no longer used for temperature (only for vibration model above)
+        let imu_self_heat = 7.0;
+        let ambient_approx = 25.0; // ideally from BCM ambient sensor
+        self.temperature_c += (ambient_approx + imu_self_heat - self.temperature_c) * dt * 0.005;
 
         // ─ Fault detection ───────────────────────────────────────────────────
         let accel_mag = (self.accel_x.powi(2) + self.accel_y.powi(2) + self.accel_z.powi(2)).sqrt();

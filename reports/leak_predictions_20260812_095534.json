@@ -1,0 +1,3242 @@
+[
+  {
+    "circuit_name": "AC_HIGH",
+    "scenario_name": "MC_RUN_0055",
+    "peak_pressure_bar": 16.446337895824996,
+    "final_alert": "Normal",
+    "final_rupture_probability_pct": 0.07078010452282983,
+    "hours_to_rupture": 95.55509363296048,
+    "likely_failure_mode": "MonteCarlo degradation"
+  },
+  {
+    "circuit_name": "AC_HIGH",
+    "scenario_name": "MC_RUN_0110",
+    "peak_pressure_bar": 16.392675812141626,
+    "final_alert": "Normal",
+    "final_rupture_probability_pct": 0.06873197544163061,
+    "hours_to_rupture": 95.65732483253994,
+    "likely_failure_mode": "MonteCarlo degradation"
+  },
+  {
+    "circuit_name": "AC_HIGH",
+    "scenario_name": "MC_RUN_0021",
+    "peak_pressure_bar": 16.359510820432845,
+    "final_alert": "Normal",
+    "final_rupture_probability_pct": 0.06748675949335486,
+    "hours_to_rupture": 95.72058075556667,
+    "likely_failure_mode": "MonteCarlo degradation"
+  },
+  {
+    "circuit_name": "AC_HIGH",
+    "scenario_name": "MC_RUN_0076",
+    "peak_pressure_bar": 16.305848736749432,
+    "final_alert": "Normal",
+    "final_rupture_probability_pct": 0.06550563052641262,
+    "hours_to_rupture": 95.82305021135154,
+    "likely_failure_mode": "MonteCarlo degradation"
+  },
+  {
+    "circuit_name": "AC_HIGH",
+    "scenario_name": "MC_RUN_0042",
+    "peak_pressure_bar": 16.219021661357328,
+    "final_alert": "Normal",
+    "final_rupture_probability_pct": 0.06238958388279249,
+    "hours_to_rupture": 95.9891620156419,
+    "likely_failure_mode": "MonteCarlo degradation"
+  },
+  {
+    "circuit_name": "AC_HIGH",
+    "scenario_name": "MC_RUN_0097",
+    "peak_pressure_bar": 16.16535957767396,
+    "final_alert": "Normal",
+    "final_rupture_probability_pct": 0.06052007114995274,
+    "hours_to_rupture": 96.09201846621298,
+    "likely_failure_mode": "MonteCarlo degradation"
+  },
+  {
+    "circuit_name": "HYD_MAIN",
+    "scenario_name": "MC_RUN_0055",
+    "peak_pressure_bar": 185.0213013280312,
+    "final_alert": "Normal",
+    "final_rupture_probability_pct": 0.059701465286342376,
+    "hours_to_rupture": 55.459601962295665,
+    "likely_failure_mode": "MonteCarlo degradation"
+  },
+  {
+    "circuit_name": "HYD_MAIN",
+    "scenario_name": "MC_RUN_0110",
+    "peak_pressure_bar": 184.4176028865933,
+    "final_alert": "Normal",
+    "final_rupture_probability_pct": 0.05958937840531402,
+    "hours_to_rupture": 55.564267935768214,
+    "likely_failure_mode": "MonteCarlo degradation"
+  },
+  {
+    "circuit_name": "HYD_MAIN",
+    "scenario_name": "MC_RUN_0021",
+    "peak_pressure_bar": 184.04449672986954,
+    "final_alert": "Normal",
+    "final_rupture_probability_pct": 0.059520169561057316,
+    "hours_to_rupture": 55.62909153786054,
+    "likely_failure_mode": "MonteCarlo degradation"
+  },
+  {
+    "circuit_name": "HYD_MAIN",
+    "scenario_name": "MC_RUN_0076",
+    "peak_pressure_bar": 183.4407982884311,
+    "final_alert": "Normal",
+    "final_rupture_probability_pct": 0.059408291871219605,
+    "hours_to_rupture": 55.73419979694178,
+    "likely_failure_mode": "MonteCarlo degradation"
+  },
+  {
+    "circuit_name": "AC_HIGH",
+    "scenario_name": "MC_RUN_0008",
+    "peak_pressure_bar": 16.132194585965145,
+    "final_alert": "Normal",
+    "final_rupture_probability_pct": 0.05938653323861292,
+    "hours_to_rupture": 96.15566138470533,
+    "likely_failure_mode": "MonteCarlo degradation"
+  },
+  {
+    "circuit_name": "HYD_MAIN",
+    "scenario_name": "MC_RUN_0042",
+    "peak_pressure_bar": 182.46399369026994,
+    "final_alert": "Normal",
+    "final_rupture_probability_pct": 0.05922754358849149,
+    "hours_to_rupture": 55.904850456585756,
+    "likely_failure_mode": "MonteCarlo degradation"
+  },
+  {
+    "circuit_name": "HYD_MAIN",
+    "scenario_name": "MC_RUN_0097",
+    "peak_pressure_bar": 181.86029524883205,
+    "final_alert": "Normal",
+    "final_rupture_probability_pct": 0.059116004009669355,
+    "hours_to_rupture": 56.0106794797478,
+    "likely_failure_mode": "MonteCarlo degradation"
+  },
+  {
+    "circuit_name": "HYD_MAIN",
+    "scenario_name": "MC_RUN_0008",
+    "peak_pressure_bar": 181.48718909210788,
+    "final_alert": "Normal",
+    "final_rupture_probability_pct": 0.05904713327642971,
+    "hours_to_rupture": 56.076223850347944,
+    "likely_failure_mode": "MonteCarlo degradation"
+  },
+  {
+    "circuit_name": "HYD_MAIN",
+    "scenario_name": "MC_RUN_0063",
+    "peak_pressure_bar": 180.88349065066984,
+    "final_alert": "Normal",
+    "final_rupture_probability_pct": 0.058935802434617025,
+    "hours_to_rupture": 56.18250152720561,
+    "likely_failure_mode": "MonteCarlo degradation"
+  },
+  {
+    "circuit_name": "HYD_MAIN",
+    "scenario_name": "MC_RUN_0118",
+    "peak_pressure_bar": 180.27979220923194,
+    "final_alert": "Normal",
+    "final_rupture_probability_pct": 0.05882460051262949,
+    "hours_to_rupture": 56.28905771736561,
+    "likely_failure_mode": "MonteCarlo degradation"
+  },
+  {
+    "circuit_name": "HYD_MAIN",
+    "scenario_name": "MC_RUN_0029",
+    "peak_pressure_bar": 179.90668605250818,
+    "final_alert": "Normal",
+    "final_rupture_probability_pct": 0.058755938376048776,
+    "hours_to_rupture": 56.3550527333476,
+    "likely_failure_mode": "MonteCarlo degradation"
+  },
+  {
+    "circuit_name": "HYD_MAIN",
+    "scenario_name": "MC_RUN_0084",
+    "peak_pressure_bar": 179.3029876110708,
+    "final_alert": "Normal",
+    "final_rupture_probability_pct": 0.05864494491037051,
+    "hours_to_rupture": 56.4620615695764,
+    "likely_failure_mode": "MonteCarlo degradation"
+  },
+  {
+    "circuit_name": "HYD_MAIN",
+    "scenario_name": "MC_RUN_0050",
+    "peak_pressure_bar": 178.3261830129086,
+    "final_alert": "Normal",
+    "final_rupture_probability_pct": 0.05846562637041467,
+    "hours_to_rupture": 56.635801075746606,
+    "likely_failure_mode": "MonteCarlo degradation"
+  },
+  {
+    "circuit_name": "HYD_MAIN",
+    "scenario_name": "MC_RUN_0105",
+    "peak_pressure_bar": 177.7224845714707,
+    "final_alert": "Normal",
+    "final_rupture_probability_pct": 0.05835496982668875,
+    "hours_to_rupture": 56.74354758867488,
+    "likely_failure_mode": "MonteCarlo degradation"
+  },
+  {
+    "circuit_name": "HYD_MAIN",
+    "scenario_name": "MC_RUN_0016",
+    "peak_pressure_bar": 177.34937841474667,
+    "final_alert": "Normal",
+    "final_rupture_probability_pct": 0.05828664461206183,
+    "hours_to_rupture": 56.810280285937644,
+    "likely_failure_mode": "MonteCarlo degradation"
+  },
+  {
+    "circuit_name": "HYD_MAIN",
+    "scenario_name": "MC_RUN_0071",
+    "peak_pressure_bar": 176.74567997330848,
+    "final_alert": "Normal",
+    "final_rupture_probability_pct": 0.05817619607046364,
+    "hours_to_rupture": 56.91848599815104,
+    "likely_failure_mode": "MonteCarlo degradation"
+  },
+  {
+    "circuit_name": "HYD_MAIN",
+    "scenario_name": "MC_RUN_0037",
+    "peak_pressure_bar": 175.76887537514682,
+    "final_alert": "Normal",
+    "final_rupture_probability_pct": 0.057997758641659465,
+    "hours_to_rupture": 57.09417072331493,
+    "likely_failure_mode": "MonteCarlo degradation"
+  },
+  {
+    "circuit_name": "HYD_MAIN",
+    "scenario_name": "MC_RUN_0092",
+    "peak_pressure_bar": 175.16517693370946,
+    "final_alert": "Normal",
+    "final_rupture_probability_pct": 0.057887646287132055,
+    "hours_to_rupture": 57.2031248102584,
+    "likely_failure_mode": "MonteCarlo degradation"
+  },
+  {
+    "circuit_name": "HYD_MAIN",
+    "scenario_name": "MC_RUN_0003",
+    "peak_pressure_bar": 174.7920707769852,
+    "final_alert": "Normal",
+    "final_rupture_probability_pct": 0.057819657259577106,
+    "hours_to_rupture": 57.27060588693123,
+    "likely_failure_mode": "MonteCarlo degradation"
+  },
+  {
+    "circuit_name": "HYD_MAIN",
+    "scenario_name": "MC_RUN_0058",
+    "peak_pressure_bar": 174.18837233554723,
+    "final_alert": "Normal",
+    "final_rupture_probability_pct": 0.05770975245299549,
+    "hours_to_rupture": 57.38002584401383,
+    "likely_failure_mode": "MonteCarlo degradation"
+  },
+  {
+    "circuit_name": "HYD_MAIN",
+    "scenario_name": "MC_RUN_0113",
+    "peak_pressure_bar": 173.58467389410936,
+    "final_alert": "Normal",
+    "final_rupture_probability_pct": 0.05759997583135709,
+    "hours_to_rupture": 57.4897350133629,
+    "likely_failure_mode": "MonteCarlo degradation"
+  },
+  {
+    "circuit_name": "AC_HIGH",
+    "scenario_name": "MC_RUN_0063",
+    "peak_pressure_bar": 16.078532502281764,
+    "final_alert": "Normal",
+    "final_rupture_probability_pct": 0.0575883987259041,
+    "hours_to_rupture": 96.25875793490418,
+    "likely_failure_mode": "MonteCarlo degradation"
+  },
+  {
+    "circuit_name": "HYD_MAIN",
+    "scenario_name": "MC_RUN_0024",
+    "peak_pressure_bar": 173.21156773738556,
+    "final_alert": "Normal",
+    "final_rupture_probability_pct": 0.057532194211398366,
+    "hours_to_rupture": 57.55768404678497,
+    "likely_failure_mode": "MonteCarlo degradation"
+  },
+  {
+    "circuit_name": "HYD_MAIN",
+    "scenario_name": "MC_RUN_0079",
+    "peak_pressure_bar": 172.60786929594713,
+    "final_alert": "Normal",
+    "final_rupture_probability_pct": 0.057422624857006055,
+    "hours_to_rupture": 57.667863269010454,
+    "likely_failure_mode": "MonteCarlo degradation"
+  },
+  {
+    "circuit_name": "HYD_MAIN",
+    "scenario_name": "MC_RUN_0045",
+    "peak_pressure_bar": 171.63106469778597,
+    "final_alert": "Normal",
+    "final_rupture_probability_pct": 0.057245609021012805,
+    "hours_to_rupture": 57.84675549899891,
+    "likely_failure_mode": "MonteCarlo degradation"
+  },
+  {
+    "circuit_name": "HYD_MAIN",
+    "scenario_name": "MC_RUN_0100",
+    "peak_pressure_bar": 171.0273662563481,
+    "final_alert": "Normal",
+    "final_rupture_probability_pct": 0.05713637466462824,
+    "hours_to_rupture": 57.957700815011655,
+    "likely_failure_mode": "MonteCarlo degradation"
+  },
+  {
+    "circuit_name": "HYD_MAIN",
+    "scenario_name": "MC_RUN_0011",
+    "peak_pressure_bar": 170.65426009962405,
+    "final_alert": "Normal",
+    "final_rupture_probability_pct": 0.05706892804267801,
+    "hours_to_rupture": 58.02641594706579,
+    "likely_failure_mode": "MonteCarlo degradation"
+  },
+  {
+    "circuit_name": "HYD_MAIN",
+    "scenario_name": "MC_RUN_0066",
+    "peak_pressure_bar": 170.0505616581859,
+    "final_alert": "Normal",
+    "final_rupture_probability_pct": 0.056959900499357084,
+    "hours_to_rupture": 58.13783818254991,
+    "likely_failure_mode": "MonteCarlo degradation"
+  },
+  {
+    "circuit_name": "HYD_MAIN",
+    "scenario_name": "MC_RUN_0032",
+    "peak_pressure_bar": 169.0737570600242,
+    "final_alert": "Normal",
+    "final_rupture_probability_pct": 0.056783760737562285,
+    "hours_to_rupture": 58.31875069657515,
+    "likely_failure_mode": "MonteCarlo degradation"
+  },
+  {
+    "circuit_name": "HYD_MAIN",
+    "scenario_name": "MC_RUN_0087",
+    "peak_pressure_bar": 168.47005861858685,
+    "final_alert": "Normal",
+    "final_rupture_probability_pct": 0.05667506745736786,
+    "hours_to_rupture": 58.43095023638513,
+    "likely_failure_mode": "MonteCarlo degradation"
+  },
+  {
+    "circuit_name": "HYD_MAIN",
+    "scenario_name": "MC_RUN_0053",
+    "peak_pressure_bar": 167.49325402042464,
+    "final_alert": "Normal",
+    "final_rupture_probability_pct": 0.056499468177232004,
+    "hours_to_rupture": 58.61312612800514,
+    "likely_failure_mode": "MonteCarlo degradation"
+  },
+  {
+    "circuit_name": "HYD_MAIN",
+    "scenario_name": "MC_RUN_0108",
+    "peak_pressure_bar": 166.88955557898674,
+    "final_alert": "Normal",
+    "final_rupture_probability_pct": 0.056391108705981616,
+    "hours_to_rupture": 58.72611000209678,
+    "likely_failure_mode": "MonteCarlo degradation"
+  },
+  {
+    "circuit_name": "HYD_MAIN",
+    "scenario_name": "MC_RUN_0019",
+    "peak_pressure_bar": 166.5164494222627,
+    "final_alert": "Normal",
+    "final_rupture_probability_pct": 0.05632420256569098,
+    "hours_to_rupture": 58.79608854090612,
+    "likely_failure_mode": "MonteCarlo degradation"
+  },
+  {
+    "circuit_name": "HYD_MAIN",
+    "scenario_name": "MC_RUN_0074",
+    "peak_pressure_bar": 165.91275098082454,
+    "final_alert": "Normal",
+    "final_rupture_probability_pct": 0.05621604917262313,
+    "hours_to_rupture": 58.90956070954409,
+    "likely_failure_mode": "MonteCarlo degradation"
+  },
+  {
+    "circuit_name": "HYD_MAIN",
+    "scenario_name": "MC_RUN_0040",
+    "peak_pressure_bar": 164.9359463826634,
+    "final_alert": "Normal",
+    "final_rupture_probability_pct": 0.056041322853677626,
+    "hours_to_rupture": 59.09380507152742,
+    "likely_failure_mode": "MonteCarlo degradation"
+  },
+  {
+    "circuit_name": "HYD_MAIN",
+    "scenario_name": "MC_RUN_0095",
+    "peak_pressure_bar": 164.3322479412255,
+    "final_alert": "Normal",
+    "final_rupture_probability_pct": 0.05593350253467232,
+    "hours_to_rupture": 59.208073116439614,
+    "likely_failure_mode": "MonteCarlo degradation"
+  },
+  {
+    "circuit_name": "HYD_MAIN",
+    "scenario_name": "MC_RUN_0006",
+    "peak_pressure_bar": 163.9591417845013,
+    "final_alert": "Normal",
+    "final_rupture_probability_pct": 0.05586692946844528,
+    "hours_to_rupture": 59.278847536649124,
+    "likely_failure_mode": "MonteCarlo degradation"
+  },
+  {
+    "circuit_name": "AC_HIGH",
+    "scenario_name": "MC_RUN_0118",
+    "peak_pressure_bar": 16.024870418598397,
+    "final_alert": "Normal",
+    "final_rupture_probability_pct": 0.05583546548395163,
+    "hours_to_rupture": 96.36200322901642,
+    "likely_failure_mode": "MonteCarlo degradation"
+  },
+  {
+    "circuit_name": "HYD_MAIN",
+    "scenario_name": "MC_RUN_0061",
+    "peak_pressure_bar": 163.35544334306329,
+    "final_alert": "Normal",
+    "final_rupture_probability_pct": 0.05575931477344076,
+    "hours_to_rupture": 59.393611074186865,
+    "likely_failure_mode": "MonteCarlo degradation"
+  },
+  {
+    "circuit_name": "HYD_MAIN",
+    "scenario_name": "MC_RUN_0116",
+    "peak_pressure_bar": 162.7517449016254,
+    "final_alert": "Normal",
+    "final_rupture_probability_pct": 0.055651827074316075,
+    "hours_to_rupture": 59.50868223378488,
+    "likely_failure_mode": "MonteCarlo degradation"
+  },
+  {
+    "circuit_name": "HYD_MAIN",
+    "scenario_name": "MC_RUN_0027",
+    "peak_pressure_bar": 162.3786387449016,
+    "final_alert": "Normal",
+    "final_rupture_probability_pct": 0.055585459491740784,
+    "hours_to_rupture": 59.57995439855648,
+    "likely_failure_mode": "MonteCarlo degradation"
+  },
+  {
+    "circuit_name": "HYD_MAIN",
+    "scenario_name": "MC_RUN_0082",
+    "peak_pressure_bar": 161.77494030346423,
+    "final_alert": "Normal",
+    "final_rupture_probability_pct": 0.055478177135917565,
+    "hours_to_rupture": 59.69552556507979,
+    "likely_failure_mode": "MonteCarlo degradation"
+  },
+  {
+    "circuit_name": "HYD_MAIN",
+    "scenario_name": "MC_RUN_0048",
+    "peak_pressure_bar": 160.79813570530203,
+    "final_alert": "Normal",
+    "final_rupture_probability_pct": 0.05530485922286751,
+    "hours_to_rupture": 59.88318160839123,
+    "likely_failure_mode": "MonteCarlo degradation"
+  },
+  {
+    "circuit_name": "HYD_MAIN",
+    "scenario_name": "MC_RUN_0103",
+    "peak_pressure_bar": 160.19443726386413,
+    "final_alert": "Normal",
+    "final_rupture_probability_pct": 0.05519790875204328,
+    "hours_to_rupture": 59.99956777484666,
+    "likely_failure_mode": "MonteCarlo degradation"
+  },
+  {
+    "circuit_name": "HYD_MAIN",
+    "scenario_name": "MC_RUN_0014",
+    "peak_pressure_bar": 159.82133110714008,
+    "final_alert": "Normal",
+    "final_rupture_probability_pct": 0.05513187305446761,
+    "hours_to_rupture": 60.0716549448595,
+    "likely_failure_mode": "MonteCarlo degradation"
+  },
+  {
+    "circuit_name": "HYD_MAIN",
+    "scenario_name": "MC_RUN_0069",
+    "peak_pressure_bar": 159.21763266570193,
+    "final_alert": "Normal",
+    "final_rupture_probability_pct": 0.055025127472762496,
+    "hours_to_rupture": 60.18854853077526,
+    "likely_failure_mode": "MonteCarlo degradation"
+  },
+  {
+    "circuit_name": "HYD_MAIN",
+    "scenario_name": "MC_RUN_0035",
+    "peak_pressure_bar": 158.24082806754024,
+    "final_alert": "Normal",
+    "final_rupture_probability_pct": 0.054852677483950174,
+    "hours_to_rupture": 60.37835406014202,
+    "likely_failure_mode": "MonteCarlo degradation"
+  },
+  {
+    "circuit_name": "AC_HIGH",
+    "scenario_name": "MC_RUN_0029",
+    "peak_pressure_bar": 15.991705426889615,
+    "final_alert": "Normal",
+    "final_rupture_probability_pct": 0.054775094245280515,
+    "hours_to_rupture": 96.42588682042853,
+    "likely_failure_mode": "MonteCarlo degradation"
+  },
+  {
+    "circuit_name": "HYD_MAIN",
+    "scenario_name": "MC_RUN_0090",
+    "peak_pressure_bar": 157.63712962610288,
+    "final_alert": "Normal",
+    "final_rupture_probability_pct": 0.05474626305236276,
+    "hours_to_rupture": 60.496074749492365,
+    "likely_failure_mode": "MonteCarlo degradation"
+  },
+  {
+    "circuit_name": "HYD_MAIN",
+    "scenario_name": "MC_RUN_0001",
+    "peak_pressure_bar": 157.26402346937857,
+    "final_alert": "Normal",
+    "final_rupture_probability_pct": 0.054680558504905975,
+    "hours_to_rupture": 60.56898902836631,
+    "likely_failure_mode": "MonteCarlo degradation"
+  },
+  {
+    "circuit_name": "HYD_MAIN",
+    "scenario_name": "MC_RUN_0056",
+    "peak_pressure_bar": 156.66032502794067,
+    "final_alert": "Normal",
+    "final_rupture_probability_pct": 0.05457434850825568,
+    "hours_to_rupture": 60.687224686079816,
+    "likely_failure_mode": "MonteCarlo degradation"
+  },
+  {
+    "circuit_name": "HYD_MAIN",
+    "scenario_name": "MC_RUN_0111",
+    "peak_pressure_bar": 156.05662658650277,
+    "final_alert": "Normal",
+    "final_rupture_probability_pct": 0.05446826477260399,
+    "hours_to_rupture": 60.805780070465644,
+    "likely_failure_mode": "MonteCarlo degradation"
+  },
+  {
+    "circuit_name": "HYD_MAIN",
+    "scenario_name": "MC_RUN_0022",
+    "peak_pressure_bar": 155.68352042977898,
+    "final_alert": "Normal",
+    "final_rupture_probability_pct": 0.05440276451973495,
+    "hours_to_rupture": 60.879211679670036,
+    "likely_failure_mode": "MonteCarlo degradation"
+  },
+  {
+    "circuit_name": "HYD_MAIN",
+    "scenario_name": "MC_RUN_0077",
+    "peak_pressure_bar": 155.07982198834057,
+    "final_alert": "Normal",
+    "final_rupture_probability_pct": 0.05429688493832104,
+    "hours_to_rupture": 60.998286767393765,
+    "likely_failure_mode": "MonteCarlo degradation"
+  },
+  {
+    "circuit_name": "HYD_MAIN",
+    "scenario_name": "MC_RUN_0043",
+    "peak_pressure_bar": 154.10301739017942,
+    "final_alert": "Normal",
+    "final_rupture_probability_pct": 0.05412583520544277,
+    "hours_to_rupture": 61.19163822619638,
+    "likely_failure_mode": "MonteCarlo degradation"
+  },
+  {
+    "circuit_name": "HYD_MAIN",
+    "scenario_name": "MC_RUN_0098",
+    "peak_pressure_bar": 153.49931894874152,
+    "final_alert": "Normal",
+    "final_rupture_probability_pct": 0.05402028558508315,
+    "hours_to_rupture": 61.31156047585963,
+    "likely_failure_mode": "MonteCarlo degradation"
+  },
+  {
+    "circuit_name": "HYD_MAIN",
+    "scenario_name": "MC_RUN_0009",
+    "peak_pressure_bar": 153.12621279201736,
+    "final_alert": "Normal",
+    "final_rupture_probability_pct": 0.05395511529326962,
+    "hours_to_rupture": 61.38583925262603,
+    "likely_failure_mode": "MonteCarlo degradation"
+  },
+  {
+    "circuit_name": "HYD_MAIN",
+    "scenario_name": "MC_RUN_0064",
+    "peak_pressure_bar": 152.5225143505793,
+    "final_alert": "Normal",
+    "final_rupture_probability_pct": 0.05384976937296533,
+    "hours_to_rupture": 61.50628898159738,
+    "likely_failure_mode": "MonteCarlo degradation"
+  },
+  {
+    "circuit_name": "HYD_MAIN",
+    "scenario_name": "MC_RUN_0119",
+    "peak_pressure_bar": 151.91881590914141,
+    "final_alert": "Normal",
+    "final_rupture_probability_pct": 0.05374454925947804,
+    "hours_to_rupture": 61.627066213411396,
+    "likely_failure_mode": "MonteCarlo degradation"
+  },
+  {
+    "circuit_name": "HYD_MAIN",
+    "scenario_name": "MC_RUN_0030",
+    "peak_pressure_bar": 151.54570975241762,
+    "final_alert": "Normal",
+    "final_rupture_probability_pct": 0.053679582527370796,
+    "hours_to_rupture": 61.70187490267803,
+    "likely_failure_mode": "MonteCarlo degradation"
+  },
+  {
+    "circuit_name": "HYD_MAIN",
+    "scenario_name": "MC_RUN_0085",
+    "peak_pressure_bar": 150.94201131098026,
+    "final_alert": "Normal",
+    "final_rupture_probability_pct": 0.05357456583323976,
+    "hours_to_rupture": 61.82318449162429,
+    "likely_failure_mode": "MonteCarlo degradation"
+  },
+  {
+    "circuit_name": "HYD_MAIN",
+    "scenario_name": "MC_RUN_0051",
+    "peak_pressure_bar": 149.96520671281806,
+    "final_alert": "Normal",
+    "final_rupture_probability_pct": 0.053404911319342205,
+    "hours_to_rupture": 62.020168122765504,
+    "likely_failure_mode": "MonteCarlo degradation"
+  },
+  {
+    "circuit_name": "HYD_MAIN",
+    "scenario_name": "MC_RUN_0106",
+    "peak_pressure_bar": 149.36150827138016,
+    "final_alert": "Normal",
+    "final_rupture_probability_pct": 0.053300223397202195,
+    "hours_to_rupture": 62.1423455373117,
+    "likely_failure_mode": "MonteCarlo degradation"
+  },
+  {
+    "circuit_name": "HYD_MAIN",
+    "scenario_name": "MC_RUN_0017",
+    "peak_pressure_bar": 148.9884021146561,
+    "final_alert": "Normal",
+    "final_rupture_probability_pct": 0.05323558543708677,
+    "hours_to_rupture": 62.218022058004856,
+    "likely_failure_mode": "MonteCarlo degradation"
+  },
+  {
+    "circuit_name": "HYD_MAIN",
+    "scenario_name": "MC_RUN_0072",
+    "peak_pressure_bar": 148.38470367321796,
+    "final_alert": "Normal",
+    "final_rupture_probability_pct": 0.0531311004801207,
+    "hours_to_rupture": 62.340739840949205,
+    "likely_failure_mode": "MonteCarlo degradation"
+  },
+  {
+    "circuit_name": "AC_HIGH",
+    "scenario_name": "MC_RUN_0084",
+    "peak_pressure_bar": 15.938043343206294,
+    "final_alert": "Normal",
+    "final_rupture_probability_pct": 0.05309732114254981,
+    "hours_to_rupture": 96.52937336212,
+    "likely_failure_mode": "MonteCarlo degradation"
+  },
+  {
+    "circuit_name": "HYD_MAIN",
+    "scenario_name": "MC_RUN_0038",
+    "peak_pressure_bar": 147.4078990750563,
+    "final_alert": "Normal",
+    "final_rupture_probability_pct": 0.05296230574049863,
+    "hours_to_rupture": 62.54001253430618,
+    "likely_failure_mode": "MonteCarlo degradation"
+  },
+  {
+    "circuit_name": "HYD_MAIN",
+    "scenario_name": "MC_RUN_0093",
+    "peak_pressure_bar": 146.8042006336189,
+    "final_alert": "Normal",
+    "final_rupture_probability_pct": 0.052858148820642034,
+    "hours_to_rupture": 62.6636112258313,
+    "likely_failure_mode": "MonteCarlo degradation"
+  },
+  {
+    "circuit_name": "HYD_MAIN",
+    "scenario_name": "MC_RUN_0004",
+    "peak_pressure_bar": 146.43109447689466,
+    "final_alert": "Normal",
+    "final_rupture_probability_pct": 0.05279383889763693,
+    "hours_to_rupture": 62.740168661062675,
+    "likely_failure_mode": "MonteCarlo degradation"
+  },
+  {
+    "circuit_name": "HYD_MAIN",
+    "scenario_name": "MC_RUN_0059",
+    "peak_pressure_bar": 145.8273960354567,
+    "final_alert": "Normal",
+    "final_rupture_probability_pct": 0.05268988448877218,
+    "hours_to_rupture": 62.864315881938715,
+    "likely_failure_mode": "MonteCarlo degradation"
+  },
+  {
+    "circuit_name": "HYD_MAIN",
+    "scenario_name": "MC_RUN_0114",
+    "peak_pressure_bar": 145.2236975940188,
+    "final_alert": "Normal",
+    "final_rupture_probability_pct": 0.05258605515184327,
+    "hours_to_rupture": 62.98880368987538,
+    "likely_failure_mode": "MonteCarlo degradation"
+  },
+  {
+    "circuit_name": "HYD_MAIN",
+    "scenario_name": "MC_RUN_0025",
+    "peak_pressure_bar": 144.85059143729504,
+    "final_alert": "Normal",
+    "final_rupture_probability_pct": 0.05252194759948091,
+    "hours_to_rupture": 63.06591220842222,
+    "likely_failure_mode": "MonteCarlo degradation"
+  },
+  {
+    "circuit_name": "HYD_MAIN",
+    "scenario_name": "MC_RUN_0080",
+    "peak_pressure_bar": 144.24689299585765,
+    "final_alert": "Normal",
+    "final_rupture_probability_pct": 0.052418320492844464,
+    "hours_to_rupture": 63.190953665762635,
+    "likely_failure_mode": "MonteCarlo degradation"
+  },
+  {
+    "circuit_name": "HYD_MAIN",
+    "scenario_name": "MC_RUN_0046",
+    "peak_pressure_bar": 143.27008839769545,
+    "final_alert": "Normal",
+    "final_rupture_probability_pct": 0.05225091282224192,
+    "hours_to_rupture": 63.394003644243185,
+    "likely_failure_mode": "MonteCarlo degradation"
+  },
+  {
+    "circuit_name": "HYD_MAIN",
+    "scenario_name": "MC_RUN_0101",
+    "peak_pressure_bar": 142.66638995625755,
+    "final_alert": "Normal",
+    "final_rupture_probability_pct": 0.052147612563651746,
+    "hours_to_rupture": 63.519947699983575,
+    "likely_failure_mode": "MonteCarlo degradation"
+  },
+  {
+    "circuit_name": "HYD_MAIN",
+    "scenario_name": "MC_RUN_0012",
+    "peak_pressure_bar": 142.2932837995335,
+    "final_alert": "Normal",
+    "final_rupture_probability_pct": 0.052083831859335974,
+    "hours_to_rupture": 63.59795882310621,
+    "likely_failure_mode": "MonteCarlo degradation"
+  },
+  {
+    "circuit_name": "HYD_MAIN",
+    "scenario_name": "MC_RUN_0067",
+    "peak_pressure_bar": 141.68958535809534,
+    "final_alert": "Normal",
+    "final_rupture_probability_pct": 0.05198073337685628,
+    "hours_to_rupture": 63.72446493856206,
+    "likely_failure_mode": "MonteCarlo degradation"
+  },
+  {
+    "circuit_name": "HYD_MAIN",
+    "scenario_name": "MC_RUN_0033",
+    "peak_pressure_bar": 140.71278075993368,
+    "final_alert": "Normal",
+    "final_rupture_probability_pct": 0.051814180443576274,
+    "hours_to_rupture": 63.92989586665162,
+    "likely_failure_mode": "MonteCarlo degradation"
+  },
+  {
+    "circuit_name": "HYD_MAIN",
+    "scenario_name": "MC_RUN_0088",
+    "peak_pressure_bar": 140.1090823184963,
+    "final_alert": "Normal",
+    "final_rupture_probability_pct": 0.05171140807426084,
+    "hours_to_rupture": 64.05731831638893,
+    "likely_failure_mode": "MonteCarlo degradation"
+  },
+  {
+    "circuit_name": "HYD_MAIN",
+    "scenario_name": "MC_RUN_0054",
+    "peak_pressure_bar": 139.1322777203341,
+    "final_alert": "Normal",
+    "final_rupture_probability_pct": 0.051545382435724395,
+    "hours_to_rupture": 64.26423885855222,
+    "likely_failure_mode": "MonteCarlo degradation"
+  },
+  {
+    "circuit_name": "HYD_MAIN",
+    "scenario_name": "MC_RUN_0109",
+    "peak_pressure_bar": 138.5285792788962,
+    "final_alert": "Normal",
+    "final_rupture_probability_pct": 0.05144293572539169,
+    "hours_to_rupture": 64.39258626126214,
+    "likely_failure_mode": "MonteCarlo degradation"
+  },
+  {
+    "circuit_name": "HYD_MAIN",
+    "scenario_name": "MC_RUN_0020",
+    "peak_pressure_bar": 138.15547312217242,
+    "final_alert": "Normal",
+    "final_rupture_probability_pct": 0.051379682315821025,
+    "hours_to_rupture": 64.472087035677,
+    "likely_failure_mode": "MonteCarlo degradation"
+  },
+  {
+    "circuit_name": "HYD_MAIN",
+    "scenario_name": "MC_RUN_0075",
+    "peak_pressure_bar": 137.55177468073398,
+    "final_alert": "Normal",
+    "final_rupture_probability_pct": 0.05127743664671735,
+    "hours_to_rupture": 64.60101044392671,
+    "likely_failure_mode": "MonteCarlo degradation"
+  },
+  {
+    "circuit_name": "HYD_MAIN",
+    "scenario_name": "MC_RUN_0041",
+    "peak_pressure_bar": 136.57497008257283,
+    "final_alert": "Normal",
+    "final_rupture_probability_pct": 0.05111226263249519,
+    "hours_to_rupture": 64.81037101213721,
+    "likely_failure_mode": "MonteCarlo degradation"
+  },
+  {
+    "circuit_name": "HYD_MAIN",
+    "scenario_name": "MC_RUN_0096",
+    "peak_pressure_bar": 135.97127164113496,
+    "final_alert": "Normal",
+    "final_rupture_probability_pct": 0.05101034188749281,
+    "hours_to_rupture": 64.94023353229352,
+    "likely_failure_mode": "MonteCarlo degradation"
+  },
+  {
+    "circuit_name": "HYD_MAIN",
+    "scenario_name": "MC_RUN_0007",
+    "peak_pressure_bar": 135.59816548441077,
+    "final_alert": "Normal",
+    "final_rupture_probability_pct": 0.05094741340202398,
+    "hours_to_rupture": 65.02067342516507,
+    "likely_failure_mode": "MonteCarlo degradation"
+  },
+  {
+    "circuit_name": "HYD_MAIN",
+    "scenario_name": "MC_RUN_0062",
+    "peak_pressure_bar": 135.0,
+    "final_alert": "Normal",
+    "final_rupture_probability_pct": 0.050845693244069366,
+    "hours_to_rupture": 65.15112078426665,
+    "likely_failure_mode": "MonteCarlo degradation"
+  },
+  {
+    "circuit_name": "HYD_MAIN",
+    "scenario_name": "MC_RUN_0117",
+    "peak_pressure_bar": 135.0,
+    "final_alert": "Normal",
+    "final_rupture_probability_pct": 0.050744096968986394,
+    "hours_to_rupture": 65.28193130127961,
+    "likely_failure_mode": "MonteCarlo degradation"
+  },
+  {
+    "circuit_name": "HYD_MAIN",
+    "scenario_name": "MC_RUN_0028",
+    "peak_pressure_bar": 135.0,
+    "final_alert": "Normal",
+    "final_rupture_probability_pct": 0.05068136893021553,
+    "hours_to_rupture": 65.36295879805746,
+    "likely_failure_mode": "MonteCarlo degradation"
+  },
+  {
+    "circuit_name": "HYD_MAIN",
+    "scenario_name": "MC_RUN_0083",
+    "peak_pressure_bar": 135.0,
+    "final_alert": "Normal",
+    "final_rupture_probability_pct": 0.05057997296148025,
+    "hours_to_rupture": 65.49435969727165,
+    "likely_failure_mode": "MonteCarlo degradation"
+  },
+  {
+    "circuit_name": "AC_HIGH",
+    "scenario_name": "MC_RUN_0050",
+    "peak_pressure_bar": 15.851216267814097,
+    "final_alert": "Normal",
+    "final_rupture_probability_pct": 0.050484519735739725,
+    "hours_to_rupture": 96.69713477486566,
+    "likely_failure_mode": "MonteCarlo degradation"
+  },
+  {
+    "circuit_name": "HYD_MAIN",
+    "scenario_name": "MC_RUN_0049",
+    "peak_pressure_bar": 135.0,
+    "final_alert": "Normal",
+    "final_rupture_probability_pct": 0.05041617282936211,
+    "hours_to_rupture": 65.70774787682993,
+    "likely_failure_mode": "MonteCarlo degradation"
+  },
+  {
+    "circuit_name": "HYD_MAIN",
+    "scenario_name": "MC_RUN_0104",
+    "peak_pressure_bar": 135.0,
+    "final_alert": "Normal",
+    "final_rupture_probability_pct": 0.050315100595664394,
+    "hours_to_rupture": 65.8401113705955,
+    "likely_failure_mode": "MonteCarlo degradation"
+  },
+  {
+    "circuit_name": "HYD_MAIN",
+    "scenario_name": "MC_RUN_0015",
+    "peak_pressure_bar": 135.0,
+    "final_alert": "Normal",
+    "final_rupture_probability_pct": 0.05025269629193226,
+    "hours_to_rupture": 65.92210146871899,
+    "likely_failure_mode": "MonteCarlo degradation"
+  },
+  {
+    "circuit_name": "HYD_MAIN",
+    "scenario_name": "MC_RUN_0070",
+    "peak_pressure_bar": 135.0,
+    "final_alert": "Normal",
+    "final_rupture_probability_pct": 0.05015182391040038,
+    "hours_to_rupture": 66.05506445234359,
+    "likely_failure_mode": "MonteCarlo degradation"
+  },
+  {
+    "circuit_name": "HYD_MAIN",
+    "scenario_name": "MC_RUN_0036",
+    "peak_pressure_bar": 135.0,
+    "final_alert": "Normal",
+    "final_rupture_probability_pct": 0.04998887036564275,
+    "hours_to_rupture": 66.27099214079719,
+    "likely_failure_mode": "MonteCarlo degradation"
+  },
+  {
+    "circuit_name": "HYD_MAIN",
+    "scenario_name": "MC_RUN_0091",
+    "peak_pressure_bar": 135.0,
+    "final_alert": "Normal",
+    "final_rupture_probability_pct": 0.049888320984267286,
+    "hours_to_rupture": 66.40493259598844,
+    "likely_failure_mode": "MonteCarlo degradation"
+  },
+  {
+    "circuit_name": "HYD_MAIN",
+    "scenario_name": "MC_RUN_0002",
+    "peak_pressure_bar": 135.0,
+    "final_alert": "Normal",
+    "final_rupture_probability_pct": 0.04982623968069191,
+    "hours_to_rupture": 66.48790017262954,
+    "likely_failure_mode": "MonteCarlo degradation"
+  },
+  {
+    "circuit_name": "HYD_MAIN",
+    "scenario_name": "MC_RUN_0057",
+    "peak_pressure_bar": 135.0,
+    "final_alert": "Normal",
+    "final_rupture_probability_pct": 0.049725889697300234,
+    "hours_to_rupture": 66.62244939994005,
+    "likely_failure_mode": "MonteCarlo degradation"
+  },
+  {
+    "circuit_name": "HYD_MAIN",
+    "scenario_name": "MC_RUN_0112",
+    "peak_pressure_bar": 135.0,
+    "final_alert": "Normal",
+    "final_rupture_probability_pct": 0.04962566286189871,
+    "hours_to_rupture": 66.75737666365846,
+    "likely_failure_mode": "MonteCarlo degradation"
+  },
+  {
+    "circuit_name": "HYD_MAIN",
+    "scenario_name": "MC_RUN_0023",
+    "peak_pressure_bar": 135.0,
+    "final_alert": "Normal",
+    "final_rupture_probability_pct": 0.04956378081595812,
+    "hours_to_rupture": 66.84095591824546,
+    "likely_failure_mode": "MonteCarlo degradation"
+  },
+  {
+    "circuit_name": "HYD_MAIN",
+    "scenario_name": "MC_RUN_0078",
+    "peak_pressure_bar": 135.0,
+    "final_alert": "Normal",
+    "final_rupture_probability_pct": 0.0494637530978409,
+    "hours_to_rupture": 66.97649777988941,
+    "likely_failure_mode": "MonteCarlo degradation"
+  },
+  {
+    "circuit_name": "HYD_MAIN",
+    "scenario_name": "MC_RUN_0044",
+    "peak_pressure_bar": 135.0,
+    "final_alert": "Normal",
+    "final_rupture_probability_pct": 0.04930216528522639,
+    "hours_to_rupture": 67.19661809262797,
+    "likely_failure_mode": "MonteCarlo degradation"
+  },
+  {
+    "circuit_name": "HYD_MAIN",
+    "scenario_name": "MC_RUN_0099",
+    "peak_pressure_bar": 135.0,
+    "final_alert": "Normal",
+    "final_rupture_probability_pct": 0.049202459378201925,
+    "hours_to_rupture": 67.33316210545986,
+    "likely_failure_mode": "MonteCarlo degradation"
+  },
+  {
+    "circuit_name": "HYD_MAIN",
+    "scenario_name": "MC_RUN_0010",
+    "peak_pressure_bar": 135.0,
+    "final_alert": "Normal",
+    "final_rupture_probability_pct": 0.04914089914335512,
+    "hours_to_rupture": 67.41774351844772,
+    "likely_failure_mode": "MonteCarlo degradation"
+  },
+  {
+    "circuit_name": "HYD_MAIN",
+    "scenario_name": "MC_RUN_0065",
+    "peak_pressure_bar": 135.0,
+    "final_alert": "Normal",
+    "final_rupture_probability_pct": 0.04904139189943318,
+    "hours_to_rupture": 67.55491170255549,
+    "likely_failure_mode": "MonteCarlo degradation"
+  },
+  {
+    "circuit_name": "AC_HIGH",
+    "scenario_name": "MC_RUN_0105",
+    "peak_pressure_bar": 15.797554184130728,
+    "final_alert": "Normal",
+    "final_rupture_probability_pct": 0.04893468041289359,
+    "hours_to_rupture": 96.80101317419617,
+    "likely_failure_mode": "MonteCarlo degradation"
+  },
+  {
+    "circuit_name": "HYD_MAIN",
+    "scenario_name": "MC_RUN_0031",
+    "peak_pressure_bar": 135.0,
+    "final_alert": "Normal",
+    "final_rupture_probability_pct": 0.04888064563722555,
+    "hours_to_rupture": 67.77767607814522,
+    "likely_failure_mode": "MonteCarlo degradation"
+  },
+  {
+    "circuit_name": "HYD_MAIN",
+    "scenario_name": "MC_RUN_0086",
+    "peak_pressure_bar": 135.0,
+    "final_alert": "Normal",
+    "final_rupture_probability_pct": 0.04878145946951494,
+    "hours_to_rupture": 67.91586205262735,
+    "likely_failure_mode": "MonteCarlo degradation"
+  },
+  {
+    "circuit_name": "HYD_MAIN",
+    "scenario_name": "MC_RUN_0052",
+    "peak_pressure_bar": 135.0,
+    "final_alert": "Normal",
+    "final_rupture_probability_pct": 0.04862123235209001,
+    "hours_to_rupture": 68.14028116785735,
+    "likely_failure_mode": "MonteCarlo degradation"
+  },
+  {
+    "circuit_name": "HYD_MAIN",
+    "scenario_name": "MC_RUN_0107",
+    "peak_pressure_bar": 135.0,
+    "final_alert": "Normal",
+    "final_rupture_probability_pct": 0.0485223668064086,
+    "hours_to_rupture": 68.27949474952726,
+    "likely_failure_mode": "MonteCarlo degradation"
+  },
+  {
+    "circuit_name": "HYD_MAIN",
+    "scenario_name": "MC_RUN_0018",
+    "peak_pressure_bar": 135.0,
+    "final_alert": "Normal",
+    "final_rupture_probability_pct": 0.04846132571634503,
+    "hours_to_rupture": 68.36573094565743,
+    "likely_failure_mode": "MonteCarlo degradation"
+  },
+  {
+    "circuit_name": "HYD_MAIN",
+    "scenario_name": "MC_RUN_0073",
+    "peak_pressure_bar": 135.0,
+    "final_alert": "Normal",
+    "final_rupture_probability_pct": 0.048362658098884403,
+    "hours_to_rupture": 68.50558458312781,
+    "likely_failure_mode": "MonteCarlo degradation"
+  },
+  {
+    "circuit_name": "HYD_MAIN",
+    "scenario_name": "MC_RUN_0039",
+    "peak_pressure_bar": 135.0,
+    "final_alert": "Normal",
+    "final_rupture_probability_pct": 0.0482032694188584,
+    "hours_to_rupture": 68.73271505030955,
+    "likely_failure_mode": "MonteCarlo degradation"
+  },
+  {
+    "circuit_name": "HYD_MAIN",
+    "scenario_name": "MC_RUN_0094",
+    "peak_pressure_bar": 135.0,
+    "final_alert": "Normal",
+    "final_rupture_probability_pct": 0.04810492168854551,
+    "hours_to_rupture": 68.87361242863167,
+    "likely_failure_mode": "MonteCarlo degradation"
+  },
+  {
+    "circuit_name": "HYD_MAIN",
+    "scenario_name": "MC_RUN_0005",
+    "peak_pressure_bar": 135.0,
+    "final_alert": "Normal",
+    "final_rupture_probability_pct": 0.04804420048563023,
+    "hours_to_rupture": 68.96089237327546,
+    "likely_failure_mode": "MonteCarlo degradation"
+  },
+  {
+    "circuit_name": "AC_HIGH",
+    "scenario_name": "MC_RUN_0016",
+    "peak_pressure_bar": 15.764389192421925,
+    "final_alert": "Normal",
+    "final_rupture_probability_pct": 0.048002403367864196,
+    "hours_to_rupture": 96.8652886239387,
+    "likely_failure_mode": "MonteCarlo degradation"
+  },
+  {
+    "circuit_name": "HYD_MAIN",
+    "scenario_name": "MC_RUN_0060",
+    "peak_pressure_bar": 135.0,
+    "final_alert": "Normal",
+    "final_rupture_probability_pct": 0.04794605022935701,
+    "hours_to_rupture": 69.10243987527762,
+    "likely_failure_mode": "MonteCarlo degradation"
+  },
+  {
+    "circuit_name": "HYD_MAIN",
+    "scenario_name": "MC_RUN_0115",
+    "peak_pressure_bar": 135.0,
+    "final_alert": "Normal",
+    "final_rupture_probability_pct": 0.0478480219320104,
+    "hours_to_rupture": 69.24439112262931,
+    "likely_failure_mode": "MonteCarlo degradation"
+  },
+  {
+    "circuit_name": "HYD_MAIN",
+    "scenario_name": "MC_RUN_0026",
+    "peak_pressure_bar": 135.0,
+    "final_alert": "Normal",
+    "final_rupture_probability_pct": 0.04778749806278476,
+    "hours_to_rupture": 69.33232434338511,
+    "likely_failure_mode": "MonteCarlo degradation"
+  },
+  {
+    "circuit_name": "HYD_MAIN",
+    "scenario_name": "MC_RUN_0081",
+    "peak_pressure_bar": 135.0,
+    "final_alert": "Normal",
+    "final_rupture_probability_pct": 0.047689666958777605,
+    "hours_to_rupture": 69.47493203488624,
+    "likely_failure_mode": "MonteCarlo degradation"
+  },
+  {
+    "circuit_name": "HYD_MAIN",
+    "scenario_name": "MC_RUN_0047",
+    "peak_pressure_bar": 135.0,
+    "final_alert": "Normal",
+    "final_rupture_probability_pct": 0.04753163082397976,
+    "hours_to_rupture": 69.70654025687247,
+    "likely_failure_mode": "MonteCarlo degradation"
+  },
+  {
+    "circuit_name": "HYD_MAIN",
+    "scenario_name": "MC_RUN_0102",
+    "peak_pressure_bar": 135.0,
+    "final_alert": "Normal",
+    "final_rupture_probability_pct": 0.04743411841805689,
+    "hours_to_rupture": 69.85021846440908,
+    "likely_failure_mode": "MonteCarlo degradation"
+  },
+  {
+    "circuit_name": "HYD_MAIN",
+    "scenario_name": "MC_RUN_0013",
+    "peak_pressure_bar": 135.0,
+    "final_alert": "Normal",
+    "final_rupture_probability_pct": 0.047373913246916616,
+    "hours_to_rupture": 69.93922220915567,
+    "likely_failure_mode": "MonteCarlo degradation"
+  },
+  {
+    "circuit_name": "HYD_MAIN",
+    "scenario_name": "MC_RUN_0068",
+    "peak_pressure_bar": 135.0,
+    "final_alert": "Normal",
+    "final_rupture_probability_pct": 0.04727659758015076,
+    "hours_to_rupture": 70.08356724968928,
+    "likely_failure_mode": "MonteCarlo degradation"
+  },
+  {
+    "circuit_name": "HYD_MAIN",
+    "scenario_name": "MC_RUN_0034",
+    "peak_pressure_bar": 135.0,
+    "final_alert": "Normal",
+    "final_rupture_probability_pct": 0.04711939484579873,
+    "hours_to_rupture": 70.31800025566538,
+    "likely_failure_mode": "MonteCarlo degradation"
+  },
+  {
+    "circuit_name": "HYD_MAIN",
+    "scenario_name": "MC_RUN_0089",
+    "peak_pressure_bar": 135.0,
+    "final_alert": "Normal",
+    "final_rupture_probability_pct": 0.047022397142235973,
+    "hours_to_rupture": 70.46343278630248,
+    "likely_failure_mode": "MonteCarlo degradation"
+  },
+  {
+    "circuit_name": "HYD_MAIN",
+    "scenario_name": "MC_RUN_0000",
+    "peak_pressure_bar": 135.0,
+    "final_alert": "Normal",
+    "final_rupture_probability_pct": 0.04696250993429977,
+    "hours_to_rupture": 70.55352402929641,
+    "likely_failure_mode": "MonteCarlo degradation"
+  },
+  {
+    "circuit_name": "AC_HIGH",
+    "scenario_name": "MC_RUN_0071",
+    "peak_pressure_bar": 15.710727108738533,
+    "final_alert": "Normal",
+    "final_rupture_probability_pct": 0.046536450498074936,
+    "hours_to_rupture": 96.96941014241104,
+    "likely_failure_mode": "MonteCarlo degradation"
+  },
+  {
+    "circuit_name": "AC_HIGH",
+    "scenario_name": "MC_RUN_0037",
+    "peak_pressure_bar": 15.623900033346382,
+    "final_alert": "Normal",
+    "final_rupture_probability_pct": 0.044279895786472775,
+    "hours_to_rupture": 97.13820142730934,
+    "likely_failure_mode": "MonteCarlo degradation"
+  },
+  {
+    "circuit_name": "AC_HIGH",
+    "scenario_name": "MC_RUN_0092",
+    "peak_pressure_bar": 15.570237949663062,
+    "final_alert": "Normal",
+    "final_rupture_probability_pct": 0.042959853843586956,
+    "hours_to_rupture": 97.24271784591079,
+    "likely_failure_mode": "MonteCarlo degradation"
+  },
+  {
+    "circuit_name": "AC_HIGH",
+    "scenario_name": "MC_RUN_0003",
+    "peak_pressure_bar": 15.53707295795424,
+    "final_alert": "Normal",
+    "final_rupture_probability_pct": 0.0421737986624496,
+    "hours_to_rupture": 97.30738819648174,
+    "likely_failure_mode": "MonteCarlo degradation"
+  },
+  {
+    "circuit_name": "AC_HIGH",
+    "scenario_name": "MC_RUN_0058",
+    "peak_pressure_bar": 15.483410874270865,
+    "final_alert": "Normal",
+    "final_rupture_probability_pct": 0.040952080125631354,
+    "hours_to_rupture": 97.41214962343241,
+    "likely_failure_mode": "MonteCarlo degradation"
+  },
+  {
+    "circuit_name": "AC_HIGH",
+    "scenario_name": "MC_RUN_0113",
+    "peak_pressure_bar": 15.429748790587498,
+    "final_alert": "Normal",
+    "final_rupture_probability_pct": 0.039795148416115644,
+    "hours_to_rupture": 97.51706283685961,
+    "likely_failure_mode": "MonteCarlo degradation"
+  },
+  {
+    "circuit_name": "AC_HIGH",
+    "scenario_name": "MC_RUN_0024",
+    "peak_pressure_bar": 15.396583798878716,
+    "final_alert": "Normal",
+    "final_rupture_probability_pct": 0.039114138052223545,
+    "hours_to_rupture": 97.58197878332707,
+    "likely_failure_mode": "MonteCarlo degradation"
+  },
+  {
+    "circuit_name": "AC_HIGH",
+    "scenario_name": "MC_RUN_0079",
+    "peak_pressure_bar": 15.3429217151953,
+    "final_alert": "Normal",
+    "final_rupture_probability_pct": 0.03807037956638294,
+    "hours_to_rupture": 97.68713818160595,
+    "likely_failure_mode": "MonteCarlo degradation"
+  },
+  {
+    "circuit_name": "AC_HIGH",
+    "scenario_name": "MC_RUN_0045",
+    "peak_pressure_bar": 15.256094639803198,
+    "final_alert": "Normal",
+    "final_rupture_probability_pct": 0.03654647371790603,
+    "hours_to_rupture": 97.85761281788854,
+    "likely_failure_mode": "MonteCarlo degradation"
+  },
+  {
+    "circuit_name": "AC_HIGH",
+    "scenario_name": "MC_RUN_0100",
+    "peak_pressure_bar": 15.20243255611983,
+    "final_alert": "Normal",
+    "final_rupture_probability_pct": 0.03571816997838153,
+    "hours_to_rupture": 97.96317210009454,
+    "likely_failure_mode": "MonteCarlo degradation"
+  },
+  {
+    "circuit_name": "ENG_OIL",
+    "scenario_name": "MC_RUN_0055",
+    "peak_pressure_bar": 4.385690105553333,
+    "final_alert": "Normal",
+    "final_rupture_probability_pct": 0.03551460721220054,
+    "hours_to_rupture": 93.35544840457737,
+    "likely_failure_mode": "MonteCarlo degradation"
+  },
+  {
+    "circuit_name": "ENG_OIL",
+    "scenario_name": "MC_RUN_0110",
+    "peak_pressure_bar": 4.371380216571101,
+    "final_alert": "Normal",
+    "final_rupture_probability_pct": 0.035460881560181845,
+    "hours_to_rupture": 93.49716788786735,
+    "likely_failure_mode": "MonteCarlo degradation"
+  },
+  {
+    "circuit_name": "ENG_OIL",
+    "scenario_name": "MC_RUN_0021",
+    "peak_pressure_bar": 4.362536218782092,
+    "final_alert": "Normal",
+    "final_rupture_probability_pct": 0.03542770347171657,
+    "hours_to_rupture": 93.5849009405585,
+    "likely_failure_mode": "MonteCarlo degradation"
+  },
+  {
+    "circuit_name": "ENG_OIL",
+    "scenario_name": "MC_RUN_0076",
+    "peak_pressure_bar": 4.348226329799848,
+    "final_alert": "Normal",
+    "final_rupture_probability_pct": 0.03537406255691882,
+    "hours_to_rupture": 93.72709211601216,
+    "likely_failure_mode": "MonteCarlo degradation"
+  },
+  {
+    "circuit_name": "ENG_OIL",
+    "scenario_name": "MC_RUN_0042",
+    "peak_pressure_bar": 4.325072443028621,
+    "final_alert": "Normal",
+    "final_rupture_probability_pct": 0.03528738057663152,
+    "hours_to_rupture": 93.95778217107734,
+    "likely_failure_mode": "MonteCarlo degradation"
+  },
+  {
+    "circuit_name": "AC_HIGH",
+    "scenario_name": "MC_RUN_0011",
+    "peak_pressure_bar": 15.169267564411026,
+    "final_alert": "Normal",
+    "final_rupture_probability_pct": 0.03525507791407886,
+    "hours_to_rupture": 98.02848793120103,
+    "likely_failure_mode": "MonteCarlo degradation"
+  },
+  {
+    "circuit_name": "ENG_OIL",
+    "scenario_name": "MC_RUN_0097",
+    "peak_pressure_bar": 4.31076255404639,
+    "final_alert": "Normal",
+    "final_rupture_probability_pct": 0.03523387663244516,
+    "hours_to_rupture": 94.10074079423816,
+    "likely_failure_mode": "MonteCarlo degradation"
+  },
+  {
+    "circuit_name": "ENG_OIL",
+    "scenario_name": "MC_RUN_0008",
+    "peak_pressure_bar": 4.301918556257372,
+    "final_alert": "Normal",
+    "final_rupture_probability_pct": 0.035200835514591806,
+    "hours_to_rupture": 94.18924129742607,
+    "likely_failure_mode": "MonteCarlo degradation"
+  },
+  {
+    "circuit_name": "ENG_OIL",
+    "scenario_name": "MC_RUN_0063",
+    "peak_pressure_bar": 4.287608667275137,
+    "final_alert": "Normal",
+    "final_rupture_probability_pct": 0.035147416138171954,
+    "hours_to_rupture": 94.33267686227583,
+    "likely_failure_mode": "MonteCarlo degradation"
+  },
+  {
+    "circuit_name": "ENG_OIL",
+    "scenario_name": "MC_RUN_0118",
+    "peak_pressure_bar": 4.273298778292905,
+    "final_alert": "Normal",
+    "final_rupture_probability_pct": 0.03509404899514328,
+    "hours_to_rupture": 94.47640820459658,
+    "likely_failure_mode": "MonteCarlo degradation"
+  },
+  {
+    "circuit_name": "ENG_OIL",
+    "scenario_name": "MC_RUN_0029",
+    "peak_pressure_bar": 4.264454780503898,
+    "final_alert": "Normal",
+    "final_rupture_probability_pct": 0.035061092392692415,
+    "hours_to_rupture": 94.56538728665964,
+    "likely_failure_mode": "MonteCarlo degradation"
+  },
+  {
+    "circuit_name": "ENG_OIL",
+    "scenario_name": "MC_RUN_0084",
+    "peak_pressure_bar": 4.250144891521678,
+    "final_alert": "Normal",
+    "final_rupture_probability_pct": 0.035007809712701767,
+    "hours_to_rupture": 94.7095988506869,
+    "likely_failure_mode": "MonteCarlo degradation"
+  },
+  {
+    "circuit_name": "ENG_OIL",
+    "scenario_name": "MC_RUN_0050",
+    "peak_pressure_bar": 4.226991004750426,
+    "final_alert": "Normal",
+    "final_rupture_probability_pct": 0.034921707009599644,
+    "hours_to_rupture": 94.9435691825395,
+    "likely_failure_mode": "MonteCarlo degradation"
+  },
+  {
+    "circuit_name": "ENG_OIL",
+    "scenario_name": "MC_RUN_0105",
+    "peak_pressure_bar": 4.212681115768194,
+    "final_alert": "Normal",
+    "final_rupture_probability_pct": 0.03486856085658446,
+    "hours_to_rupture": 95.08856208896222,
+    "likely_failure_mode": "MonteCarlo degradation"
+  },
+  {
+    "circuit_name": "ENG_OIL",
+    "scenario_name": "MC_RUN_0016",
+    "peak_pressure_bar": 4.20383711797918,
+    "final_alert": "Normal",
+    "final_rupture_probability_pct": 0.03483574078110912,
+    "hours_to_rupture": 95.1783225162832,
+    "likely_failure_mode": "MonteCarlo degradation"
+  },
+  {
+    "circuit_name": "ENG_OIL",
+    "scenario_name": "MC_RUN_0071",
+    "peak_pressure_bar": 4.189527228996942,
+    "final_alert": "Normal",
+    "final_rupture_probability_pct": 0.03478267892167776,
+    "hours_to_rupture": 95.32380101005921,
+    "likely_failure_mode": "MonteCarlo degradation"
+  },
+  {
+    "circuit_name": "ENG_OIL",
+    "scenario_name": "MC_RUN_0037",
+    "peak_pressure_bar": 4.166373342225702,
+    "final_alert": "Normal",
+    "final_rupture_probability_pct": 0.03469693329192823,
+    "hours_to_rupture": 95.55982833516522,
+    "likely_failure_mode": "MonteCarlo degradation"
+  },
+  {
+    "circuit_name": "ENG_OIL",
+    "scenario_name": "MC_RUN_0092",
+    "peak_pressure_bar": 4.152063453243484,
+    "final_alert": "Normal",
+    "final_rupture_probability_pct": 0.03464400768528975,
+    "hours_to_rupture": 95.70609691220756,
+    "likely_failure_mode": "MonteCarlo degradation"
+  },
+  {
+    "circuit_name": "ENG_OIL",
+    "scenario_name": "MC_RUN_0003",
+    "peak_pressure_bar": 4.143219455454464,
+    "final_alert": "Normal",
+    "final_rupture_probability_pct": 0.03461132386260733,
+    "hours_to_rupture": 95.79664742570397,
+    "likely_failure_mode": "MonteCarlo degradation"
+  },
+  {
+    "circuit_name": "AC_HIGH",
+    "scenario_name": "MC_RUN_0066",
+    "peak_pressure_bar": 15.115605480727634,
+    "final_alert": "Normal",
+    "final_rupture_probability_pct": 0.03459550629912839,
+    "hours_to_rupture": 98.13429531643345,
+    "likely_failure_mode": "MonteCarlo degradation"
+  },
+  {
+    "circuit_name": "ENG_OIL",
+    "scenario_name": "MC_RUN_0058",
+    "peak_pressure_bar": 4.128909566472231,
+    "final_alert": "Normal",
+    "final_rupture_probability_pct": 0.03455848238009911,
+    "hours_to_rupture": 95.9434070290353,
+    "likely_failure_mode": "MonteCarlo degradation"
+  },
+  {
+    "circuit_name": "ENG_OIL",
+    "scenario_name": "MC_RUN_0113",
+    "peak_pressure_bar": 4.114599677489999,
+    "final_alert": "Normal",
+    "final_rupture_probability_pct": 0.034505692856799226,
+    "hours_to_rupture": 96.09047115114778,
+    "likely_failure_mode": "MonteCarlo degradation"
+  },
+  {
+    "circuit_name": "ENG_OIL",
+    "scenario_name": "MC_RUN_0024",
+    "peak_pressure_bar": 4.105755679700991,
+    "final_alert": "Normal",
+    "final_rupture_probability_pct": 0.0344730931058831,
+    "hours_to_rupture": 96.18151438729384,
+    "likely_failure_mode": "MonteCarlo degradation"
+  },
+  {
+    "circuit_name": "ENG_OIL",
+    "scenario_name": "MC_RUN_0079",
+    "peak_pressure_bar": 4.091445790718747,
+    "final_alert": "Normal",
+    "final_rupture_probability_pct": 0.034420387601985056,
+    "hours_to_rupture": 96.32907293430473,
+    "likely_failure_mode": "MonteCarlo degradation"
+  },
+  {
+    "circuit_name": "ENG_OIL",
+    "scenario_name": "MC_RUN_0045",
+    "peak_pressure_bar": 4.06829190394752,
+    "final_alert": "Normal",
+    "final_rupture_probability_pct": 0.03433521820869154,
+    "hours_to_rupture": 96.56847748114978,
+    "likely_failure_mode": "MonteCarlo degradation"
+  },
+  {
+    "circuit_name": "ENG_OIL",
+    "scenario_name": "MC_RUN_0100",
+    "peak_pressure_bar": 4.053982014965288,
+    "final_alert": "Normal",
+    "final_rupture_probability_pct": 0.0342826485139497,
+    "hours_to_rupture": 96.71684050849319,
+    "likely_failure_mode": "MonteCarlo degradation"
+  },
+  {
+    "circuit_name": "ENG_OIL",
+    "scenario_name": "MC_RUN_0011",
+    "peak_pressure_bar": 4.045138017176273,
+    "final_alert": "Normal",
+    "final_rupture_probability_pct": 0.03425018457219023,
+    "hours_to_rupture": 96.8086882279577,
+    "likely_failure_mode": "MonteCarlo degradation"
+  },
+  {
+    "circuit_name": "ENG_OIL",
+    "scenario_name": "MC_RUN_0066",
+    "peak_pressure_bar": 4.0308281281940355,
+    "final_alert": "Normal",
+    "final_rupture_probability_pct": 0.0341976987273962,
+    "hours_to_rupture": 96.95755124024731,
+    "likely_failure_mode": "MonteCarlo degradation"
+  },
+  {
+    "circuit_name": "ENG_OIL",
+    "scenario_name": "MC_RUN_0032",
+    "peak_pressure_bar": 4.007674241422796,
+    "final_alert": "Normal",
+    "final_rupture_probability_pct": 0.03411288452818115,
+    "hours_to_rupture": 97.19907377005497,
+    "likely_failure_mode": "MonteCarlo degradation"
+  },
+  {
+    "circuit_name": "ENG_OIL",
+    "scenario_name": "MC_RUN_0087",
+    "peak_pressure_bar": 3.993364352440577,
+    "final_alert": "Normal",
+    "final_rupture_probability_pct": 0.03406053421836117,
+    "hours_to_rupture": 97.34875032064203,
+    "likely_failure_mode": "MonteCarlo degradation"
+  },
+  {
+    "circuit_name": "ENG_OIL",
+    "scenario_name": "MC_RUN_0053",
+    "peak_pressure_bar": 3.9702104656693247,
+    "final_alert": "Normal",
+    "final_rupture_probability_pct": 0.03397593918224938,
+    "hours_to_rupture": 97.59159375346971,
+    "likely_failure_mode": "MonteCarlo degradation"
+  },
+  {
+    "circuit_name": "ENG_OIL",
+    "scenario_name": "MC_RUN_0108",
+    "peak_pressure_bar": 3.955900576687093,
+    "final_alert": "Normal",
+    "final_rupture_probability_pct": 0.03392372423794951,
+    "hours_to_rupture": 97.74208950270791,
+    "likely_failure_mode": "MonteCarlo degradation"
+  },
+  {
+    "circuit_name": "ENG_OIL",
+    "scenario_name": "MC_RUN_0019",
+    "peak_pressure_bar": 3.9470565788980787,
+    "final_alert": "Normal",
+    "final_rupture_probability_pct": 0.03389147945929373,
+    "hours_to_rupture": 97.83525814303505,
+    "likely_failure_mode": "MonteCarlo degradation"
+  },
+  {
+    "circuit_name": "ENG_OIL",
+    "scenario_name": "MC_RUN_0074",
+    "peak_pressure_bar": 3.9327466899158408,
+    "final_alert": "Normal",
+    "final_rupture_probability_pct": 0.03383934809075866,
+    "hours_to_rupture": 97.98626303603291,
+    "likely_failure_mode": "MonteCarlo degradation"
+  },
+  {
+    "circuit_name": "AC_HIGH",
+    "scenario_name": "MC_RUN_0032",
+    "peak_pressure_bar": 15.028778405335485,
+    "final_alert": "Normal",
+    "final_rupture_probability_pct": 0.03382976000647536,
+    "hours_to_rupture": 98.30582093702951,
+    "likely_failure_mode": "MonteCarlo degradation"
+  },
+  {
+    "circuit_name": "ENG_OIL",
+    "scenario_name": "MC_RUN_0040",
+    "peak_pressure_bar": 3.9095928031446134,
+    "final_alert": "Normal",
+    "final_rupture_probability_pct": 0.03375510708727026,
+    "hours_to_rupture": 98.23126324951814,
+    "likely_failure_mode": "MonteCarlo degradation"
+  },
+  {
+    "circuit_name": "ENG_OIL",
+    "scenario_name": "MC_RUN_0095",
+    "peak_pressure_bar": 3.8952829141623817,
+    "final_alert": "Normal",
+    "final_rupture_probability_pct": 0.033703110810072816,
+    "hours_to_rupture": 98.38309660192509,
+    "likely_failure_mode": "MonteCarlo degradation"
+  },
+  {
+    "circuit_name": "AC_HIGH",
+    "scenario_name": "MC_RUN_0087",
+    "peak_pressure_bar": 14.975116321652163,
+    "final_alert": "Normal",
+    "final_rupture_probability_pct": 0.033693211377550616,
+    "hours_to_rupture": 98.41203132451898,
+    "likely_failure_mode": "MonteCarlo degradation"
+  },
+  {
+    "circuit_name": "ENG_OIL",
+    "scenario_name": "MC_RUN_0006",
+    "peak_pressure_bar": 3.8864389163733644,
+    "final_alert": "Normal",
+    "final_rupture_probability_pct": 0.03367100112275528,
+    "hours_to_rupture": 98.47709370477666,
+    "likely_failure_mode": "MonteCarlo degradation"
+  },
+  {
+    "circuit_name": "AC_HIGH",
+    "scenario_name": "MC_RUN_0053",
+    "peak_pressure_bar": 14.888289246259967,
+    "final_alert": "Normal",
+    "final_rupture_probability_pct": 0.03363447548012285,
+    "hours_to_rupture": 98.58421058545811,
+    "likely_failure_mode": "MonteCarlo degradation"
+  },
+  {
+    "circuit_name": "ENG_OIL",
+    "scenario_name": "MC_RUN_0061",
+    "peak_pressure_bar": 3.8721290273911295,
+    "final_alert": "Normal",
+    "final_rupture_probability_pct": 0.03361908825186923,
+    "hours_to_rupture": 98.62944196379458,
+    "likely_failure_mode": "MonteCarlo degradation"
+  },
+  {
+    "circuit_name": "AC_HIGH",
+    "scenario_name": "MC_RUN_0108",
+    "peak_pressure_bar": 14.834627162576599,
+    "final_alert": "Normal",
+    "final_rupture_probability_pct": 0.03359820810359533,
+    "hours_to_rupture": 98.69082591719555,
+    "likely_failure_mode": "MonteCarlo degradation"
+  },
+  {
+    "circuit_name": "AC_HIGH",
+    "scenario_name": "MC_RUN_0019",
+    "peak_pressure_bar": 14.801462170867794,
+    "final_alert": "Normal",
+    "final_rupture_probability_pct": 0.03357580638675554,
+    "hours_to_rupture": 98.75679539286773,
+    "likely_failure_mode": "MonteCarlo degradation"
+  },
+  {
+    "circuit_name": "ENG_OIL",
+    "scenario_name": "MC_RUN_0116",
+    "peak_pressure_bar": 3.857819138408898,
+    "final_alert": "Normal",
+    "final_rupture_probability_pct": 0.03356722689655538,
+    "hours_to_rupture": 98.78210956295293,
+    "likely_failure_mode": "MonteCarlo degradation"
+  },
+  {
+    "circuit_name": "AC_HIGH",
+    "scenario_name": "MC_RUN_0074",
+    "peak_pressure_bar": 14.747800087184402,
+    "final_alert": "Normal",
+    "final_rupture_probability_pct": 0.0335395802787419,
+    "hours_to_rupture": 98.86366196986592,
+    "likely_failure_mode": "MonteCarlo degradation"
+  },
+  {
+    "circuit_name": "ENG_OIL",
+    "scenario_name": "MC_RUN_0027",
+    "peak_pressure_bar": 3.8489751406198898,
+    "final_alert": "Normal",
+    "final_rupture_probability_pct": 0.03353520056318491,
+    "hours_to_rupture": 98.87662336998217,
+    "likely_failure_mode": "MonteCarlo degradation"
+  },
+  {
+    "circuit_name": "ENG_OIL",
+    "scenario_name": "MC_RUN_0082",
+    "peak_pressure_bar": 3.834665251637671,
+    "final_alert": "Normal",
+    "final_rupture_probability_pct": 0.03348342250945392,
+    "hours_to_rupture": 99.0298094771912,
+    "likely_failure_mode": "MonteCarlo degradation"
+  },
+  {
+    "circuit_name": "AC_HIGH",
+    "scenario_name": "MC_RUN_0040",
+    "peak_pressure_bar": 14.6609730117923,
+    "final_alert": "Normal",
+    "final_rupture_probability_pct": 0.033481019197544606,
+    "hours_to_rupture": 99.03690552589147,
+    "likely_failure_mode": "MonteCarlo degradation"
+  },
+  {
+    "circuit_name": "AC_HIGH",
+    "scenario_name": "MC_RUN_0095",
+    "peak_pressure_bar": 14.607310928108932,
+    "final_alert": "Normal",
+    "final_rupture_probability_pct": 0.033444859814520625,
+    "hours_to_rupture": 99.14418021345413,
+    "likely_failure_mode": "MonteCarlo degradation"
+  },
+  {
+    "circuit_name": "AC_HIGH",
+    "scenario_name": "MC_RUN_0006",
+    "peak_pressure_bar": 14.574145936400116,
+    "final_alert": "Normal",
+    "final_rupture_probability_pct": 0.03342252482267065,
+    "hours_to_rupture": 99.21055780042377,
+    "likely_failure_mode": "MonteCarlo degradation"
+  },
+  {
+    "circuit_name": "ENG_OIL",
+    "scenario_name": "MC_RUN_0048",
+    "peak_pressure_bar": 3.8115113648664183,
+    "final_alert": "Normal",
+    "final_rupture_probability_pct": 0.03339975282241805,
+    "hours_to_rupture": 99.2783512878416,
+    "likely_failure_mode": "MonteCarlo degradation"
+  },
+  {
+    "circuit_name": "AC_HIGH",
+    "scenario_name": "MC_RUN_0061",
+    "peak_pressure_bar": 14.520483852716735,
+    "final_alert": "Normal",
+    "final_rupture_probability_pct": 0.03338640664775584,
+    "hours_to_rupture": 99.31808569940976,
+    "likely_failure_mode": "MonteCarlo degradation"
+  },
+  {
+    "circuit_name": "AC_HIGH",
+    "scenario_name": "MC_RUN_0116",
+    "peak_pressure_bar": 14.466821769033366,
+    "final_alert": "Normal",
+    "final_rupture_probability_pct": 0.033350313929316845,
+    "hours_to_rupture": 99.42577046945344,
+    "likely_failure_mode": "MonteCarlo degradation"
+  },
+  {
+    "circuit_name": "ENG_OIL",
+    "scenario_name": "MC_RUN_0103",
+    "peak_pressure_bar": 3.797201475884187,
+    "final_alert": "Normal",
+    "final_rupture_probability_pct": 0.033348109416387946,
+    "hours_to_rupture": 99.43238111075654,
+    "likely_failure_mode": "MonteCarlo degradation"
+  },
+  {
+    "circuit_name": "AC_HIGH",
+    "scenario_name": "MC_RUN_0027",
+    "peak_pressure_bar": 14.433656777324586,
+    "final_alert": "Normal",
+    "final_rupture_probability_pct": 0.0333280201269102,
+    "hours_to_rupture": 99.49240187935509,
+    "likely_failure_mode": "MonteCarlo degradation"
+  },
+  {
+    "circuit_name": "ENG_OIL",
+    "scenario_name": "MC_RUN_0014",
+    "peak_pressure_bar": 3.7883574780951723,
+    "final_alert": "Normal",
+    "final_rupture_probability_pct": 0.03331621773071895,
+    "hours_to_rupture": 99.52773863669005,
+    "likely_failure_mode": "MonteCarlo degradation"
+  },
+  {
+    "circuit_name": "AC_HIGH",
+    "scenario_name": "MC_RUN_0082",
+    "peak_pressure_bar": 14.379994693641265,
+    "final_alert": "Normal",
+    "final_rupture_probability_pct": 0.03329196857924829,
+    "hours_to_rupture": 99.60034108531525,
+    "likely_failure_mode": "MonteCarlo degradation"
+  },
+  {
+    "circuit_name": "ENG_OIL",
+    "scenario_name": "MC_RUN_0069",
+    "peak_pressure_bar": 3.7740475891129344,
+    "final_alert": "Normal",
+    "final_rupture_probability_pct": 0.03326465745681795,
+    "hours_to_rupture": 99.68229286023174,
+    "likely_failure_mode": "MonteCarlo degradation"
+  },
+  {
+    "circuit_name": "AC_HIGH",
+    "scenario_name": "MC_RUN_0048",
+    "peak_pressure_bar": 14.293167618249068,
+    "final_alert": "Normal",
+    "final_rupture_probability_pct": 0.03323368981469364,
+    "hours_to_rupture": 99.77532438224901,
+    "likely_failure_mode": "MonteCarlo degradation"
+  },
+  {
+    "circuit_name": "AC_HIGH",
+    "scenario_name": "MC_RUN_0103",
+    "peak_pressure_bar": 14.2395055345657,
+    "final_alert": "Normal",
+    "final_rupture_probability_pct": 0.03319770483387953,
+    "hours_to_rupture": 99.88367688586713,
+    "likely_failure_mode": "MonteCarlo degradation"
+  },
+  {
+    "circuit_name": "ENG_OIL",
+    "scenario_name": "MC_RUN_0035",
+    "peak_pressure_bar": 3.7508937023416946,
+    "final_alert": "Normal",
+    "final_rupture_probability_pct": 0.03318133992313088,
+    "hours_to_rupture": 99.93305608123634,
+    "likely_failure_mode": "MonteCarlo degradation"
+  },
+  {
+    "circuit_name": "AC_HIGH",
+    "scenario_name": "MC_RUN_0014",
+    "peak_pressure_bar": 14.206340542856896,
+    "final_alert": "Normal",
+    "final_rupture_probability_pct": 0.03317547759832119,
+    "hours_to_rupture": 99.95072159417299,
+    "likely_failure_mode": "MonteCarlo degradation"
+  },
+  {
+    "circuit_name": "AC_HIGH",
+    "scenario_name": "MC_RUN_0069",
+    "peak_pressure_bar": 14.152678459173504,
+    "final_alert": "Normal",
+    "final_rupture_probability_pct": 0.03313953372787927,
+    "hours_to_rupture": 100.05933053023675,
+    "likely_failure_mode": "MonteCarlo degradation"
+  },
+  {
+    "circuit_name": "ENG_OIL",
+    "scenario_name": "MC_RUN_0090",
+    "peak_pressure_bar": 3.7365838133594758,
+    "final_alert": "Normal",
+    "final_rupture_probability_pct": 0.03312991402274869,
+    "hours_to_rupture": 100.08846362088465,
+    "likely_failure_mode": "MonteCarlo degradation"
+  },
+  {
+    "circuit_name": "ENG_OIL",
+    "scenario_name": "MC_RUN_0001",
+    "peak_pressure_bar": 3.727739815570455,
+    "final_alert": "Normal",
+    "final_rupture_probability_pct": 0.03309815671059883,
+    "hours_to_rupture": 100.18467446617633,
+    "likely_failure_mode": "MonteCarlo degradation"
+  },
+  {
+    "circuit_name": "AC_HIGH",
+    "scenario_name": "MC_RUN_0035",
+    "peak_pressure_bar": 14.065851383781355,
+    "final_alert": "Normal",
+    "final_rupture_probability_pct": 0.033081429109656384,
+    "hours_to_rupture": 100.23540009561627,
+    "likely_failure_mode": "MonteCarlo degradation"
+  },
+  {
+    "circuit_name": "ENG_OIL",
+    "scenario_name": "MC_RUN_0056",
+    "peak_pressure_bar": 3.713429926588223,
+    "final_alert": "Normal",
+    "final_rupture_probability_pct": 0.03304681377289113,
+    "hours_to_rupture": 100.34061238093261,
+    "likely_failure_mode": "MonteCarlo degradation"
+  },
+  {
+    "circuit_name": "AC_HIGH",
+    "scenario_name": "MC_RUN_0090",
+    "peak_pressure_bar": 14.012189300098033,
+    "final_alert": "Normal",
+    "final_rupture_probability_pct": 0.03304555170832566,
+    "hours_to_rupture": 100.3444255751568,
+    "likely_failure_mode": "MonteCarlo degradation"
+  },
+  {
+    "circuit_name": "AC_HIGH",
+    "scenario_name": "MC_RUN_0001",
+    "peak_pressure_bar": 13.979024308389205,
+    "final_alert": "Normal",
+    "final_rupture_probability_pct": 0.0330233909418788,
+    "hours_to_rupture": 100.41188682769418,
+    "likely_failure_mode": "MonteCarlo degradation"
+  },
+  {
+    "circuit_name": "ENG_OIL",
+    "scenario_name": "MC_RUN_0111",
+    "peak_pressure_bar": 3.699120037605992,
+    "final_alert": "Normal",
+    "final_rupture_probability_pct": 0.032995522076573476,
+    "hours_to_rupture": 100.4968792367299,
+    "likely_failure_mode": "MonteCarlo degradation"
+  },
+  {
+    "circuit_name": "AC_HIGH",
+    "scenario_name": "MC_RUN_0056",
+    "peak_pressure_bar": 13.925362224705838,
+    "final_alert": "Normal",
+    "final_rupture_probability_pct": 0.03298755459051561,
+    "hours_to_rupture": 100.52117075525346,
+    "likely_failure_mode": "MonteCarlo degradation"
+  },
+  {
+    "circuit_name": "ENG_OIL",
+    "scenario_name": "MC_RUN_0022",
+    "peak_pressure_bar": 3.6902760398169834,
+    "final_alert": "Normal",
+    "final_rupture_probability_pct": 0.03296384767473428,
+    "hours_to_rupture": 100.5936223208252,
+    "likely_failure_mode": "MonteCarlo degradation"
+  },
+  {
+    "circuit_name": "AC_HIGH",
+    "scenario_name": "MC_RUN_0111",
+    "peak_pressure_bar": 13.871700141022469,
+    "final_alert": "Normal",
+    "final_rupture_probability_pct": 0.03295174359789097,
+    "hours_to_rupture": 100.63061479976894,
+    "likely_failure_mode": "MonteCarlo degradation"
+  },
+  {
+    "circuit_name": "AC_HIGH",
+    "scenario_name": "MC_RUN_0022",
+    "peak_pressure_bar": 13.838535149313687,
+    "final_alert": "Normal",
+    "final_rupture_probability_pct": 0.03292962386274534,
+    "hours_to_rupture": 100.69833512721922,
+    "likely_failure_mode": "MonteCarlo degradation"
+  },
+  {
+    "circuit_name": "ENG_OIL",
+    "scenario_name": "MC_RUN_0077",
+    "peak_pressure_bar": 3.6759661508347397,
+    "final_alert": "Normal",
+    "final_rupture_probability_pct": 0.03291263883636287,
+    "hours_to_rupture": 100.75042328570471,
+    "likely_failure_mode": "MonteCarlo degradation"
+  },
+  {
+    "circuit_name": "AC_HIGH",
+    "scenario_name": "MC_RUN_0077",
+    "peak_pressure_bar": 13.784873065630272,
+    "final_alert": "Normal",
+    "final_rupture_probability_pct": 0.032893853882756514,
+    "hours_to_rupture": 100.80803887506171,
+    "likely_failure_mode": "MonteCarlo degradation"
+  },
+  {
+    "circuit_name": "AC_HIGH",
+    "scenario_name": "MC_RUN_0043",
+    "peak_pressure_bar": 13.69804599023817,
+    "final_alert": "Normal",
+    "final_rupture_probability_pct": 0.032836030497257675,
+    "hours_to_rupture": 100.98588417933802,
+    "likely_failure_mode": "MonteCarlo degradation"
+  },
+  {
+    "circuit_name": "ENG_OIL",
+    "scenario_name": "MC_RUN_0043",
+    "peak_pressure_bar": 3.6528122640635123,
+    "final_alert": "Normal",
+    "final_rupture_probability_pct": 0.032829889578399295,
+    "hours_to_rupture": 101.00483458215079,
+    "likely_failure_mode": "MonteCarlo degradation"
+  },
+  {
+    "circuit_name": "AC_HIGH",
+    "scenario_name": "MC_RUN_0098",
+    "peak_pressure_bar": 13.644383906554802,
+    "final_alert": "Normal",
+    "final_rupture_probability_pct": 0.03280032682823814,
+    "hours_to_rupture": 101.09600978828705,
+    "likely_failure_mode": "MonteCarlo degradation"
+  },
+  {
+    "circuit_name": "ENG_OIL",
+    "scenario_name": "MC_RUN_0098",
+    "peak_pressure_bar": 3.6385023750812806,
+    "final_alert": "Normal",
+    "final_rupture_probability_pct": 0.032778814669910256,
+    "hours_to_rupture": 101.16250468087641,
+    "likely_failure_mode": "MonteCarlo degradation"
+  },
+  {
+    "circuit_name": "AC_HIGH",
+    "scenario_name": "MC_RUN_0009",
+    "peak_pressure_bar": 13.611218914845987,
+    "final_alert": "Normal",
+    "final_rupture_probability_pct": 0.03277827340406187,
+    "hours_to_rupture": 101.16415197761249,
+    "likely_failure_mode": "MonteCarlo degradation"
+  },
+  {
+    "circuit_name": "ENG_OIL",
+    "scenario_name": "MC_RUN_0009",
+    "peak_pressure_bar": 3.629658377292263,
+    "final_alert": "Normal",
+    "final_rupture_probability_pct": 0.03274727419795378,
+    "hours_to_rupture": 101.26011690215681,
+    "likely_failure_mode": "MonteCarlo degradation"
+  },
+  {
+    "circuit_name": "AC_HIGH",
+    "scenario_name": "MC_RUN_0064",
+    "peak_pressure_bar": 13.557556831162605,
+    "final_alert": "Normal",
+    "final_rupture_probability_pct": 0.032742610687272994,
+    "hours_to_rupture": 101.27453933673152,
+    "likely_failure_mode": "MonteCarlo degradation"
+  },
+  {
+    "circuit_name": "AC_HIGH",
+    "scenario_name": "MC_RUN_0119",
+    "peak_pressure_bar": 13.503894747479237,
+    "final_alert": "Normal",
+    "final_rupture_probability_pct": 0.032714783598380925,
+    "hours_to_rupture": 101.36084011568079,
+    "likely_failure_mode": "MonteCarlo degradation"
+  },
+  {
+    "circuit_name": "AC_HIGH",
+    "scenario_name": "MC_RUN_0030",
+    "peak_pressure_bar": 13.470729755770456,
+    "final_alert": "Normal",
+    "final_rupture_probability_pct": 0.03269941251004865,
+    "hours_to_rupture": 101.40857379519575,
+    "likely_failure_mode": "MonteCarlo degradation"
+  },
+  {
+    "circuit_name": "ENG_OIL",
+    "scenario_name": "MC_RUN_0064",
+    "peak_pressure_bar": 3.6153484883100284,
+    "final_alert": "Normal",
+    "final_rupture_probability_pct": 0.03269628197795711,
+    "hours_to_rupture": 101.4183272198481,
+    "likely_failure_mode": "MonteCarlo degradation"
+  },
+  {
+    "circuit_name": "AC_HIGH",
+    "scenario_name": "MC_RUN_0085",
+    "peak_pressure_bar": 13.417067672087134,
+    "final_alert": "Normal",
+    "final_rupture_probability_pct": 0.032681109135696995,
+    "hours_to_rupture": 101.46547202060957,
+    "likely_failure_mode": "MonteCarlo degradation"
+  },
+  {
+    "circuit_name": "AC_HIGH",
+    "scenario_name": "MC_RUN_0051",
+    "peak_pressure_bar": 13.330240596694939,
+    "final_alert": "Normal",
+    "final_rupture_probability_pct": 0.03266572191851624,
+    "hours_to_rupture": 101.5133543568757,
+    "likely_failure_mode": "MonteCarlo degradation"
+  },
+  {
+    "circuit_name": "AC_HIGH",
+    "scenario_name": "MC_RUN_0106",
+    "peak_pressure_bar": 13.27657851301157,
+    "final_alert": "Normal",
+    "final_rupture_probability_pct": 0.032656212095315565,
+    "hours_to_rupture": 101.54296982970483,
+    "likely_failure_mode": "MonteCarlo degradation"
+  },
+  {
+    "circuit_name": "AC_HIGH",
+    "scenario_name": "MC_RUN_0017",
+    "peak_pressure_bar": 13.243413521302767,
+    "final_alert": "Normal",
+    "final_rupture_probability_pct": 0.03265033470133536,
+    "hours_to_rupture": 101.56128182443457,
+    "likely_failure_mode": "MonteCarlo degradation"
+  },
+  {
+    "circuit_name": "ENG_OIL",
+    "scenario_name": "MC_RUN_0119",
+    "peak_pressure_bar": 3.6010385993277967,
+    "final_alert": "Normal",
+    "final_rupture_probability_pct": 0.03264534082989621,
+    "hours_to_rupture": 101.57687258855265,
+    "likely_failure_mode": "MonteCarlo degradation"
+  },
+  {
+    "circuit_name": "AC_HIGH",
+    "scenario_name": "MC_RUN_0072",
+    "peak_pressure_bar": 13.189751437619375,
+    "final_alert": "Normal",
+    "final_rupture_probability_pct": 0.03264082487813481,
+    "hours_to_rupture": 101.59092522184768,
+    "likely_failure_mode": "MonteCarlo degradation"
+  },
+  {
+    "circuit_name": "AC_HIGH",
+    "scenario_name": "MC_RUN_0038",
+    "peak_pressure_bar": 13.102924362227224,
+    "final_alert": "Normal",
+    "final_rupture_probability_pct": 0.03262543766095386,
+    "hours_to_rupture": 101.63892584863483,
+    "likely_failure_mode": "MonteCarlo degradation"
+  },
+  {
+    "circuit_name": "AC_HIGH",
+    "scenario_name": "MC_RUN_0093",
+    "peak_pressure_bar": 13.049262278543903,
+    "final_alert": "Normal",
+    "final_rupture_probability_pct": 0.032615927837753245,
+    "hours_to_rupture": 101.66861451269838,
+    "likely_failure_mode": "MonteCarlo degradation"
+  },
+  {
+    "circuit_name": "ENG_OIL",
+    "scenario_name": "MC_RUN_0030",
+    "peak_pressure_bar": 3.5921946015387887,
+    "final_alert": "Normal",
+    "final_rupture_probability_pct": 0.03261388299406829,
+    "hours_to_rupture": 101.67502693480708,
+    "likely_failure_mode": "MonteCarlo degradation"
+  },
+  {
+    "circuit_name": "AC_HIGH",
+    "scenario_name": "MC_RUN_0004",
+    "peak_pressure_bar": 13.016097286835082,
+    "final_alert": "Normal",
+    "final_rupture_probability_pct": 0.03261005044377305,
+    "hours_to_rupture": 101.68697177409885,
+    "likely_failure_mode": "MonteCarlo degradation"
+  },
+  {
+    "circuit_name": "AC_HIGH",
+    "scenario_name": "MC_RUN_0059",
+    "peak_pressure_bar": 12.962435203151706,
+    "final_alert": "Normal",
+    "final_rupture_probability_pct": 0.0326005406205724,
+    "hours_to_rupture": 101.7166884663534,
+    "likely_failure_mode": "MonteCarlo degradation"
+  },
+  {
+    "circuit_name": "AC_HIGH",
+    "scenario_name": "MC_RUN_0114",
+    "peak_pressure_bar": 12.90877311946834,
+    "final_alert": "Normal",
+    "final_rupture_probability_pct": 0.03259103079737171,
+    "hours_to_rupture": 101.7464225008327,
+    "likely_failure_mode": "MonteCarlo degradation"
+  },
+  {
+    "circuit_name": "AC_HIGH",
+    "scenario_name": "MC_RUN_0025",
+    "peak_pressure_bar": 12.875608127759557,
+    "final_alert": "Normal",
+    "final_rupture_probability_pct": 0.032585153403391694,
+    "hours_to_rupture": 101.76480782254843,
+    "likely_failure_mode": "MonteCarlo degradation"
+  },
+  {
+    "circuit_name": "AC_HIGH",
+    "scenario_name": "MC_RUN_0080",
+    "peak_pressure_bar": 12.821946044076237,
+    "final_alert": "Normal",
+    "final_rupture_probability_pct": 0.032575643580190855,
+    "hours_to_rupture": 101.7945699495077,
+    "likely_failure_mode": "MonteCarlo degradation"
+  },
+  {
+    "circuit_name": "ENG_OIL",
+    "scenario_name": "MC_RUN_0085",
+    "peak_pressure_bar": 3.5778847125565694,
+    "final_alert": "Normal",
+    "final_rupture_probability_pct": 0.032563024429771784,
+    "hours_to_rupture": 101.83411634125417,
+    "likely_failure_mode": "MonteCarlo degradation"
+  },
+  {
+    "circuit_name": "AC_HIGH",
+    "scenario_name": "MC_RUN_0046",
+    "peak_pressure_bar": 12.73511896868404,
+    "final_alert": "Normal",
+    "final_rupture_probability_pct": 0.032560256363010166,
+    "hours_to_rupture": 101.84276290490364,
+    "likely_failure_mode": "MonteCarlo degradation"
+  },
+  {
+    "circuit_name": "AC_HIGH",
+    "scenario_name": "MC_RUN_0101",
+    "peak_pressure_bar": 12.68145688500067,
+    "final_alert": "Normal",
+    "final_rupture_probability_pct": 0.03255074653980937,
+    "hours_to_rupture": 101.87257057084697,
+    "likely_failure_mode": "MonteCarlo degradation"
+  },
+  {
+    "circuit_name": "AC_HIGH",
+    "scenario_name": "MC_RUN_0012",
+    "peak_pressure_bar": 12.648291893291868,
+    "final_alert": "Normal",
+    "final_rupture_probability_pct": 0.03254486914582953,
+    "hours_to_rupture": 101.89100143156723,
+    "likely_failure_mode": "MonteCarlo degradation"
+  },
+  {
+    "circuit_name": "AC_HIGH",
+    "scenario_name": "MC_RUN_0067",
+    "peak_pressure_bar": 12.594629809608476,
+    "final_alert": "Normal",
+    "final_rupture_probability_pct": 0.032535359322628694,
+    "hours_to_rupture": 101.92083729442952,
+    "likely_failure_mode": "MonteCarlo degradation"
+  },
+  {
+    "circuit_name": "AC_HIGH",
+    "scenario_name": "MC_RUN_0033",
+    "peak_pressure_bar": 12.507802734216327,
+    "final_alert": "Normal",
+    "final_rupture_probability_pct": 0.032519972105447804,
+    "hours_to_rupture": 101.96914969397733,
+    "likely_failure_mode": "MonteCarlo degradation"
+  },
+  {
+    "circuit_name": "AC_HIGH",
+    "scenario_name": "MC_RUN_0088",
+    "peak_pressure_bar": 12.454140650533004,
+    "final_alert": "Normal",
+    "final_rupture_probability_pct": 0.032510462282246945,
+    "hours_to_rupture": 101.99903126522808,
+    "likely_failure_mode": "MonteCarlo degradation"
+  },
+  {
+    "circuit_name": "AC_HIGH",
+    "scenario_name": "MC_RUN_0054",
+    "peak_pressure_bar": 12.367313575140809,
+    "final_alert": "Normal",
+    "final_rupture_probability_pct": 0.03249507506506624,
+    "hours_to_rupture": 102.0474177074845,
+    "likely_failure_mode": "MonteCarlo degradation"
+  },
+  {
+    "circuit_name": "AC_HIGH",
+    "scenario_name": "MC_RUN_0109",
+    "peak_pressure_bar": 12.31365149145744,
+    "final_alert": "Normal",
+    "final_rupture_probability_pct": 0.03248556524186574,
+    "hours_to_rupture": 102.07734509224187,
+    "likely_failure_mode": "MonteCarlo degradation"
+  },
+  {
+    "circuit_name": "ENG_OIL",
+    "scenario_name": "MC_RUN_0051",
+    "peak_pressure_bar": 3.554730825785317,
+    "final_alert": "Normal",
+    "final_rupture_probability_pct": 0.03248084156825683,
+    "hours_to_rupture": 102.09224347548381,
+    "likely_failure_mode": "MonteCarlo degradation"
+  },
+  {
+    "circuit_name": "AC_HIGH",
+    "scenario_name": "MC_RUN_0020",
+    "peak_pressure_bar": 12.28048649974866,
+    "final_alert": "Normal",
+    "final_rupture_probability_pct": 0.032479687847885574,
+    "hours_to_rupture": 102.09584999579084,
+    "likely_failure_mode": "MonteCarlo degradation"
+  },
+  {
+    "circuit_name": "AC_HIGH",
+    "scenario_name": "MC_RUN_0075",
+    "peak_pressure_bar": 12.226824416065243,
+    "final_alert": "Normal",
+    "final_rupture_probability_pct": 0.03247017802468476,
+    "hours_to_rupture": 102.12580574755218,
+    "likely_failure_mode": "MonteCarlo degradation"
+  },
+  {
+    "circuit_name": "AC_HIGH",
+    "scenario_name": "MC_RUN_0041",
+    "peak_pressure_bar": 12.139997340673142,
+    "final_alert": "Normal",
+    "final_rupture_probability_pct": 0.032454790807503985,
+    "hours_to_rupture": 102.17431235445288,
+    "likely_failure_mode": "MonteCarlo degradation"
+  },
+  {
+    "circuit_name": "AC_HIGH",
+    "scenario_name": "MC_RUN_0096",
+    "peak_pressure_bar": 12.086335256989774,
+    "final_alert": "Normal",
+    "final_rupture_probability_pct": 0.03244528098430319,
+    "hours_to_rupture": 102.20431409048909,
+    "likely_failure_mode": "MonteCarlo degradation"
+  },
+  {
+    "circuit_name": "AC_HIGH",
+    "scenario_name": "MC_RUN_0007",
+    "peak_pressure_bar": 12.053170265280958,
+    "final_alert": "Normal",
+    "final_rupture_probability_pct": 0.032439403590323296,
+    "hours_to_rupture": 102.22286497833373,
+    "likely_failure_mode": "MonteCarlo degradation"
+  },
+  {
+    "circuit_name": "ENG_OIL",
+    "scenario_name": "MC_RUN_0106",
+    "peak_pressure_bar": 3.5404209368030854,
+    "final_alert": "Normal",
+    "final_rupture_probability_pct": 0.03243011649020595,
+    "hours_to_rupture": 102.25221819275849,
+    "likely_failure_mode": "MonteCarlo degradation"
+  },
+  {
+    "circuit_name": "AC_HIGH",
+    "scenario_name": "MC_RUN_0062",
+    "peak_pressure_bar": 12.0,
+    "final_alert": "Normal",
+    "final_rupture_probability_pct": 0.03242989376712255,
+    "hours_to_rupture": 102.2528951871767,
+    "likely_failure_mode": "MonteCarlo degradation"
+  },
+  {
+    "circuit_name": "AC_HIGH",
+    "scenario_name": "MC_RUN_0117",
+    "peak_pressure_bar": 12.0,
+    "final_alert": "Normal",
+    "final_rupture_probability_pct": 0.032420383943921924,
+    "hours_to_rupture": 102.28294301345302,
+    "likely_failure_mode": "MonteCarlo degradation"
+  },
+  {
+    "circuit_name": "AC_HIGH",
+    "scenario_name": "MC_RUN_0028",
+    "peak_pressure_bar": 12.0,
+    "final_alert": "Normal",
+    "final_rupture_probability_pct": 0.03241450654994161,
+    "hours_to_rupture": 102.30152240691011,
+    "likely_failure_mode": "MonteCarlo degradation"
+  },
+  {
+    "circuit_name": "AC_HIGH",
+    "scenario_name": "MC_RUN_0083",
+    "peak_pressure_bar": 12.0,
+    "final_alert": "Normal",
+    "final_rupture_probability_pct": 0.032404996726740846,
+    "hours_to_rupture": 102.33159877164603,
+    "likely_failure_mode": "MonteCarlo degradation"
+  },
+  {
+    "circuit_name": "ENG_OIL",
+    "scenario_name": "MC_RUN_0017",
+    "peak_pressure_bar": 3.531576939014071,
+    "final_alert": "Normal",
+    "final_rupture_probability_pct": 0.03239879214062426,
+    "hours_to_rupture": 102.35125785326954,
+    "likely_failure_mode": "MonteCarlo degradation"
+  },
+  {
+    "circuit_name": "AC_HIGH",
+    "scenario_name": "MC_RUN_0049",
+    "peak_pressure_bar": 12.0,
+    "final_alert": "Normal",
+    "final_rupture_probability_pct": 0.0323896095095601,
+    "hours_to_rupture": 102.38030075927685,
+    "likely_failure_mode": "MonteCarlo degradation"
+  },
+  {
+    "circuit_name": "AC_HIGH",
+    "scenario_name": "MC_RUN_0104",
+    "peak_pressure_bar": 12.0,
+    "final_alert": "Normal",
+    "final_rupture_probability_pct": 0.03238009968635947,
+    "hours_to_rupture": 102.41042338639878,
+    "likely_failure_mode": "MonteCarlo degradation"
+  },
+  {
+    "circuit_name": "AC_HIGH",
+    "scenario_name": "MC_RUN_0015",
+    "peak_pressure_bar": 12.0,
+    "final_alert": "Normal",
+    "final_rupture_probability_pct": 0.032374222292379344,
+    "hours_to_rupture": 102.4290490422629,
+    "likely_failure_mode": "MonteCarlo degradation"
+  },
+  {
+    "circuit_name": "AC_HIGH",
+    "scenario_name": "MC_RUN_0070",
+    "peak_pressure_bar": 12.0,
+    "final_alert": "Normal",
+    "final_rupture_probability_pct": 0.032364712469178804,
+    "hours_to_rupture": 102.45920031450133,
+    "likely_failure_mode": "MonteCarlo degradation"
+  },
+  {
+    "circuit_name": "ENG_OIL",
+    "scenario_name": "MC_RUN_0072",
+    "peak_pressure_bar": 3.5172670500318333,
+    "final_alert": "Normal",
+    "final_rupture_probability_pct": 0.03235267054049815,
+    "hours_to_rupture": 102.49743174863397,
+    "likely_failure_mode": "MonteCarlo degradation"
+  },
+  {
+    "circuit_name": "AC_HIGH",
+    "scenario_name": "MC_RUN_0036",
+    "peak_pressure_bar": 12.0,
+    "final_alert": "Normal",
+    "final_rupture_probability_pct": 0.032349325251998,
+    "hours_to_rupture": 102.5080236448815,
+    "likely_failure_mode": "MonteCarlo degradation"
+  },
+  {
+    "circuit_name": "AC_HIGH",
+    "scenario_name": "MC_RUN_0091",
+    "peak_pressure_bar": 12.0,
+    "final_alert": "Normal",
+    "final_rupture_probability_pct": 0.03233981542879718,
+    "hours_to_rupture": 102.5382213525101,
+    "likely_failure_mode": "MonteCarlo degradation"
+  },
+  {
+    "circuit_name": "AC_HIGH",
+    "scenario_name": "MC_RUN_0002",
+    "peak_pressure_bar": 12.0,
+    "final_alert": "Normal",
+    "final_rupture_probability_pct": 0.03233393803481694,
+    "hours_to_rupture": 102.55689344378568,
+    "likely_failure_mode": "MonteCarlo degradation"
+  },
+  {
+    "circuit_name": "AC_HIGH",
+    "scenario_name": "MC_RUN_0057",
+    "peak_pressure_bar": 12.0,
+    "final_alert": "Normal",
+    "final_rupture_probability_pct": 0.032324428211616324,
+    "hours_to_rupture": 102.58711990371977,
+    "likely_failure_mode": "MonteCarlo degradation"
+  },
+  {
+    "circuit_name": "AC_HIGH",
+    "scenario_name": "MC_RUN_0112",
+    "peak_pressure_bar": 12.0,
+    "final_alert": "Normal",
+    "final_rupture_probability_pct": 0.032314918388415693,
+    "hours_to_rupture": 102.61736415409271,
+    "likely_failure_mode": "MonteCarlo degradation"
+  },
+  {
+    "circuit_name": "ENG_OIL",
+    "scenario_name": "MC_RUN_0038",
+    "peak_pressure_bar": 3.4941131632605935,
+    "final_alert": "Normal",
+    "final_rupture_probability_pct": 0.032309056826335815,
+    "hours_to_rupture": 102.63604127092952,
+    "likely_failure_mode": "MonteCarlo degradation"
+  },
+  {
+    "circuit_name": "AC_HIGH",
+    "scenario_name": "MC_RUN_0023",
+    "peak_pressure_bar": 12.0,
+    "final_alert": "Normal",
+    "final_rupture_probability_pct": 0.03230904099443546,
+    "hours_to_rupture": 102.63606503090962,
+    "likely_failure_mode": "MonteCarlo degradation"
+  },
+  {
+    "circuit_name": "AC_HIGH",
+    "scenario_name": "MC_RUN_0078",
+    "peak_pressure_bar": 12.0,
+    "final_alert": "Normal",
+    "final_rupture_probability_pct": 0.03229953117123486,
+    "hours_to_rupture": 102.66633810010204,
+    "likely_failure_mode": "MonteCarlo degradation"
+  },
+  {
+    "circuit_name": "AC_HIGH",
+    "scenario_name": "MC_RUN_0044",
+    "peak_pressure_bar": 12.0,
+    "final_alert": "Normal",
+    "final_rupture_probability_pct": 0.03228414395405399,
+    "hours_to_rupture": 102.71535872987921,
+    "likely_failure_mode": "MonteCarlo degradation"
+  },
+  {
+    "circuit_name": "ENG_OIL",
+    "scenario_name": "MC_RUN_0093",
+    "peak_pressure_bar": 3.479803274278374,
+    "final_alert": "Normal",
+    "final_rupture_probability_pct": 0.032282094450508426,
+    "hours_to_rupture": 102.72191821529718,
+    "likely_failure_mode": "MonteCarlo degradation"
+  },
+  {
+    "circuit_name": "AC_HIGH",
+    "scenario_name": "MC_RUN_0099",
+    "peak_pressure_bar": 12.0,
+    "final_alert": "Normal",
+    "final_rupture_probability_pct": 0.03227463413085335,
+    "hours_to_rupture": 102.74567851622037,
+    "likely_failure_mode": "MonteCarlo degradation"
+  },
+  {
+    "circuit_name": "AC_HIGH",
+    "scenario_name": "MC_RUN_0010",
+    "peak_pressure_bar": 12.0,
+    "final_alert": "Normal",
+    "final_rupture_probability_pct": 0.03226875673687321,
+    "hours_to_rupture": 102.76442611020735,
+    "likely_failure_mode": "MonteCarlo degradation"
+  },
+  {
+    "circuit_name": "ENG_OIL",
+    "scenario_name": "MC_RUN_0004",
+    "peak_pressure_bar": 3.470959276489355,
+    "final_alert": "Normal",
+    "final_rupture_probability_pct": 0.032265427889256,
+    "hours_to_rupture": 102.77507409124362,
+    "likely_failure_mode": "MonteCarlo degradation"
+  },
+  {
+    "circuit_name": "AC_HIGH",
+    "scenario_name": "MC_RUN_0065",
+    "peak_pressure_bar": 12.0,
+    "final_alert": "Normal",
+    "final_rupture_probability_pct": 0.032259246913672615,
+    "hours_to_rupture": 102.79477482342493,
+    "likely_failure_mode": "MonteCarlo degradation"
+  },
+  {
+    "circuit_name": "AC_HIGH",
+    "scenario_name": "MC_RUN_0031",
+    "peak_pressure_bar": 12.0,
+    "final_alert": "Normal",
+    "final_rupture_probability_pct": 0.032243859696491635,
+    "hours_to_rupture": 102.84391798950733,
+    "likely_failure_mode": "MonteCarlo degradation"
+  },
+  {
+    "circuit_name": "ENG_OIL",
+    "scenario_name": "MC_RUN_0059",
+    "peak_pressure_bar": 3.456649387507122,
+    "final_alert": "Normal",
+    "final_rupture_probability_pct": 0.03223845615751255,
+    "hours_to_rupture": 102.86121343837817,
+    "likely_failure_mode": "MonteCarlo degradation"
+  },
+  {
+    "circuit_name": "AC_HIGH",
+    "scenario_name": "MC_RUN_0086",
+    "peak_pressure_bar": 12.0,
+    "final_alert": "Normal",
+    "final_rupture_probability_pct": 0.032234349873290956,
+    "hours_to_rupture": 102.8743135951506,
+    "likely_failure_mode": "MonteCarlo degradation"
+  },
+  {
+    "circuit_name": "AC_HIGH",
+    "scenario_name": "MC_RUN_0052",
+    "peak_pressure_bar": 12.0,
+    "final_alert": "Normal",
+    "final_rupture_probability_pct": 0.03221896265611008,
+    "hours_to_rupture": 102.92353272270243,
+    "likely_failure_mode": "MonteCarlo degradation"
+  },
+  {
+    "circuit_name": "ENG_OIL",
+    "scenario_name": "MC_RUN_0114",
+    "peak_pressure_bar": 3.4423394985248903,
+    "final_alert": "Normal",
+    "final_rupture_probability_pct": 0.032211478675857885,
+    "hours_to_rupture": 102.94751544970204,
+    "likely_failure_mode": "MonteCarlo degradation"
+  },
+  {
+    "circuit_name": "AC_HIGH",
+    "scenario_name": "MC_RUN_0107",
+    "peak_pressure_bar": 12.0,
+    "final_alert": "Normal",
+    "final_rupture_probability_pct": 0.032209452832909505,
+    "hours_to_rupture": 102.95397532953707,
+    "likely_failure_mode": "MonteCarlo degradation"
+  },
+  {
+    "circuit_name": "AC_HIGH",
+    "scenario_name": "MC_RUN_0018",
+    "peak_pressure_bar": 12.0,
+    "final_alert": "Normal",
+    "final_rupture_probability_pct": 0.032203575438929447,
+    "hours_to_rupture": 102.97279888511883,
+    "likely_failure_mode": "MonteCarlo degradation"
+  },
+  {
+    "circuit_name": "ENG_OIL",
+    "scenario_name": "MC_RUN_0025",
+    "peak_pressure_bar": 3.4334955007358823,
+    "final_alert": "Normal",
+    "final_rupture_probability_pct": 0.03219480281105337,
+    "hours_to_rupture": 103.00093452224807,
+    "likely_failure_mode": "MonteCarlo degradation"
+  },
+  {
+    "circuit_name": "AC_HIGH",
+    "scenario_name": "MC_RUN_0073",
+    "peak_pressure_bar": 12.0,
+    "final_alert": "Normal",
+    "final_rupture_probability_pct": 0.03219406561572866,
+    "hours_to_rupture": 103.00327059481702,
+    "likely_failure_mode": "MonteCarlo degradation"
+  },
+  {
+    "circuit_name": "AC_HIGH",
+    "scenario_name": "MC_RUN_0039",
+    "peak_pressure_bar": 12.0,
+    "final_alert": "Normal",
+    "final_rupture_probability_pct": 0.03217867839854798,
+    "hours_to_rupture": 103.05261300416812,
+    "likely_failure_mode": "MonteCarlo degradation"
+  },
+  {
+    "circuit_name": "AC_HIGH",
+    "scenario_name": "MC_RUN_0094",
+    "peak_pressure_bar": 12.0,
+    "final_alert": "Normal",
+    "final_rupture_probability_pct": 0.03216916857534716,
+    "hours_to_rupture": 103.08313189175787,
+    "likely_failure_mode": "MonteCarlo degradation"
+  },
+  {
+    "circuit_name": "ENG_OIL",
+    "scenario_name": "MC_RUN_0080",
+    "peak_pressure_bar": 3.419185611753663,
+    "final_alert": "Normal",
+    "final_rupture_probability_pct": 0.032167816078210926,
+    "hours_to_rupture": 103.08750052666727,
+    "likely_failure_mode": "MonteCarlo degradation"
+  },
+  {
+    "circuit_name": "AC_HIGH",
+    "scenario_name": "MC_RUN_0005",
+    "peak_pressure_bar": 12.0,
+    "final_alert": "Normal",
+    "final_rupture_probability_pct": 0.032163291181366946,
+    "hours_to_rupture": 103.10200262525292,
+    "likely_failure_mode": "MonteCarlo degradation"
+  },
+  {
+    "circuit_name": "AC_HIGH",
+    "scenario_name": "MC_RUN_0060",
+    "peak_pressure_bar": 12.0,
+    "final_alert": "Normal",
+    "final_rupture_probability_pct": 0.032153781358166246,
+    "hours_to_rupture": 103.13255072518653,
+    "likely_failure_mode": "MonteCarlo degradation"
+  },
+  {
+    "circuit_name": "AC_HIGH",
+    "scenario_name": "MC_RUN_0115",
+    "peak_pressure_bar": 12.0,
+    "final_alert": "Normal",
+    "final_rupture_probability_pct": 0.032144271534965595,
+    "hours_to_rupture": 103.16311690031768,
+    "likely_failure_mode": "MonteCarlo degradation"
+  },
+  {
+    "circuit_name": "AC_HIGH",
+    "scenario_name": "MC_RUN_0026",
+    "peak_pressure_bar": 12.0,
+    "final_alert": "Normal",
+    "final_rupture_probability_pct": 0.03213839414098543,
+    "hours_to_rupture": 103.1820168801035,
+    "likely_failure_mode": "MonteCarlo degradation"
+  },
+  {
+    "circuit_name": "AC_HIGH",
+    "scenario_name": "MC_RUN_0081",
+    "peak_pressure_bar": 12.0,
+    "final_alert": "Normal",
+    "final_rupture_probability_pct": 0.032128884317784996,
+    "hours_to_rupture": 103.21261233551573,
+    "likely_failure_mode": "MonteCarlo degradation"
+  },
+  {
+    "circuit_name": "ENG_OIL",
+    "scenario_name": "MC_RUN_0046",
+    "peak_pressure_bar": 3.396031724982411,
+    "final_alert": "Normal",
+    "final_rupture_probability_pct": 0.032124138596554726,
+    "hours_to_rupture": 103.22791404811694,
+    "likely_failure_mode": "MonteCarlo degradation"
+  },
+  {
+    "circuit_name": "AC_HIGH",
+    "scenario_name": "MC_RUN_0047",
+    "peak_pressure_bar": 12.0,
+    "final_alert": "Normal",
+    "final_rupture_probability_pct": 0.03211349710060403,
+    "hours_to_rupture": 103.26215520229735,
+    "likely_failure_mode": "MonteCarlo degradation"
+  },
+  {
+    "circuit_name": "AC_HIGH",
+    "scenario_name": "MC_RUN_0102",
+    "peak_pressure_bar": 12.0,
+    "final_alert": "Normal",
+    "final_rupture_probability_pct": 0.03210398727740326,
+    "hours_to_rupture": 103.29279812338893,
+    "likely_failure_mode": "MonteCarlo degradation"
+  },
+  {
+    "circuit_name": "AC_HIGH",
+    "scenario_name": "MC_RUN_0013",
+    "peak_pressure_bar": 12.0,
+    "final_alert": "Normal",
+    "final_rupture_probability_pct": 0.032098109883423306,
+    "hours_to_rupture": 103.31174556887599,
+    "likely_failure_mode": "MonteCarlo degradation"
+  },
+  {
+    "circuit_name": "ENG_OIL",
+    "scenario_name": "MC_RUN_0101",
+    "peak_pressure_bar": 3.381721836000179,
+    "final_alert": "Normal",
+    "final_rupture_probability_pct": 0.03209713703206704,
+    "hours_to_rupture": 103.3149093000267,
+    "likely_failure_mode": "MonteCarlo degradation"
+  },
+  {
+    "circuit_name": "AC_HIGH",
+    "scenario_name": "MC_RUN_0068",
+    "peak_pressure_bar": 12.0,
+    "final_alert": "Normal",
+    "final_rupture_probability_pct": 0.03208860006022245,
+    "hours_to_rupture": 103.34241788062025,
+    "likely_failure_mode": "MonteCarlo degradation"
+  },
+  {
+    "circuit_name": "ENG_OIL",
+    "scenario_name": "MC_RUN_0012",
+    "peak_pressure_bar": 3.372877838211165,
+    "final_alert": "Normal",
+    "final_rupture_probability_pct": 0.03208044633561732,
+    "hours_to_rupture": 103.36875762141345,
+    "likely_failure_mode": "MonteCarlo degradation"
+  },
+  {
+    "circuit_name": "AC_HIGH",
+    "scenario_name": "MC_RUN_0034",
+    "peak_pressure_bar": 12.0,
+    "final_alert": "Normal",
+    "final_rupture_probability_pct": 0.03207321284304187,
+    "hours_to_rupture": 103.39208524829735,
+    "likely_failure_mode": "MonteCarlo degradation"
+  },
+  {
+    "circuit_name": "AC_HIGH",
+    "scenario_name": "MC_RUN_0089",
+    "peak_pressure_bar": 12.0,
+    "final_alert": "Normal",
+    "final_rupture_probability_pct": 0.03206370301984115,
+    "hours_to_rupture": 103.42280520475468,
+    "likely_failure_mode": "MonteCarlo degradation"
+  },
+  {
+    "circuit_name": "AC_HIGH",
+    "scenario_name": "MC_RUN_0000",
+    "peak_pressure_bar": 12.0,
+    "final_alert": "Normal",
+    "final_rupture_probability_pct": 0.03205782562586091,
+    "hours_to_rupture": 103.4418002949769,
+    "likely_failure_mode": "MonteCarlo degradation"
+  },
+  {
+    "circuit_name": "ENG_OIL",
+    "scenario_name": "MC_RUN_0067",
+    "peak_pressure_bar": 3.358567949228927,
+    "final_alert": "Normal",
+    "final_rupture_probability_pct": 0.032053435689396045,
+    "hours_to_rupture": 103.45601946720303,
+    "likely_failure_mode": "MonteCarlo degradation"
+  },
+  {
+    "circuit_name": "ENG_OIL",
+    "scenario_name": "MC_RUN_0033",
+    "peak_pressure_bar": 3.335414062457687,
+    "final_alert": "Normal",
+    "final_rupture_probability_pct": 0.03200971973689833,
+    "hours_to_rupture": 103.59756230421009,
+    "likely_failure_mode": "MonteCarlo degradation"
+  },
+  {
+    "circuit_name": "ENG_OIL",
+    "scenario_name": "MC_RUN_0088",
+    "peak_pressure_bar": 3.321104173475468,
+    "final_alert": "Normal",
+    "final_rupture_probability_pct": 0.031982694533214104,
+    "hours_to_rupture": 103.685257633505,
+    "likely_failure_mode": "MonteCarlo degradation"
+  },
+  {
+    "circuit_name": "ENG_OIL",
+    "scenario_name": "MC_RUN_0054",
+    "peak_pressure_bar": 3.2979502867042156,
+    "final_alert": "Normal",
+    "final_rupture_probability_pct": 0.03193895516333797,
+    "hours_to_rupture": 103.82750399828653,
+    "likely_failure_mode": "MonteCarlo degradation"
+  },
+  {
+    "circuit_name": "ENG_OIL",
+    "scenario_name": "MC_RUN_0109",
+    "peak_pressure_bar": 3.283640397721984,
+    "final_alert": "Normal",
+    "final_rupture_probability_pct": 0.0319119155716455,
+    "hours_to_rupture": 103.91563545721061,
+    "likely_failure_mode": "MonteCarlo degradation"
+  },
+  {
+    "circuit_name": "ENG_OIL",
+    "scenario_name": "MC_RUN_0020",
+    "peak_pressure_bar": 3.274796399932976,
+    "final_alert": "Normal",
+    "final_rupture_probability_pct": 0.031895201457817476,
+    "hours_to_rupture": 103.9701873144344,
+    "likely_failure_mode": "MonteCarlo degradation"
+  },
+  {
+    "circuit_name": "ENG_OIL",
+    "scenario_name": "MC_RUN_0075",
+    "peak_pressure_bar": 3.2604865109507317,
+    "final_alert": "Normal",
+    "final_rupture_probability_pct": 0.03186815305857335,
+    "hours_to_rupture": 104.05858964883042,
+    "likely_failure_mode": "MonteCarlo degradation"
+  },
+  {
+    "circuit_name": "ENG_OIL",
+    "scenario_name": "MC_RUN_0041",
+    "peak_pressure_bar": 3.2373326241795044,
+    "final_alert": "Normal",
+    "final_rupture_probability_pct": 0.03182437637931094,
+    "hours_to_rupture": 104.20198346643316,
+    "likely_failure_mode": "MonteCarlo degradation"
+  },
+  {
+    "circuit_name": "ENG_OIL",
+    "scenario_name": "MC_RUN_0096",
+    "peak_pressure_bar": 3.223022735197273,
+    "final_alert": "Normal",
+    "final_rupture_probability_pct": 0.031797313866240615,
+    "hours_to_rupture": 104.29082625810781,
+    "likely_failure_mode": "MonteCarlo degradation"
+  },
+  {
+    "circuit_name": "ENG_OIL",
+    "scenario_name": "MC_RUN_0007",
+    "peak_pressure_bar": 3.2141787374082553,
+    "final_alert": "Normal",
+    "final_rupture_probability_pct": 0.031780585638586704,
+    "hours_to_rupture": 104.34581857401726,
+    "likely_failure_mode": "MonteCarlo degradation"
+  },
+  {
+    "circuit_name": "ENG_OIL",
+    "scenario_name": "MC_RUN_0062",
+    "peak_pressure_bar": 3.2,
+    "final_alert": "Normal",
+    "final_rupture_probability_pct": 0.0317535144874188,
+    "hours_to_rupture": 104.43493493358734,
+    "likely_failure_mode": "MonteCarlo degradation"
+  },
+  {
+    "circuit_name": "ENG_OIL",
+    "scenario_name": "MC_RUN_0117",
+    "peak_pressure_bar": 3.2,
+    "final_alert": "Normal",
+    "final_rupture_probability_pct": 0.03172643802997633,
+    "hours_to_rupture": 104.52422088602319,
+    "likely_failure_mode": "MonteCarlo degradation"
+  },
+  {
+    "circuit_name": "ENG_OIL",
+    "scenario_name": "MC_RUN_0028",
+    "peak_pressure_bar": 3.2,
+    "final_alert": "Normal",
+    "final_rupture_probability_pct": 0.031709701216589,
+    "hours_to_rupture": 104.57948760939442,
+    "likely_failure_mode": "MonteCarlo degradation"
+  },
+  {
+    "circuit_name": "ENG_OIL",
+    "scenario_name": "MC_RUN_0083",
+    "peak_pressure_bar": 3.2,
+    "final_alert": "Normal",
+    "final_rupture_probability_pct": 0.03168261622577754,
+    "hours_to_rupture": 104.66904881170503,
+    "likely_failure_mode": "MonteCarlo degradation"
+  },
+  {
+    "circuit_name": "ENG_OIL",
+    "scenario_name": "MC_RUN_0049",
+    "peak_pressure_bar": 3.2,
+    "final_alert": "Normal",
+    "final_rupture_probability_pct": 0.031638780699024656,
+    "hours_to_rupture": 104.81432347042733,
+    "likely_failure_mode": "MonteCarlo degradation"
+  },
+  {
+    "circuit_name": "ENG_OIL",
+    "scenario_name": "MC_RUN_0104",
+    "peak_pressure_bar": 3.2,
+    "final_alert": "Normal",
+    "final_rupture_probability_pct": 0.0316116820380234,
+    "hours_to_rupture": 104.90433225515063,
+    "likely_failure_mode": "MonteCarlo degradation"
+  },
+  {
+    "circuit_name": "ENG_OIL",
+    "scenario_name": "MC_RUN_0015",
+    "peak_pressure_bar": 3.2,
+    "final_alert": "Normal",
+    "final_rupture_probability_pct": 0.03159493155444622,
+    "hours_to_rupture": 104.96004656237805,
+    "likely_failure_mode": "MonteCarlo degradation"
+  },
+  {
+    "circuit_name": "ENG_OIL",
+    "scenario_name": "MC_RUN_0070",
+    "peak_pressure_bar": 3.2,
+    "final_alert": "Normal",
+    "final_rupture_probability_pct": 0.03156782452952979,
+    "hours_to_rupture": 105.05033334795719,
+    "likely_failure_mode": "MonteCarlo degradation"
+  },
+  {
+    "circuit_name": "ENG_OIL",
+    "scenario_name": "MC_RUN_0036",
+    "peak_pressure_bar": 3.2,
+    "final_alert": "Normal",
+    "final_rupture_probability_pct": 0.0315239535726649,
+    "hours_to_rupture": 105.19678564336101,
+    "likely_failure_mode": "MonteCarlo degradation"
+  },
+  {
+    "circuit_name": "ENG_OIL",
+    "scenario_name": "MC_RUN_0091",
+    "peak_pressure_bar": 3.2,
+    "final_alert": "Normal",
+    "final_rupture_probability_pct": 0.031496833151741,
+    "hours_to_rupture": 105.28752449231607,
+    "likely_failure_mode": "MonteCarlo degradation"
+  },
+  {
+    "circuit_name": "ENG_OIL",
+    "scenario_name": "MC_RUN_0002",
+    "peak_pressure_bar": 3.2,
+    "final_alert": "Normal",
+    "final_rupture_probability_pct": 0.031480069272156457,
+    "hours_to_rupture": 105.34369086438602,
+    "likely_failure_mode": "MonteCarlo degradation"
+  },
+  {
+    "circuit_name": "ENG_OIL",
+    "scenario_name": "MC_RUN_0057",
+    "peak_pressure_bar": 3.2,
+    "final_alert": "Normal",
+    "final_rupture_probability_pct": 0.03145294065677183,
+    "hours_to_rupture": 105.43471050212658,
+    "likely_failure_mode": "MonteCarlo degradation"
+  },
+  {
+    "circuit_name": "ENG_OIL",
+    "scenario_name": "MC_RUN_0112",
+    "peak_pressure_bar": 3.2,
+    "final_alert": "Normal",
+    "final_rupture_probability_pct": 0.03142580700929464,
+    "hours_to_rupture": 105.5259042139151,
+    "likely_failure_mode": "MonteCarlo degradation"
+  },
+  {
+    "circuit_name": "ENG_OIL",
+    "scenario_name": "MC_RUN_0023",
+    "peak_pressure_bar": 3.2,
+    "final_alert": "Normal",
+    "final_rupture_probability_pct": 0.03140903498761323,
+    "hours_to_rupture": 105.58235224417065,
+    "likely_failure_mode": "MonteCarlo degradation"
+  },
+  {
+    "circuit_name": "ENG_OIL",
+    "scenario_name": "MC_RUN_0078",
+    "peak_pressure_bar": 3.2,
+    "final_alert": "Normal",
+    "final_rupture_probability_pct": 0.03138189325040376,
+    "hours_to_rupture": 105.67382848651258,
+    "likely_failure_mode": "MonteCarlo degradation"
+  },
+  {
+    "circuit_name": "ENG_OIL",
+    "scenario_name": "MC_RUN_0044",
+    "peak_pressure_bar": 3.2,
+    "final_alert": "Normal",
+    "final_rupture_probability_pct": 0.03133796648677755,
+    "hours_to_rupture": 105.82221132127223,
+    "likely_failure_mode": "MonteCarlo degradation"
+  },
+  {
+    "circuit_name": "ENG_OIL",
+    "scenario_name": "MC_RUN_0099",
+    "peak_pressure_bar": 3.2,
+    "final_alert": "Normal",
+    "final_rupture_probability_pct": 0.03131081179719693,
+    "hours_to_rupture": 105.91414700539956,
+    "likely_failure_mode": "MonteCarlo degradation"
+  },
+  {
+    "circuit_name": "ENG_OIL",
+    "scenario_name": "MC_RUN_0010",
+    "peak_pressure_bar": 3.2,
+    "final_alert": "Normal",
+    "final_rupture_probability_pct": 0.03129402682314463,
+    "hours_to_rupture": 105.97105447894552,
+    "likely_failure_mode": "MonteCarlo degradation"
+  },
+  {
+    "circuit_name": "ENG_OIL",
+    "scenario_name": "MC_RUN_0065",
+    "peak_pressure_bar": 3.2,
+    "final_alert": "Normal",
+    "final_rupture_probability_pct": 0.031266864213285304,
+    "hours_to_rupture": 106.06327554260072,
+    "likely_failure_mode": "MonteCarlo degradation"
+  },
+  {
+    "circuit_name": "ENG_OIL",
+    "scenario_name": "MC_RUN_0031",
+    "peak_pressure_bar": 3.2,
+    "final_alert": "Normal",
+    "final_rupture_probability_pct": 0.031222903898821035,
+    "hours_to_rupture": 106.21286727086147,
+    "likely_failure_mode": "MonteCarlo degradation"
+  },
+  {
+    "circuit_name": "ENG_OIL",
+    "scenario_name": "MC_RUN_0086",
+    "peak_pressure_bar": 3.2,
+    "final_alert": "Normal",
+    "final_rupture_probability_pct": 0.031195728610773434,
+    "hours_to_rupture": 106.30555241709183,
+    "likely_failure_mode": "MonteCarlo degradation"
+  },
+  {
+    "circuit_name": "ENG_OIL",
+    "scenario_name": "MC_RUN_0052",
+    "peak_pressure_bar": 3.2,
+    "final_alert": "Normal",
+    "final_rupture_probability_pct": 0.031151747919660116,
+    "hours_to_rupture": 106.45589738799998,
+    "likely_failure_mode": "MonteCarlo degradation"
+  },
+  {
+    "circuit_name": "ENG_OIL",
+    "scenario_name": "MC_RUN_0107",
+    "peak_pressure_bar": 3.2,
+    "final_alert": "Normal",
+    "final_rupture_probability_pct": 0.031124560122877804,
+    "hours_to_rupture": 106.54904951632537,
+    "likely_failure_mode": "MonteCarlo degradation"
+  },
+  {
+    "circuit_name": "ENG_OIL",
+    "scenario_name": "MC_RUN_0018",
+    "peak_pressure_bar": 3.2,
+    "final_alert": "Normal",
+    "final_rupture_probability_pct": 0.03110775477217652,
+    "hours_to_rupture": 106.60671024150902,
+    "likely_failure_mode": "MonteCarlo degradation"
+  },
+  {
+    "circuit_name": "ENG_OIL",
+    "scenario_name": "MC_RUN_0073",
+    "peak_pressure_bar": 3.2,
+    "final_alert": "Normal",
+    "final_rupture_probability_pct": 0.03108055932929795,
+    "hours_to_rupture": 106.70015244096814,
+    "likely_failure_mode": "MonteCarlo degradation"
+  },
+  {
+    "circuit_name": "ENG_OIL",
+    "scenario_name": "MC_RUN_0039",
+    "peak_pressure_bar": 3.2,
+    "final_alert": "Normal",
+    "final_rupture_probability_pct": 0.031036546248801956,
+    "hours_to_rupture": 106.85172617950735,
+    "likely_failure_mode": "MonteCarlo degradation"
+  },
+  {
+    "circuit_name": "ENG_OIL",
+    "scenario_name": "MC_RUN_0094",
+    "peak_pressure_bar": 3.2,
+    "final_alert": "Normal",
+    "final_rupture_probability_pct": 0.031009338571371434,
+    "hours_to_rupture": 106.94564010403002,
+    "likely_failure_mode": "MonteCarlo degradation"
+  },
+  {
+    "circuit_name": "ENG_OIL",
+    "scenario_name": "MC_RUN_0005",
+    "peak_pressure_bar": 3.2,
+    "final_alert": "Normal",
+    "final_rupture_probability_pct": 0.030992520986117697,
+    "hours_to_rupture": 107.0037725558468,
+    "likely_failure_mode": "MonteCarlo degradation"
+  },
+  {
+    "circuit_name": "ENG_OIL",
+    "scenario_name": "MC_RUN_0060",
+    "peak_pressure_bar": 3.2,
+    "final_alert": "Normal",
+    "final_rupture_probability_pct": 0.030965305832045126,
+    "hours_to_rupture": 107.0979795026619,
+    "likely_failure_mode": "MonteCarlo degradation"
+  },
+  {
+    "circuit_name": "ENG_OIL",
+    "scenario_name": "MC_RUN_0115",
+    "peak_pressure_bar": 3.2,
+    "final_alert": "Normal",
+    "final_rupture_probability_pct": 0.030938086089516557,
+    "hours_to_rupture": 107.19236811574426,
+    "likely_failure_mode": "MonteCarlo degradation"
+  },
+  {
+    "circuit_name": "ENG_OIL",
+    "scenario_name": "MC_RUN_0026",
+    "peak_pressure_bar": 3.2,
+    "final_alert": "Normal",
+    "final_rupture_probability_pct": 0.03092126107998523,
+    "hours_to_rupture": 107.25079451024801,
+    "likely_failure_mode": "MonteCarlo degradation"
+  },
+  {
+    "circuit_name": "ENG_OIL",
+    "scenario_name": "MC_RUN_0081",
+    "peak_pressure_bar": 3.2,
+    "final_alert": "Normal",
+    "final_rupture_probability_pct": 0.030894033965542852,
+    "hours_to_rupture": 107.34547798958832,
+    "likely_failure_mode": "MonteCarlo degradation"
+  },
+  {
+    "circuit_name": "ENG_OIL",
+    "scenario_name": "MC_RUN_0047",
+    "peak_pressure_bar": 3.2,
+    "final_alert": "Normal",
+    "final_rupture_probability_pct": 0.030849969998289005,
+    "hours_to_rupture": 107.49906646849843,
+    "likely_failure_mode": "MonteCarlo degradation"
+  },
+  {
+    "circuit_name": "ENG_OIL",
+    "scenario_name": "MC_RUN_0102",
+    "peak_pressure_bar": 3.2,
+    "final_alert": "Normal",
+    "final_rupture_probability_pct": 0.03082273109293094,
+    "hours_to_rupture": 107.59422948424263,
+    "likely_failure_mode": "MonteCarlo degradation"
+  },
+  {
+    "circuit_name": "ENG_OIL",
+    "scenario_name": "MC_RUN_0013",
+    "peak_pressure_bar": 3.2,
+    "final_alert": "Normal",
+    "final_rupture_probability_pct": 0.030805894292483545,
+    "hours_to_rupture": 107.65313541676126,
+    "likely_failure_mode": "MonteCarlo degradation"
+  },
+  {
+    "circuit_name": "ENG_OIL",
+    "scenario_name": "MC_RUN_0068",
+    "peak_pressure_bar": 3.2,
+    "final_alert": "Normal",
+    "final_rupture_probability_pct": 0.030778648184665823,
+    "hours_to_rupture": 107.7485963152641,
+    "likely_failure_mode": "MonteCarlo degradation"
+  },
+  {
+    "circuit_name": "ENG_OIL",
+    "scenario_name": "MC_RUN_0034",
+    "peak_pressure_bar": 3.2,
+    "final_alert": "Normal",
+    "final_rupture_probability_pct": 0.03073455370730315,
+    "hours_to_rupture": 107.90344665266448,
+    "likely_failure_mode": "MonteCarlo degradation"
+  },
+  {
+    "circuit_name": "ENG_OIL",
+    "scenario_name": "MC_RUN_0089",
+    "peak_pressure_bar": 3.2,
+    "final_alert": "Normal",
+    "final_rupture_probability_pct": 0.03070729608275227,
+    "hours_to_rupture": 107.99939200161712,
+    "likely_failure_mode": "MonteCarlo degradation"
+  },
+  {
+    "circuit_name": "ENG_OIL",
+    "scenario_name": "MC_RUN_0000",
+    "peak_pressure_bar": 3.2,
+    "final_alert": "Normal",
+    "final_rupture_probability_pct": 0.030690447765571484,
+    "hours_to_rupture": 108.0587823862231,
+    "likely_failure_mode": "MonteCarlo degradation"
+  }
+]

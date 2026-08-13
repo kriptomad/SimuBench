@@ -28,7 +28,7 @@ const RATED_POWER_KW: f64 = 220.0;
 const ENGINE_INERTIA_KGM2: f64 = 3.2;
 const FUEL_TANK_L: f64 = 200.0;
 const DEF_TANK_L: f64 = 25.0;
-const DPF_REGEN_SOOT: f64 = 75.0; // % soot load triggers regen
+const DPF_REGEN_SOOT: f64 = 50.0; // regen at 50% soot — 75% is too late, causes back-pressure derating
 
 // ── Governor Mode ────────────────────────────────────────────────────────────
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -177,7 +177,18 @@ pub struct EcuEcm {
     pub amber_lamp: bool,
     pub red_lamp: bool,
     pub protect_lamp: bool,
-
+    // ─ Remap-able engine parameters ────────────────────────────────────────────
+    pub remap_idle_rpm: f64,
+    pub remap_rated_rpm: f64,
+    pub remap_peak_torque_nm: f64,
+    pub remap_torque_plateau_start: f64,
+    pub remap_torque_plateau_end: f64,
+    pub remap_max_boost_kpa: f64,
+    pub remap_boost_build_rate: f64,
+    pub remap_idle_fuel_lph: f64,
+    pub remap_wot_fuel_lph: f64,
+    pub remap_thermal_target_c: f64,
+    pub remap_rpm_filter_s: f64,
     // ─ Periodic TX timers ────────────────────────────────────────────────────
     t_eec1: f64,
     t_eec2: f64,
@@ -271,6 +282,17 @@ impl EcuEcm {
             amber_lamp: false,
             red_lamp: false,
             protect_lamp: false,
+            remap_idle_rpm: IDLE_RPM,
+            remap_rated_rpm: RATED_RPM,
+            remap_peak_torque_nm: PEAK_TORQUE_NM,
+            remap_torque_plateau_start: 1200.0,
+            remap_torque_plateau_end: 1800.0,
+            remap_max_boost_kpa: 300.0,
+            remap_boost_build_rate: 3.0,
+            remap_idle_fuel_lph: 1.5,
+            remap_wot_fuel_lph: 55.0,
+            remap_thermal_target_c: 92.0,
+            remap_rpm_filter_s: 0.06,
 
             t_eec1: 0.0,
             t_eec2: 0.0,
@@ -377,8 +399,9 @@ impl EcuEcm {
 
         // ─ Fuel consumption ──────────────────────────────────────────────────
         let power_kw = self.actual_torque_nm * self.rpm * std::f64::consts::PI / 30000.0;
-        // BSFC ~210 g/kWh; diesel density 840 g/L → L/h = kW * g/kWh / (g/L)
-        let bsfc = 210.0 + (1.0 - self.active_throttle / 100.0) * 90.0;
+        // BSFC quadratic penalty: best efficiency ~210 g/kWh; rises steeply at light load (pumping losses)
+        let load_frac = (self.active_throttle / 100.0).clamp(0.05, 1.0);
+        let bsfc = 205.0 + 210.0 * (1.0 - load_frac).powi(2) / load_frac;
         self.fuel_rate_lph = if self.rpm > 400.0 {
             (power_kw * bsfc / 840.0).max(1.5)
         } else {
@@ -393,12 +416,19 @@ impl EcuEcm {
         self.warmup_done = self.warmup_done || self.coolant_temp_c > 82.0;
         let load_heat = self.percent_load / 100.0;
         let tgt_coolant = 88.0 + load_heat * 6.0;
-        let warm_rate = if self.rpm > 500.0 { 0.015 } else { -0.008 };
-        self.coolant_temp_c += (tgt_coolant - self.coolant_temp_c) * warm_rate * dt;
-        self.oil_temp_c = self.coolant_temp_c + 12.0 + load_heat * 5.0;
+        // When running: target operating temp. When stopped: cool toward ambient.
+        let warm_rate = 0.015;
+        let coolant_target = if self.rpm > 500.0 { tgt_coolant } else { self.ambient_temp_c };
+        self.coolant_temp_c += (coolant_target - self.coolant_temp_c) * warm_rate * dt;
+        // Oil has ~5x thermal mass of coolant circuit; lag is ~5 min
+        let oil_target = self.coolant_temp_c + 12.0 + load_heat * 5.0;
+        self.oil_temp_c += (oil_target - self.oil_temp_c) * 0.003 * dt;
         self.exhaust_temp_c = 120.0 + load_heat * 520.0 * (self.rpm / RATED_RPM).min(1.0);
-        self.turbo_oil_temp_c = self.exhaust_temp_c * 0.6;
-        self.intake_temp_c = self.ambient_temp_c + self.boost_pressure_kpa / 100.0 * 18.0;
+        // Turbo journal bearings are oil-cooled; temp ≈ oil, slight radiated exhaust contribution
+        self.turbo_oil_temp_c = self.oil_temp_c + (self.exhaust_temp_c - 400.0).max(0.0) * 0.02;
+        // Intake temp: only gauge boost (above atmospheric) contributes compression heating
+        let boost_gauge_kpa = (self.boost_pressure_kpa - 100.0).max(0.0);
+        self.intake_temp_c = self.ambient_temp_c + boost_gauge_kpa / 100.0 * 18.0;
 
         // ─ Pressure model ────────────────────────────────────────────────────
         self.oil_pressure_kpa = if self.rpm > 400.0 {
@@ -425,17 +455,15 @@ impl EcuEcm {
         .max(0.0);
 
         // ─ Electrical ────────────────────────────────────────────────────────
-        self.alternator_v = if self.rpm > 900.0 {
-            14.2
-        } else if self.rpm > 400.0 {
-            13.0
-        } else {
-            0.0
-        };
+        // Field winding delay: ~200 ms build; voltage droops slightly under full load
+        let alt_target = if self.rpm > 900.0 { 14.2 } else if self.rpm > 400.0 { 13.0 } else { 0.0 };
+        self.alternator_v += (alt_target - self.alternator_v) * 5.0 * dt;
+        // Battery: discharges under load when alternator is absent; otherwise regulated to ~13.8 V
+        let load_sag_v = if self.alternator_v < 13.0 { 0.0 } else { 0.002 * (self.percent_load / 100.0) * 10.0 };
         self.battery_v = if self.alternator_v > 13.0 {
-            13.8
+            (13.8 - load_sag_v).max(12.0)
         } else {
-            (self.battery_v - 0.001 * dt).max(11.5)
+            (self.battery_v - 0.002 * dt).max(11.0)
         };
 
         // ─ Aftertreatment ────────────────────────────────────────────────────
@@ -463,7 +491,8 @@ impl EcuEcm {
         let ts = self.engine_hours; // use hours as timestamp (always increasing)
         let mut frames: Vec<J1939Frame> = Vec::new();
 
-        if self.t_eec1 >= 0.010 {
+        // J1939-71: EEC1 at 100 ms (some OEM extensions allow 20 ms)
+        if self.t_eec1 >= 0.100 {
             self.t_eec1 = 0.0;
             frames.push(Builder::eec1(
                 ts,
@@ -549,8 +578,8 @@ impl EcuEcm {
         // DPF soot accumulates with load, decreases during regen
         if rpm_running {
             let soot_rate = match self.aftertreatment {
-                AftertreatmentState::DpfRegen => -3.0 * dt, // burn soot at 3%/s
-                _ => 0.0008 * load * dt,
+                AftertreatmentState::DpfRegen => -0.05 * dt, // ~33 min to clear full soot load
+                _ => 0.0025 * load * dt,                       // ~9%/hr at full load; regen every ~8-10 h
             };
             self.dpf_soot_pct = (self.dpf_soot_pct + soot_rate).clamp(0.0, 100.0);
         }
@@ -568,8 +597,9 @@ impl EcuEcm {
 
         // SCR efficiency depends on temperature and DEF availability
         let scr_temp_ok = self.scr_inlet_temp_c > 200.0;
+        // SCR efficiency degrades at high load (high exhaust flow reduces residence time)
         self.scr_efficiency_pct = if self.def_level_pct > 5.0 && scr_temp_ok {
-            93.0 + load * 4.0
+            (93.0 - load * 6.0).max(80.0)
         } else if self.def_level_pct > 2.0 {
             40.0
         } else {
@@ -581,8 +611,9 @@ impl EcuEcm {
         self.def_level_pct = (self.def_level_pct - def_consumed / DEF_TANK_L * 100.0).max(0.0);
 
         // NOx
+        // Idle NOx ~100-300 ppm; rises with load. EGR reduces NOx proportionally.
         self.nox_raw_ppm = if rpm_running {
-            800.0 + load * 1200.0 * (1.0 - self.egr_valve_pct / 80.0)
+            150.0 + load * 1850.0 * (1.0 - self.egr_valve_pct / 80.0).max(0.0)
         } else {
             0.0
         };

@@ -331,13 +331,17 @@ impl EcuHcm {
 
         self.total_flow_demand_lpm = q_hitch + q_loader + q_tilt + q_aux;
 
-        // ─ Charge circuit (brake accumulator) ────────────────────────────────
+        // Brake accumulator charges at ~3 bar/s through a dedicated charge valve (not 20)
         if self.pump_flow_lpm > 5.0 {
-            self.brake_acc_pres_bar = (self.brake_acc_pres_bar + 20.0 * dt).min(180.0);
+            self.brake_acc_pres_bar = (self.brake_acc_pres_bar + 3.0 * dt).min(180.0);
+        } else {
+            // Bleeds slightly when pump not running (leakage)
+            self.brake_acc_pres_bar = (self.brake_acc_pres_bar - 0.5 * dt).max(0.0);
         }
         self.brake_acc_charged = self.brake_acc_pres_bar > 120.0;
+        // Pilot pressure: separate regulated reducer (typically 35-40 bar, not system/10)
+        self.pilot_pres_bar = if self.pump_flow_lpm > 2.0 { 38.0 } else { self.pilot_pres_bar * 0.98 };
         self.charge_pres_bar = self.brake_acc_pres_bar * 0.5;
-        self.pilot_pres_bar = (self.system_pressure_bar * 0.1).min(40.0);
 
         // ─ Thermal model ─────────────────────────────────────────────────────
         // Heat = (pressure × flow) × (1 − efficiency) + heat from PRV bypass

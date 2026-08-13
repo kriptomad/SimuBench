@@ -25,6 +25,7 @@ serialport = "4.5"
 rfd = "0.15"
 rand = "0.8"
 crc32fast = "1.4"
+sha2 = "0.10"
 # crossterm removed — replaced by egui desktop GUI
 
 [target.'cfg(target_os = "linux")'.dependencies]

@@ -24,6 +24,30 @@ pub struct EngineEcu {
     pub idle_rpm: f64,
     pub redline_rpm: f64,
     pub max_rpm: f64,
+
+    // ─ Remap-able engine parameters ────────────────────────────────────────
+    /// Peak torque (Nm) at the plateau
+    pub remap_peak_torque_nm: f64,
+    /// RPM at which torque plateau starts
+    pub remap_torque_plateau_start: f64,
+    /// RPM at which torque plateau ends
+    pub remap_torque_plateau_end: f64,
+    /// Idle RPM setpoint (governor target)
+    pub remap_idle_rpm: f64,
+    /// Redline RPM (ignition/injection cut starts)
+    pub remap_redline_rpm: f64,
+    /// Turbo boost build rate (1/s)
+    pub remap_boost_build_rate: f64,
+    /// Max boost pressure (bar)
+    pub remap_max_boost_bar: f64,
+    /// Idle fuel consumption (L/h)
+    pub remap_idle_fuel_lph: f64,
+    /// WOT fuel consumption multiplier
+    pub remap_wot_fuel_lph: f64,
+    /// Engine thermal target (°C) at full throttle
+    pub remap_thermal_target_c: f64,
+    /// RPM tracking filter time constant (s)
+    pub remap_rpm_filter_s: f64,
 }
 
 impl EngineEcu {
@@ -47,24 +71,38 @@ impl EngineEcu {
             idle_rpm: 820.0,
             redline_rpm: 6800.0,
             max_rpm: 7200.0,
+            remap_peak_torque_nm: 250.0,
+            remap_torque_plateau_start: 2000.0,
+            remap_torque_plateau_end: 4500.0,
+            remap_idle_rpm: 820.0,
+            remap_redline_rpm: 6800.0,
+            remap_boost_build_rate: 3.0,
+            remap_max_boost_bar: 1.6,
+            remap_idle_fuel_lph: 0.6,
+            remap_wot_fuel_lph: 17.0,
+            remap_thermal_target_c: 92.0,
+            remap_rpm_filter_s: 0.08,
         }
     }
 
-    /// Torque curve: 2.0L turbo, ~250 Nm peak at 2000-4500 RPM
+    /// Torque curve parameterised by remap fields.
     fn torque_at_rpm(&self, rpm: f64, throttle: f64) -> f64 {
         if rpm < 500.0 {
             return 0.0;
         }
-        // Flat torque plateau between 2000-4500 RPM (turbocharged)
-        let peak = 250.0;
-        let t = if rpm < 1500.0 {
-            rpm / 1500.0 * 0.7
-        } else if rpm < 2000.0 {
-            0.7 + (rpm - 1500.0) / 500.0 * 0.3
-        } else if rpm < 4500.0 {
+        let peak = self.remap_peak_torque_nm;
+        let ps = self.remap_torque_plateau_start;
+        let pe = self.remap_torque_plateau_end;
+        let redline = self.remap_redline_rpm;
+        let ramp_start = (ps - 500.0).max(200.0);
+        let t = if rpm < ramp_start {
+            rpm / ramp_start * 0.7
+        } else if rpm < ps {
+            0.7 + (rpm - ramp_start) / (ps - ramp_start) * 0.3
+        } else if rpm < pe {
             1.0
-        } else if rpm < 6800.0 {
-            1.0 - (rpm - 4500.0) / 2300.0 * 0.6
+        } else if rpm < redline {
+            1.0 - (rpm - pe) / (redline - pe) * 0.6
         } else {
             0.0
         };
@@ -72,6 +110,8 @@ impl EngineEcu {
     }
 
     pub fn update(&mut self, throttle: f64, gear: u8, vehicle_speed_kmh: f64, dt: f64) {
+        self.idle_rpm = self.remap_idle_rpm;
+        self.redline_rpm = self.remap_redline_rpm;
         self.throttle_position = throttle.clamp(0.0, 1.0);
         self.rev_limiter_active = self.rpm >= self.redline_rpm;
 
@@ -89,19 +129,18 @@ impl EngineEcu {
             self.idle_rpm + effective_throttle * 1500.0
         };
 
-        self.rpm += (target_rpm - self.rpm) * (dt / 0.08).min(1.0);
+        self.rpm += (target_rpm - self.rpm) * (dt / self.remap_rpm_filter_s).min(1.0);
         self.rpm = self.rpm.clamp(self.idle_rpm * 0.9, self.max_rpm);
 
         self.output_torque = self.torque_at_rpm(self.rpm, effective_throttle);
         self.output_power_kw = self.output_torque * self.rpm * std::f64::consts::PI / 30.0 / 1000.0;
 
-        // Turbo boost builds with RPM + throttle
-        let boost_target =
-            (effective_throttle * 1.6 * ((self.rpm - 1500.0) / 1500.0).clamp(0.0, 1.0)).max(0.0);
-        self.boost_pressure += (boost_target - self.boost_pressure) * dt * 3.0;
+        let boost_target = (effective_throttle * self.remap_max_boost_bar
+            * ((self.rpm - 1500.0) / 1500.0).clamp(0.0, 1.0))
+            .max(0.0);
+        self.boost_pressure += (boost_target - self.boost_pressure) * dt * self.remap_boost_build_rate;
 
-        // Thermal model
-        let temp_target = 92.0 + effective_throttle * 10.0;
+        let temp_target = self.remap_thermal_target_c + effective_throttle * 10.0;
         self.engine_temp += (temp_target - self.engine_temp) * dt * 0.015;
         self.coolant_temp = self.engine_temp;
         self.oil_temp = self.engine_temp + 8.0;
@@ -109,8 +148,8 @@ impl EngineEcu {
         // Oil pressure drops slightly at idle, rises with RPM
         self.oil_pressure = 1.2 + (self.rpm / self.max_rpm) * 4.0;
 
-        // Fuel consumption: idle ~0.6 L/h, WOT at high RPM ~18 L/h
-        self.fuel_consumption_lph = 0.6 + effective_throttle * 17.0 * (self.rpm / 4000.0).min(1.0);
+        self.fuel_consumption_lph = self.remap_idle_fuel_lph
+            + effective_throttle * self.remap_wot_fuel_lph * (self.rpm / 4000.0).min(1.0);
         let consumed = self.fuel_consumption_lph * dt / 3600.0;
         self.fuel_level = (self.fuel_level - consumed / FUEL_TANK_L).max(0.0);
     }

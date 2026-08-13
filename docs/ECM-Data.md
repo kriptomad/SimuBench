@@ -27,13 +27,22 @@ Implementations:
 1. Serial adapter for COM links: [src/io/serial_adapter.rs](src/io/serial_adapter.rs)
 2. SocketCAN adapter for Linux: [src/io/socketcan_adapter.rs](src/io/socketcan_adapter.rs)
 3. Cat Comm template (Windows): [src/io/vendor_cat_comm.rs](src/io/vendor_cat_comm.rs)
-4. Mock adapter for tests: [src/io/mock.rs](src/io/mock.rs)
+4. Cat Comm bridge protocol: [docs/CAT_COMM_TEMPLATE_PROTOCOL.md](docs/CAT_COMM_TEMPLATE_PROTOCOL.md)
+5. Reference bridge executable source: [src/bin/cat_comm_bridge.rs](src/bin/cat_comm_bridge.rs)
+6. Mock adapter for tests: [src/io/mock.rs](src/io/mock.rs)
 
 Selection order:
 
 1. vendor_name=cat_comm (Windows + feature vendor-windows)
 2. can-if
 3. serial-port
+
+Cat Comm bridge configuration flags:
+
+1. --vendor-name=cat_comm
+2. --vendor-bridge-exe=<path_to_cat_comm_bridge.exe>
+3. --vendor-template-dir=<folder_containing_cat_comm_bridge.exe>
+4. --vendor-bridge-timeout-ms=<timeout_ms>
 
 ## 3. Safety controls
 
@@ -156,6 +165,9 @@ pnputil /enum-drivers | findstr /i "Cat"
 Safe flow:
 
 1. launch with dry-run
+2. for Cat Comm template upload, provide one of:
+1. --vendor-bridge-exe=<full_path>
+2. --vendor-template-dir=<template_folder>
 2. Detect then Connect then Retrieve Data in ECM-Live tab
 3. verify live snapshot updates and jsonl outputs
 4. export CSV and review trends
@@ -193,8 +205,65 @@ cargo check
 
 ## 12. Upgrade roadmap
 
-1. implement Cat Comm real bridge bindings
-2. add signed allowlist verification
-3. add Prometheus exporter endpoint
-4. parser extension with real captures
-5. optional HIL Windows runner workflow
+1. implemented: Cat Comm bridge protocol + reference executable source
+2. open: add signed allowlist verification
+3. open: add Prometheus exporter endpoint
+4. open: parser extension with real captures
+5. implemented: Windows template E2E runner script [scripts/run_windows_template_e2e.ps1](scripts/run_windows_template_e2e.ps1)
+
+## 13. One-shot 12-phase execution
+
+Run all production phases in a single non-interactive pass:
+
+```powershell
+cargo run --bin simulator_cli -- --run-production-phases --hw-mode=live --vendor-name=cat_comm --vendor-template-dir="C:/cat/template" --target-sa=00 --firmware="C:/fw/ecm.bin" --phase-report-dir=reports
+```
+
+Strict mode is default: blocked phases are treated as failure in the production gate.
+Use `--allow-blocked-phases` only for engineering dry-runs.
+
+To execute live flash during phase 6, add `--execute-flash` and ensure write policy gates are fully enabled.
+
+Simulation-only dry run of the full phase chain:
+
+```powershell
+cargo run --bin simulator_cli -- --run-production-phases --hw-mode=sim --phase-report-dir=reports
+```
+
+Outputs:
+
+1. `reports/production_phase_report_<timestamp>.json`
+2. `reports/production_phase_report_<timestamp>.md`
+
+Quick bridge negotiation validation:
+
+```powershell
+cargo run --bin simulator_cli -- --validate-cat-bridge --hw-mode=live --vendor-name=cat_comm --vendor-template-dir="C:/cat/template"
+```
+
+The command validates bridge startup and ping negotiation and prints adapter metadata.
+
+Full Windows template E2E automation (build bridge, validate handshake, run strict phases with flash):
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts/run_windows_template_e2e.ps1 -TemplateDir "C:/cat/template" -ReportDir "reports"
+```
+
+## 14. Linux can-utils interoperability validation
+
+For Linux benches, validate ISO-TP tooling interoperability before live runs:
+
+1. Ensure can-utils is installed.
+2. Bring up `vcan0` or target CAN interface.
+3. Run [scripts/validate_can_utils_interop.sh](scripts/validate_can_utils_interop.sh).
+
+Example:
+
+```bash
+sudo modprobe vcan
+sudo ip link add dev vcan0 type vcan || true
+sudo ip link set up vcan0
+bash scripts/validate_can_utils_interop.sh
+```
+
+The script sends UDS `3E 00` (TesterPresent) over ISO-TP using `isotpsend`, validates reception with `isotprecv`, and captures CAN bus traces with `candump` for troubleshooting evidence.

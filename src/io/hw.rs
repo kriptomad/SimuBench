@@ -36,10 +36,35 @@ pub enum Frame {
     Serial(SerialFrame),
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]
+pub struct HwCapabilities {
+    pub can_raw: bool,
+    pub isotp: bool,
+    pub j1939: bool,
+    pub uds_flash: bool,
+    pub vendor_bridge: bool,
+}
+
+impl HwCapabilities {
+    pub fn missing_for_live_flash(&self) -> Vec<&'static str> {
+        let mut missing = Vec::new();
+        if !self.uds_flash {
+            missing.push("uds_flash");
+        }
+        if self.can_raw && !(self.isotp || self.vendor_bridge) {
+            missing.push("isotp_or_vendor_bridge");
+        }
+        missing
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct HwConfig {
     pub mode: HwMode,
     pub vendor_name: Option<String>,
+    pub vendor_template_dir: Option<PathBuf>,
+    pub vendor_bridge_exe: Option<PathBuf>,
+    pub vendor_bridge_timeout_ms: u64,
     pub serial_port: Option<String>,
     pub serial_baud: u32,
     pub serial_parity: Option<String>,
@@ -76,6 +101,9 @@ impl Default for HwConfig {
         Self {
             mode: HwMode::Sim,
             vendor_name: None,
+            vendor_template_dir: None,
+            vendor_bridge_exe: None,
+            vendor_bridge_timeout_ms: 1_000,
             serial_port: None,
             serial_baud: 115_200,
             serial_parity: Some("None".to_string()),
@@ -135,6 +163,14 @@ impl HwConfig {
                 cfg.serial_port = Some(v.to_string());
             } else if let Some(v) = a.strip_prefix("--vendor-name=") {
                 cfg.vendor_name = Some(v.to_string());
+            } else if let Some(v) = a.strip_prefix("--vendor-template-dir=") {
+                cfg.vendor_template_dir = Some(PathBuf::from(v));
+            } else if let Some(v) = a.strip_prefix("--vendor-bridge-exe=") {
+                cfg.vendor_bridge_exe = Some(PathBuf::from(v));
+            } else if let Some(v) = a.strip_prefix("--vendor-bridge-timeout-ms=") {
+                cfg.vendor_bridge_timeout_ms = v.parse::<u64>().map_err(|e| {
+                    HwError::Unknown(format!("invalid --vendor-bridge-timeout-ms value: {e}"))
+                })?;
             } else if let Some(v) = a.strip_prefix("--serial-baud=") {
                 cfg.serial_baud = v
                     .parse::<u32>()
@@ -191,6 +227,36 @@ impl HwConfig {
     pub fn write_effectively_enabled(&self) -> bool {
         self.write_intent_enabled() && !self.dry_run
     }
+
+    pub fn declared_capabilities(&self) -> HwCapabilities {
+        let vendor_bridge = self
+            .vendor_name
+            .as_deref()
+            .map(|v| v.eq_ignore_ascii_case("cat_comm"))
+            .unwrap_or(false)
+            || self.vendor_template_dir.is_some()
+            || self.vendor_bridge_exe.is_some();
+        let can_raw = self.can_interface.is_some();
+        let isotp = can_raw || vendor_bridge;
+        let j1939 = can_raw;
+        let uds_flash = can_raw || self.serial_port.is_some() || vendor_bridge;
+
+        HwCapabilities {
+            can_raw,
+            isotp,
+            j1939,
+            uds_flash,
+            vendor_bridge,
+        }
+    }
+
+    pub fn capabilities_summary(&self) -> String {
+        let c = self.declared_capabilities();
+        format!(
+            "can_raw={} isotp={} j1939={} uds_flash={} vendor_bridge={}",
+            c.can_raw, c.isotp, c.j1939, c.uds_flash, c.vendor_bridge
+        )
+    }
 }
 
 #[derive(Debug, Error)]
@@ -223,6 +289,10 @@ pub trait HardwareInterface {
     fn try_read_frame(&mut self) -> Result<Option<Frame>, HwError>;
     fn send_frame(&mut self, frame: Frame) -> Result<(), HwError>;
     fn close(&mut self) -> Result<(), HwError>;
+
+    fn adapter_info(&self) -> Option<String> {
+        None
+    }
 }
 
 pub fn open_real_adapter(cfg: &HwConfig) -> Result<Box<dyn HardwareInterface>, HwError> {
@@ -247,8 +317,18 @@ pub fn open_real_adapter(cfg: &HwConfig) -> Result<Box<dyn HardwareInterface>, H
     }
 
     Err(HwError::PortNotFound(
-        "no real interface configured: set --can-if or --serial-port".to_string(),
+        "no real interface configured: set --vendor-name=cat_comm with bridge/template, or --can-if, or --serial-port".to_string(),
     ))
+}
+
+pub fn probe_live_adapter(cfg: &HwConfig) -> Result<String, HwError> {
+    let mut adapter = open_real_adapter(cfg)?;
+    adapter.init(cfg)?;
+    let info = adapter
+        .adapter_info()
+        .unwrap_or_else(|| "adapter_info=unavailable".to_string());
+    adapter.close()?;
+    Ok(info)
 }
 
 #[derive(Debug, Serialize)]

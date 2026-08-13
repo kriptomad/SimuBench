@@ -138,9 +138,12 @@ impl EcuBcm {
     /// Main BCM tick — returns J1939 frames.
     pub fn tick(&mut self, alternator_v: f64, dt: f64) -> Vec<J1939Frame> {
         // ─ Charging model ────────────────────────────────────────────────────
+        // Alternator matches load demand; reduces current when battery is charged
+        let soc_factor = (1.0 - self.battery_soc_pct / 100.0).clamp(0.05, 1.0);
         self.alternator_amps = if alternator_v > 13.5 {
             self.charging_state = ChargingState::Charging;
-            80.0 // 80A alternator
+            // Base charging + load current, capped at 120A nameplate
+            (self.total_load_amps + 80.0 * soc_factor).min(120.0)
         } else {
             self.charging_state = ChargingState::Off;
             0.0
@@ -181,8 +184,14 @@ impl EcuBcm {
         self.battery_soc_pct = (self.battery_soc_pct
             + self.battery_current_a * dt / 3600.0 * 100.0 / 88.0)
             .clamp(0.0, 100.0); // 88 Ah battery
-        self.battery_voltage =
-            11.5 + self.battery_soc_pct / 100.0 * 1.8 + if alternator_v > 13.0 { 0.5 } else { 0.0 };
+        // Terminal voltage = OCV - load sag (12 mΩ internal resistance)
+        let ocv = 11.5 + self.battery_soc_pct / 100.0 * 1.8;
+        let sag = self.total_load_amps * 0.012;
+        self.battery_voltage = if alternator_v > 13.0 {
+            (14.2 - sag).max(12.0)
+        } else {
+            (ocv - sag).max(10.5)
+        };
 
         // ─ Fuse monitoring ────────────────────────────────────────────────────
         for fuse in &mut self.fuses {
@@ -266,6 +275,10 @@ impl EcuBcm {
         }
 
         // ─ HVAC simple model ─────────────────────────────────────────────────
+        // Cab always drifts toward ambient (conduction), HVAC corrects toward setpoint
+        let ambient_c = 22.0_f64; // ideally from sensor
+        let ambient_drift = (ambient_c - self.cab_temp_c) * dt * 0.002;
+        self.cab_temp_c += ambient_drift;
         if self.hvac_on {
             let cool = if self.cab_temp_c > self.hvac_temp_set_c {
                 -8.0

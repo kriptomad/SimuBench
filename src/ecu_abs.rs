@@ -249,8 +249,8 @@ impl EcuAbs {
         self.lateral_g = lateral_g;
         self.brake_light_active = brake_pct > 2.0;
 
-        // Master cylinder pressure: ~1.5 bar/% pedal, max 150 bar
-        self.master_cylinder_bar = (brake_pct / 100.0 * 150.0).min(150.0);
+        // Heavy machine hydraulic brakes: up to 220 bar peak line pressure
+        self.master_cylinder_bar = (brake_pct / 100.0 * 220.0).min(220.0);
 
         // Estimate vehicle reference speed (best two non-locked wheels)
         self.update_v_ref(vehicle_speed_kmh);
@@ -285,8 +285,13 @@ impl EcuAbs {
         }
 
         // System-level flags
+        let was_abs_active = self.abs_system_active;
         self.abs_system_active = self.wheels.iter().any(|w| w.abs_active);
         self.tcs_system_active = self.wheels.iter().any(|w| w.tcs_active);
+        // Count ABS events only on rising edge (not every tick)
+        if !was_abs_active && self.abs_system_active {
+            self.total_abs_events += 1;
+        }
 
         // Periodic J1939 TX
         self.t_ebc1 += dt;
@@ -315,22 +320,48 @@ impl EcuAbs {
 
     // ─────────────────────────────────────────────────────────────────────────
     fn update_v_ref(&mut self, vehicle_speed: f64) {
-        // vRef = vehicle speed (from TCM/transmission output shaft) with small lag
-        self.v_ref_kmh += (vehicle_speed - self.v_ref_kmh) * 0.8;
+        // Derive v_ref from fastest two non-braking wheels (robust to individual wheel lockout)
+        let mut speeds: Vec<f64> = self.wheels.iter()
+            .filter(|w| !w.abs_active && w.sensor_state == SensorState::Ok)
+            .map(|w| w.speed)
+            .collect();
+        speeds.sort_by(|a, b| b.total_cmp(a));
+        let sensor_ref = if speeds.len() >= 2 {
+            (speeds[0] + speeds[1]) / 2.0
+        } else if speeds.len() == 1 {
+            speeds[0]
+        } else {
+            vehicle_speed // fallback to TCM speed if all wheels locked
+        };
+        // Lag to represent sensor filtering and CAN message delay
+        self.v_ref_kmh += (sensor_ref - self.v_ref_kmh) * 0.6;
     }
 
     fn update_wheel_speeds(&mut self, vehicle_speed: f64, dt: f64) {
+        // Wheel rotational inertia (per wheel, heavy machine axle ~6 kg·m² effective)
+        const J_WHEEL: f64 = 6.0;
+        const TIRE_R: f64 = 0.655;
+        const MU_ROAD: f64 = 0.8; // dry tarmac peak slip coefficient
+        const F_NORMAL_N: f64 = 50_000.0; // ~20 t / 4 wheels, simplified
+
         for w in self.wheels.iter_mut() {
+            // Convert wheel speed km/h → angular velocity rad/s
+            let omega = w.speed / 3.6 / TIRE_R;
+            // Brake torque = pressure × caliper area × radius (simplified: 8 Nm/bar)
+            let brake_torque = w.brake_pres_bar * 8.0;
+            // Traction torque (capped by friction limit)
+            let friction_torque = MU_ROAD * F_NORMAL_N * TIRE_R;
+            let net_torque = -brake_torque.min(friction_torque);
+            let omega_dot = net_torque / J_WHEEL;
+            let new_omega = (omega + omega_dot * dt).max(0.0);
+            w.speed = new_omega * TIRE_R * 3.6;
+
             if w.abs_active {
-                // ABS is dumping pressure — wheel recovers toward vehicle speed
-                let recover_rate = 50.0 * dt; // 50 km/h/s recovery
-                w.speed = (w.speed + recover_rate).min(vehicle_speed);
-            } else if w.valve_state == AbsValveState::Normal {
-                // Normal braking: wheel decelerates based on brake pressure
-                let decel = w.brake_pres_bar * 0.04; // 4% of speed per bar per second
-                w.speed = (vehicle_speed - decel * vehicle_speed * dt).max(0.0);
+                // ABS dump phase — wheel recovers toward reference
+                let recover_rate = 50.0 * dt;
+                w.speed = (w.speed + recover_rate).min(self.v_ref_kmh);
             }
-            // Slip ratio: positive when braking (wheel slower than vehicle)
+
             w.slip_ratio = if vehicle_speed > 1.0 {
                 (vehicle_speed - w.speed) / vehicle_speed
             } else {
@@ -373,20 +404,15 @@ impl EcuAbs {
                     AbsValveState::Apply
                 };
 
-                // Exit ABS when slip recovers and speed is recovered
+                // Exit ABS: ramp pressure back (apply phase), do not snap to full pressure
                 if w.slip_ratio < 0.05 && w.speed > v_ref * 0.95 {
                     w.abs_active = false;
-                    w.valve_state = AbsValveState::Normal;
-                    w.brake_pres_bar = pres;
+                    w.valve_state = AbsValveState::Apply; // gradual re-application
                 }
             } else {
                 w.valve_state = AbsValveState::Normal;
                 w.brake_pres_bar = pres;
             }
-        }
-
-        if self.abs_system_active {
-            self.total_abs_events += 1;
         }
     }
 
@@ -396,8 +422,8 @@ impl EcuAbs {
         }
         self.tcs_throttle_cut = 0.0;
 
-        // TCS only active at low speed and high throttle
-        if vehicle_speed > 40.0 {
+        // TCS active up to 70 km/h (heavy machines need traction on slopes and soft ground)
+        if vehicle_speed > 70.0 {
             return 0.0;
         }
 
@@ -438,8 +464,8 @@ impl EcuAbs {
         self.esp_yaw_error = yaw_actual - yaw_desired_degs;
         let err = self.esp_yaw_error.abs();
 
-        // Rollover detection: lateral acceleration > 0.8g
-        self.esp_condition = if lat_g.abs() > 0.8 {
+        // Rollover detection: 0.4g threshold for high-CG heavy machinery (would roll at 0.35-0.45g)
+        self.esp_condition = if lat_g.abs() > 0.4 {
             self.esp_system_active = true;
             EspCondition::RolloverRisk
         } else if err > 8.0 && yaw_actual > yaw_desired_degs {

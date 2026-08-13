@@ -1,0 +1,140 @@
+{
+  "generated_at_ms": 1786623531098,
+  "mode": "live",
+  "target_sa": 0,
+  "strict_mode": true,
+  "execute_flash": true,
+  "artifact": {
+    "path": "C:\\cat\\template\\firmware.bin",
+    "bytes": 1024,
+    "crc32": 2078597072,
+    "sha256": "2bce1ba628720664be4b9fdd77aae0678e5f0f3f02fc6ff641ec879094f6a404",
+    "valid": true
+  },
+  "detect": {
+    "source_addresses": [
+      0
+    ]
+  },
+  "preflight": {
+    "supply_voltage_v": 12.5,
+    "identity": {
+      "vin": "CATVIN1234567890",
+      "sw_version": "SW-1.0.0",
+      "hw_version": "HW-1.0.0",
+      "calibration_id": "CAL-001",
+      "ecu_serial": "ECU-SN-0001",
+      "fingerprint": "FP-TRUSTED-01"
+    },
+    "trusted_fingerprint": true
+  },
+  "identity": {
+    "vin": "CATVIN1234567890",
+    "sw_version": "SW-1.0.0",
+    "hw_version": "HW-1.0.0",
+    "calibration_id": "CAL-001",
+    "ecu_serial": "ECU-SN-0001",
+    "fingerprint": "FP-TRUSTED-01"
+  },
+  "conformance_summary": {
+    "passed": true,
+    "services": [
+      {
+        "service_sid": "0x27",
+        "passed": true,
+        "evidence": "seed_ok=true unlock_ok=true"
+      },
+      {
+        "service_sid": "0x34",
+        "passed": true,
+        "evidence": "request_download_positive=true"
+      },
+      {
+        "service_sid": "0x36",
+        "passed": true,
+        "evidence": "acked=17/17 seq_err=0 fc_timeout=0 stmin_ms=Some(5) bs=Some(8)"
+      },
+      {
+        "service_sid": "0x37",
+        "passed": true,
+        "evidence": "request_transfer_exit_positive=true"
+      }
+    ]
+  },
+  "phases": [
+    {
+      "phase": 1,
+      "title": "Baseline e Compliance",
+      "status": "Passed",
+      "details": "runbook e protocolo presentes"
+    },
+    {
+      "phase": 2,
+      "title": "Plataforma Fisica Real",
+      "status": "Passed",
+      "details": "capabilities: can_raw=false isotp=true j1939=false uds_flash=true vendor_bridge=true"
+    },
+    {
+      "phase": 3,
+      "title": "Conexao Confiavel",
+      "status": "Passed",
+      "details": "ECMs detectados: 1"
+    },
+    {
+      "phase": 4,
+      "title": "Leitura e Identidade ECM",
+      "status": "Passed",
+      "details": "fingerprint=true allow_untrusted_ecu=false"
+    },
+    {
+      "phase": 5,
+      "title": "Validacao de Artefato",
+      "status": "Passed",
+      "details": "1024 bytes crc32=0x7BE4DFD0"
+    },
+    {
+      "phase": 6,
+      "title": "Flash Seguro (Preflight)",
+      "status": "Passed",
+      "details": "supply_v=12.50 trusted_fp=true | flash_ok bytes=1024 blocks=17 crc32=0x7BE4DFD0 | td_ack=17/17 seq_err=0 fc_timeout=0"
+    },
+    {
+      "phase": 7,
+      "title": "Diagnostico e Debug",
+      "status": "Passed",
+      "details": "uds_retry=3 p2=1000 p2*= 5000 runtime=true: session_sid=0x50 vin_sid=0x62 tester_sid=0x7E"
+    },
+    {
+      "phase": 8,
+      "title": "Governanca e Seguranca",
+      "status": "Passed",
+      "details": "allowlist_present=true noninteractive_approved=true write_effective=true"
+    },
+    {
+      "phase": 9,
+      "title": "Confiabilidade e Stress",
+      "status": "Passed",
+      "details": "rate_global=100 rate_per_id=10 reconnect=500..30000 ms stress=true: max_speed=0.00 fuel=84.92%"
+    },
+    {
+      "phase": 10,
+      "title": "Industrializacao",
+      "status": "Passed",
+      "details": "pipeline de build/test encontrado"
+    },
+    {
+      "phase": 11,
+      "title": "Homologacao Final",
+      "status": "Passed",
+      "details": "json=reports\\production_phase_report_1786623531098.json md=reports\\production_phase_report_1786623531098.md sha256=7d9d54c273b7464a27739228b9473bfb2f99ba9e83540b9cd1cef4073abb88db"
+    },
+    {
+      "phase": 12,
+      "title": "Gate de Producao",
+      "status": "Passed",
+      "details": "gates criticos satisfeitos para o contexto atual"
+    }
+  ],
+  "overall_passed": true,
+  "report_sha256": "7d9d54c273b7464a27739228b9473bfb2f99ba9e83540b9cd1cef4073abb88db"
+}

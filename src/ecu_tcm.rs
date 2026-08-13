@@ -138,8 +138,12 @@ const GEAR_RATIOS: [[f64; 4]; 4] = [
     [15.5, 14.0, 12.5, 11.2],
 ];
 
-const TIRE_RADIUS_M: f64 = 0.80; // rear tyre radius (metre)
+const TIRE_RADIUS_M: f64 = 0.655; // 440/80R24 rear tyre loaded radius (m)
 const MAX_SPEED_KMH: f64 = 50.0;
+// Vehicle mass for acceleration physics (20 t typical heavy agricultural machine)
+const VEHICLE_MASS_KG: f64 = 20_000.0;
+// Rolling resistance force N (Crr ~0.03 on soil)
+const ROLLING_RESIST_N: f64 = VEHICLE_MASS_KG * 9.81 * 0.03;
 
 // ── TCM ──────────────────────────────────────────────────────────────────────
 #[derive(Clone)]
@@ -200,6 +204,31 @@ pub struct EcuTcm {
     pub is_neutral: bool,          // read by boot sequence for crank inhibit
     pub handbrake_interlock: bool, // prevent direction change above speed threshold
 
+    // ─ Electronic shuttle state machine ─────────────────────────────────────
+    /// Speed below which a direction reversal is allowed (km/h)
+    pub shuttle_max_speed_kmh: f64,
+    /// Time the shuttle waits at neutral before engaging opposite direction (s)
+    pub shuttle_neutral_dwell_s: f64,
+    pub shuttle_dwell_timer: f64,
+    /// Requested target direction, held while decelerating to shuttle threshold
+    pub shuttle_target_dir: Option<Direction>,
+    /// True while the machine is coasting/braking toward shuttle threshold
+    pub shuttle_inhibit_active: bool,
+
+    // ─ Remap-able parameters ─────────────────────────────────────────────────
+    pub remap_idle_rpm: f64,
+    pub remap_redline_rpm: f64,
+    pub remap_upshift_a: f64,   // upshift RPM for range A
+    pub remap_upshift_b: f64,
+    pub remap_upshift_c: f64,
+    pub remap_upshift_d: f64,
+    pub remap_downshift_rpm: f64,
+    pub remap_shift_duration_normal_s: f64,
+    pub remap_shift_duration_range_s: f64,
+    pub remap_shuttle_max_speed_kmh: f64,
+    pub remap_creeper_ratio: f64,
+    pub remap_auto_cooldown_s: f64,
+
     // ─ J1939 TX timers ───────────────────────────────────────────────────────
     t_etc1: f64,
     t_etc2: f64,
@@ -251,6 +280,23 @@ impl EcuTcm {
             sump_temp_c: 30.0,
             is_neutral: true,
             handbrake_interlock: false,
+            shuttle_max_speed_kmh: 4.0,
+            shuttle_neutral_dwell_s: 0.40,
+            shuttle_dwell_timer: 0.0,
+            shuttle_target_dir: None,
+            shuttle_inhibit_active: false,
+            remap_idle_rpm: 800.0,
+            remap_redline_rpm: 2600.0,
+            remap_upshift_a: 1180.0,
+            remap_upshift_b: 1240.0,
+            remap_upshift_c: 1300.0,
+            remap_upshift_d: 1360.0,
+            remap_downshift_rpm: 820.0,
+            remap_shift_duration_normal_s: 0.25,
+            remap_shift_duration_range_s: 0.45,
+            remap_shuttle_max_speed_kmh: 4.0,
+            remap_creeper_ratio: 4.0,
+            remap_auto_cooldown_s: 0.45,
             t_etc1: 0.0,
             t_etc2: 0.0,
             total_distance_km: 0.0,
@@ -311,17 +357,22 @@ impl EcuTcm {
         };
         target_speed_kmh *= coupling;
 
-        let accel_limit_kmh_s = 1.4 + (throttle_pct / 100.0) * 4.6;
-        let decel_limit_kmh_s = 2.0 + (brake_pct / 100.0) * 14.0;
-        let max_rise = accel_limit_kmh_s * dt;
-        let max_drop = decel_limit_kmh_s * dt;
-        let delta = target_speed_kmh - self.ground_speed_kmh;
-        if delta >= 0.0 {
-            self.ground_speed_kmh += delta.min(max_rise);
+        // Physics-based speed dynamics: a = (F_traction - F_resist) / mass
+        // F_traction = output_torque_nm / TIRE_RADIUS_M (simplified, no final drive)
+        let f_traction = if coupling > 0.0 {
+            (self.output_torque_nm / TIRE_RADIUS_M).min(80_000.0) * coupling
         } else {
-            self.ground_speed_kmh += delta.max(-max_drop);
-        }
-        self.ground_speed_kmh = self.ground_speed_kmh.clamp(0.0, MAX_SPEED_KMH);
+            0.0
+        };
+        // Aerodynamic drag (Cd*A*rho/2 ~ 4.5 for tractor, simplified)
+        let v_ms = self.ground_speed_kmh / 3.6;
+        let f_drag = 4.5 * v_ms * v_ms;
+        // Brake force from pedal
+        let f_brake = brake_pct / 100.0 * VEHICLE_MASS_KG * 9.81 * 0.7; // 0.7g max braking
+        let f_net = f_traction - ROLLING_RESIST_N - f_drag - f_brake;
+        let a_ms2 = f_net / VEHICLE_MASS_KG; // m/s²
+        let v_new_ms = (v_ms + a_ms2 * dt).clamp(0.0, MAX_SPEED_KMH / 3.6);
+        self.ground_speed_kmh = v_new_ms * 3.6;
 
         // ─ Auto-shift logic ──────────────────────────────────────────────────
         self.auto_shift_cooldown_s = (self.auto_shift_cooldown_s - dt).max(0.0);
@@ -342,7 +393,8 @@ impl EcuTcm {
         let tgt_oil = 70.0 + heat * 0.5 + throttle_pct * 0.2;
         self.oil_temp_c += (tgt_oil - self.oil_temp_c) * dt * 0.005;
         self.sump_temp_c = self.oil_temp_c - 5.0;
-
+        // ─ Electronic shuttle sequencing ─────────────────────────────────
+        self.update_shuttle(dt);
         // ─ Distance accumulation ─────────────────────────────────────────────
         self.total_distance_km += self.ground_speed_kmh * dt / 3600.0;
 
@@ -372,7 +424,8 @@ impl EcuTcm {
             self.t_etc1 = 0.0;
             frames.push(self.build_etc1(ts));
         }
-        if self.t_etc2 >= 0.020 {
+        // J1939-71: ETC2 at 100 ms
+        if self.t_etc2 >= 0.100 {
             self.t_etc2 = 0.0;
             frames.push(self.build_etc2(ts));
         }
@@ -435,10 +488,10 @@ impl EcuTcm {
         let throttle_rpm_ceiling = 800.0 + t * (2600.0 - 800.0);
 
         let base_up = match self.range {
-            GearRange::A => 1180.0,
-            GearRange::B => 1240.0,
-            GearRange::C => 1300.0,
-            GearRange::D => 1360.0,
+            GearRange::A => self.remap_upshift_a,
+            GearRange::B => self.remap_upshift_b,
+            GearRange::C => self.remap_upshift_c,
+            GearRange::D => self.remap_upshift_d,
         };
         // Higher throttle/load delays upshift; light pedal upshifts early.
         let upshift_rpm_raw = base_up + t * 520.0 + load * 180.0;
@@ -463,7 +516,7 @@ impl EcuTcm {
         }
 
         // Stall/lugging protection.
-        if engine_rpm < 820.0 {
+        if engine_rpm < self.remap_idle_rpm {
             self.request_downshift();
             return;
         }
@@ -510,6 +563,40 @@ impl EcuTcm {
     }
 
     // ─────────────────────────────────────────────────────────────────────────
+    /// Real-vehicle shuttle state machine: decelerate → neutral dwell → engage.
+    fn update_shuttle(&mut self, dt: f64) {
+        let Some(target) = self.shuttle_target_dir else {
+            return;
+        };
+        let threshold = self.shuttle_max_speed_kmh.max(self.remap_shuttle_max_speed_kmh);
+
+        match self.shuttle_inhibit_active {
+            true => {
+                // Phase 1: wait for speed to drop below threshold
+                if self.ground_speed_kmh <= threshold {
+                    // Force clutch open and direction to neutral
+                    self.clutch_state = ClutchState::Open;
+                    self.direction = Direction::Neutral;
+                    self.is_neutral = true;
+                    self.gear_label = self.compute_gear_label();
+                    self.shuttle_inhibit_active = false;
+                    self.shuttle_dwell_timer = 0.0;
+                }
+                // While above threshold just let the deceleration happen
+            }
+            false => {
+                // Phase 2: neutral dwell timer
+                self.shuttle_dwell_timer += dt;
+                if self.shuttle_dwell_timer >= self.shuttle_neutral_dwell_s {
+                    // Phase 3: engage target direction from first speed step
+                    self.shuttle_target_dir = None;
+                    self.begin_shift(self.range, 1, target);
+                }
+            }
+        }
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
     fn begin_shift(&mut self, new_range: GearRange, new_speed: u8, new_dir: Direction) {
         if self.is_shifting {
             return;
@@ -524,8 +611,15 @@ impl EcuTcm {
         self.shift_timer = 0.0;
         // Shift duration: longer for range change, shorter for speed-step
         let range_change = new_range != self.range || new_dir != self.direction;
-        self.shift_duration = if range_change { 0.45 } else { 0.25 };
-        self.auto_shift_cooldown_s = self.shift_duration + 0.20;
+        self.shift_duration = if range_change {
+            self.remap_shift_duration_range_s
+        } else {
+            self.remap_shift_duration_normal_s
+        };
+        // Direction changes get a much longer cooldown so the machine can
+        // build speed before the auto-shift logic is allowed to fire again.
+        let cooldown_extra = if new_dir != self.direction { 1.5 } else { self.remap_auto_cooldown_s };
+        self.auto_shift_cooldown_s = self.shift_duration + cooldown_extra;
         // Disengage clutch to start shift
         self.clutch_state = ClutchState::Open;
         self.clutch_phase_timer = 0.0;
@@ -597,8 +691,54 @@ impl EcuTcm {
             self.request_downshift();
         }
     }
+    /// Request a direction change with full real-vehicle shuttle logic:
+    ///  1. If moving above shuttle threshold → inhibit, brake to threshold first.
+    ///  2. When at or below threshold → open clutch, go to neutral, wait dwell.
+    ///  3. After dwell → engage new direction from lowest speed step.
     pub fn set_direction(&mut self, dir: Direction) {
-        self.begin_shift(self.range, self.speed_step, dir);
+        // Ignore if already in this direction
+        if self.direction == dir {
+            return;
+        }
+        // Direct Park / Neutral transitions are instant
+        if matches!(dir, Direction::Park | Direction::Neutral) {
+            self.shuttle_inhibit_active = false;
+            self.shuttle_target_dir = None;
+            self.direction = dir;
+            self.is_neutral = true;
+            self.clutch_state = ClutchState::Open;
+            self.gear_label = self.compute_gear_label();
+            return;
+        }
+        // Store desired direction; the shuttle tick will handle the sequencing.
+        self.shuttle_target_dir = Some(dir);
+        let threshold = self.shuttle_max_speed_kmh.max(self.remap_shuttle_max_speed_kmh);
+        let is_stopped = self.ground_speed_kmh <= threshold;
+        let is_reversal = (self.direction == Direction::Forward && dir == Direction::Reverse)
+            || (self.direction == Direction::Reverse && dir == Direction::Forward);
+
+        if is_stopped {
+            // Already stopped — skip both inhibit and dwell, engage immediately.
+            self.shuttle_inhibit_active = false;
+            self.clutch_state = ClutchState::Open;
+            self.direction = Direction::Neutral;
+            self.is_neutral = true;
+            // Bypass dwell: call begin_shift immediately from stopped
+            self.shuttle_target_dir = None;
+            self.shuttle_dwell_timer = 0.0;
+            self.begin_shift(self.range, 1, dir);
+        } else if is_reversal {
+            // Moving in opposite direction — full shuttle sequence (brake first, then dwell)
+            self.shuttle_inhibit_active = true;
+            self.shuttle_dwell_timer = 0.0;
+        } else {
+            // Transitioning from Neutral/Park while moving — just do the dwell
+            self.shuttle_inhibit_active = false;
+            self.clutch_state = ClutchState::Open;
+            self.direction = Direction::Neutral;
+            self.is_neutral = true;
+            self.shuttle_dwell_timer = 0.0;
+        }
     }
     pub fn set_neutral(&mut self) {
         self.direction = Direction::Neutral;

@@ -142,6 +142,27 @@ enum Cmd {
 // Tab enum
 // ═════════════════════════════════════════════════════════════════════════════
 #[derive(PartialEq, Clone, Copy, Debug)]
+enum RemapSubtab {
+    Maps3D,
+    Maps2D,
+    HexRom,
+    Patches,
+    RomBits,
+    LiveCal,
+}
+
+#[derive(PartialEq, Clone, Copy, Debug)]
+enum RemapPatchCategory {
+    All,
+    Aftertreatment,
+    Limits,
+    Sensors,
+    Diagnostics,
+    Fuel,
+    Other,
+}
+
+#[derive(PartialEq, Clone, Copy, Debug)]
 enum Tab {
     Help,
     Cluster,
@@ -161,6 +182,7 @@ enum Tab {
     EcmLiveData,
     LeakLab,
     Plots,
+    Remap,
 }
 
 #[derive(Clone)]
@@ -421,6 +443,20 @@ struct App {
     ticks: u64,
     ux_show_guide: bool,
     ux_compact_mode: bool,
+
+    // ─ ECU Remap panel state ────────────────────────────────────────────────
+    remap_subtab: RemapSubtab,
+    remap_map3d_sel: usize,   // which 3D map is active
+    remap_map2d_sel: usize,   // which 2D curve is active
+    remap_hex_offset: usize,  // first visible byte in hex editor
+    remap_hex_cursor: usize,  // byte address of selected cell
+    remap_hex_input: String,  // nibble-level edit buffer
+    remap_cell_row: usize,    // selected map cell row
+    remap_cell_col: usize,    // selected map cell col
+    remap_cell_edit: String,  // cell inline edit buffer
+    remap_3d_view: bool,      // true = isometric 3D projection, false = heat-map
+    remap_show_live: bool,    // overlay live RPM/load cursor on maps
+    remap_patch_filter: RemapPatchCategory,
 }
 
 impl App {
@@ -536,6 +572,18 @@ impl App {
             ticks: 0,
             ux_show_guide: true,
             ux_compact_mode: false,
+            remap_subtab: RemapSubtab::Maps3D,
+            remap_map3d_sel: 0,
+            remap_map2d_sel: 0,
+            remap_hex_offset: 0,
+            remap_hex_cursor: 0,
+            remap_hex_input: String::new(),
+            remap_cell_row: 0,
+            remap_cell_col: 0,
+            remap_cell_edit: String::new(),
+            remap_3d_view: true,
+            remap_show_live: true,
+            remap_patch_filter: RemapPatchCategory::All,
         }
     }
 
@@ -1760,6 +1808,7 @@ impl eframe::App for App {
                 Tab::EcmLiveData => ui.push_id("tab::ecm_live", |ui| self.tab_ecm_live_data(ui)),
                 Tab::LeakLab => ui.push_id("tab::leak", |ui| self.tab_leak_lab(ui)),
                 Tab::Plots => ui.push_id("tab::plots", |ui| self.tab_plots(ui)),
+                Tab::Remap => ui.push_id("tab::remap", |ui| self.tab_remap(ui)),
             }
         });
     }
@@ -1797,6 +1846,7 @@ impl App {
                         (Tab::V2X, "📶 V2X"),
                         (Tab::Uds, "🔧 UDS"),
                         (Tab::EcmLiveData, "🧲 ECM LIVE"),
+                (Tab::Remap, "🔩 REMAP"),
                     ],
                 ),
             ];
@@ -1927,7 +1977,7 @@ impl App {
                     ));
                 }
             }
-            Tab::Help | Tab::Boot | Tab::Params | Tab::Sensors | Tab::V2X | Tab::LeakLab | Tab::Plots => {}
+            Tab::Help | Tab::Boot | Tab::Params | Tab::Sensors | Tab::V2X | Tab::LeakLab | Tab::Plots | Tab::Remap => {}
         }
         alerts
     }
@@ -2198,6 +2248,10 @@ impl App {
                     Color32::LIGHT_BLUE,
                 ),
             ],
+            Tab::Remap => vec![
+                (format!("RPM {:.0}", self.bench.ecm.rpm), Color32::from_rgb(255,200,60)),
+                (format!("Torque {:.0} Nm", self.bench.ecm.actual_torque_nm), Color32::from_rgb(255,160,60)),
+            ],
         }
     }
 
@@ -2371,6 +2425,11 @@ impl App {
                 "Plots",
                 "Use for before/after comparison around faults, AD engagement or UDS actions.",
                 "Trend shape matters more than single-point values.",
+            ),
+            Tab::Remap => (
+                "Remap",
+                "Ajuste parametros de motor e transmissao em tempo real.",
+                "Idle RPM, torque, boost, injecao, upshift RPM e shuttle speed.",
             ),
         };
 
@@ -2554,6 +2613,7 @@ impl App {
                     self.cmds.push(Cmd::Reset);
                 }
             }
+            Tab::Remap => {}
         }
     }
 
@@ -9296,8 +9356,20 @@ impl App {
                                 Ok(s) => self.uds_log.push((
                                     false,
                                     format!(
-                                        "            LIVE flash ok: {} bytes / {} blocks / crc32=0x{:08X}",
-                                        s.bytes_sent, s.blocks_sent, s.crc32
+                                        "            LIVE flash ok: {} bytes / {} blocks / crc32=0x{:08X} / {:.2}V / VIN={} / SW={} / HW={} / CAL={} / SN={} / 0x36_ack={}/{} / seq_err={} / fc_timeout={}",
+                                        s.bytes_sent,
+                                        s.blocks_sent,
+                                        s.crc32,
+                                        s.supply_voltage_v,
+                                        s.vin,
+                                        s.sw_version,
+                                        s.hw_version,
+                                        s.calibration_id,
+                                        s.ecu_serial,
+                                        s.transport_diagnostics.transfer_data_blocks_acked,
+                                        s.transport_diagnostics.transfer_data_blocks_attempted,
+                                        s.transport_diagnostics.sequence_error_count,
+                                        s.transport_diagnostics.flowcontrol_timeout_count
                                     ),
                                 )),
                                 Err(e) => self
@@ -9450,5 +9522,1058 @@ impl App {
                 cols[1].add_space(4.0);
             }
         });
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    fn tab_remap(&mut self, ui: &mut egui::Ui) {
+        use egui::{Color32, RichText, ScrollArea};
+
+        // ── Header ──────────────────────────────────────────────────────────
+        ui.horizontal(|ui| {
+            ui.label(
+                RichText::new("🔩 ECU REMAP — Professional Calibration Environment")
+                    .size(13.5).color(Color32::from_rgb(255,200,60)).strong(),
+            );
+            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                if self.bench.rom.dirty {
+                    ui.label(RichText::new("● UNSAVED").size(10.0).color(Color32::YELLOW).strong());
+                } else {
+                    ui.label(RichText::new("● SAVED").size(10.0).color(Color32::from_rgb(120,220,120)));
+                }
+                ui.label(RichText::new(format!(
+                    "ECU: {}  |  SW: {}  |  CAL: {}",
+                    self.bench.rom.ecu_part_number,
+                    self.bench.rom.ecu_sw_version,
+                    self.bench.rom.calibration_id,
+                )).size(9.5).color(Color32::from_gray(180)));
+            });
+        });
+        ui.separator();
+
+        // ── Sub-tab bar ──────────────────────────────────────────────────────
+        ui.horizontal_wrapped(|ui| {
+            let subtabs = [
+                (RemapSubtab::Maps3D, "📊 MAPS 3D"),
+                (RemapSubtab::Maps2D, "📈 MAPS 2D"),
+                (RemapSubtab::HexRom, "🔢 HEX ROM"),
+                (RemapSubtab::Patches, "🔧 PATCHES"),
+                (RemapSubtab::RomBits, "⚙ ROM BITS"),
+                (RemapSubtab::LiveCal, "⚡ LIVE CAL"),
+            ];
+            for (st, lbl) in &subtabs {
+                let sel = self.remap_subtab == *st;
+                let fill = if sel { Color32::from_rgb(40,90,180) } else { Color32::from_gray(28) };
+                let col = if sel { Color32::WHITE } else { Color32::from_gray(160) };
+                if ui.add(egui::Button::new(RichText::new(*lbl).size(10.5).color(col)).fill(fill)).clicked() {
+                    self.remap_subtab = *st;
+                }
+            }
+            ui.separator();
+            ui.checkbox(&mut self.remap_show_live, RichText::new("Live cursor").size(10.0).color(Color32::from_rgb(120,220,120)));
+            ui.checkbox(&mut self.remap_3d_view, RichText::new("3D projection").size(10.0).color(Color32::from_rgb(200,160,255)));
+        });
+        ui.separator();
+
+        match self.remap_subtab {
+            RemapSubtab::Maps3D   => self.remap_maps_3d(ui),
+            RemapSubtab::Maps2D   => self.remap_maps_2d(ui),
+            RemapSubtab::HexRom   => self.remap_hex_rom(ui),
+            RemapSubtab::Patches  => self.remap_patches(ui),
+            RemapSubtab::RomBits  => self.remap_rom_bits(ui),
+            RemapSubtab::LiveCal  => self.remap_live_cal(ui),
+        }
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    fn remap_maps_3d(&mut self, ui: &mut egui::Ui) {
+        use egui::{Color32, RichText, ScrollArea};
+        use auto_breaking::ecu_rom::{MAP_RPM_BINS, MAP_LOAD_BINS};
+
+        let map_names = ["Fuel Injection", "Inj. Timing", "VGT Boost", "Lambda", "VE", "EGR Valve"];
+
+        // Map selector
+        ui.horizontal(|ui| {
+            ui.label(RichText::new("Map:").size(10.5).color(Color32::from_gray(180)));
+            for (i, name) in map_names.iter().enumerate() {
+                let sel = self.remap_map3d_sel == i;
+                let fill = if sel { Color32::from_rgb(40,90,180) } else { Color32::from_gray(28) };
+                let col  = if sel { Color32::WHITE } else { Color32::from_gray(160) };
+                if ui.add(egui::Button::new(RichText::new(*name).size(10.0).color(col)).fill(fill)).clicked() {
+                    self.remap_map3d_sel = i;
+                }
+            }
+        });
+
+        // Map description
+        let map_desc = {
+            let rom = &self.bench.rom;
+            match self.remap_map3d_sel {
+                0 => rom.fuel_map.description,
+                1 => rom.ignition_map.description,
+                2 => rom.boost_map.description,
+                3 => rom.lambda_map.description,
+                4 => rom.ve_map.description,
+                _ => rom.egr_map.description,
+            }
+        };
+        ui.label(RichText::new(map_desc).size(9.5).color(Color32::from_gray(160)).italics());
+        ui.add_space(2.0);
+
+        // Live cursor position
+        let (live_rpm, live_load) = if self.remap_show_live {
+            (self.bench.ecm.rpm, self.bench.ecm.percent_load)
+        } else { (0.0, 0.0) };
+
+        let (live_row, live_col) = {
+            let rom = &self.bench.rom;
+            match self.remap_map3d_sel {
+                0 => rom.fuel_map.live_cell(live_rpm, live_load),
+                1 => rom.ignition_map.live_cell(live_rpm, live_load),
+                2 => rom.boost_map.live_cell(live_rpm, live_load),
+                3 => rom.lambda_map.live_cell(live_rpm, live_load),
+                4 => rom.ve_map.live_cell(live_rpm, live_load),
+                _ => rom.egr_map.live_cell(live_rpm, live_load),
+            }
+        };
+
+        let available = ui.available_size();
+
+        if self.remap_3d_view {
+            self.remap_draw_3d_projection(ui, available, live_row, live_col);
+        } else {
+            self.remap_draw_heat_map(ui, live_row, live_col);
+        }
+
+        // Below: selected cell editor + row curve
+        ui.separator();
+        ui.horizontal(|ui| {
+            let (sel_row, sel_col) = (self.remap_cell_row, self.remap_cell_col);
+            let (val, unit) = {
+                let rom = &self.bench.rom;
+                match self.remap_map3d_sel {
+                    0 => (rom.fuel_map.get(sel_row, sel_col), rom.fuel_map.unit),
+                    1 => (rom.ignition_map.get(sel_row, sel_col), rom.ignition_map.unit),
+                    2 => (rom.boost_map.get(sel_row, sel_col), rom.boost_map.unit),
+                    3 => (rom.lambda_map.get(sel_row, sel_col), rom.lambda_map.unit),
+                    4 => (rom.ve_map.get(sel_row, sel_col), rom.ve_map.unit),
+                    _ => (rom.egr_map.get(sel_row, sel_col), rom.egr_map.unit),
+                }
+            };
+            let (rx, ry) = {
+                let rom = &self.bench.rom;
+                let m = match self.remap_map3d_sel {
+                    0 => &rom.fuel_map, 1 => &rom.ignition_map,
+                    2 => &rom.boost_map, 3 => &rom.lambda_map,
+                    4 => &rom.ve_map, _ => &rom.egr_map,
+                };
+                (m.x_axis[sel_col.min(MAP_RPM_BINS-1)], m.y_axis[sel_row.min(MAP_LOAD_BINS-1)])
+            };
+            ui.label(RichText::new(format!("Cell [{},{}]  RPM={:.0}  Load={:.1}%  Value: {:.3} {}", sel_row, sel_col, rx, ry, val, unit))
+                .size(11.0).color(Color32::WHITE).strong());
+            ui.add_space(8.0);
+            ui.label(RichText::new("Edit:").size(10.5).color(Color32::from_gray(180)));
+            let te = ui.add(egui::TextEdit::singleline(&mut self.remap_cell_edit)
+                .desired_width(70.0).font(egui::FontId::monospace(12.0)));
+            if te.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter)) {
+                if let Ok(new_v) = self.remap_cell_edit.trim().parse::<f64>() {
+                    let rom = &mut self.bench.rom;
+                    match self.remap_map3d_sel {
+                        0 => { rom.fuel_map.set(sel_row, sel_col, new_v); }
+                        1 => { rom.ignition_map.set(sel_row, sel_col, new_v); }
+                        2 => { rom.boost_map.set(sel_row, sel_col, new_v); }
+                        3 => { rom.lambda_map.set(sel_row, sel_col, new_v); }
+                        4 => { rom.ve_map.set(sel_row, sel_col, new_v); }
+                        _ => { rom.egr_map.set(sel_row, sel_col, new_v); }
+                    }
+                    rom.dirty = true;
+                }
+                self.remap_cell_edit.clear();
+            }
+            if self.remap_show_live {
+                ui.separator();
+                ui.label(RichText::new(format!(
+                    "Live: {:.0} rpm | {:.0}% load → [{},{}]",
+                    live_rpm, live_load, live_row, live_col
+                )).size(10.0).color(Color32::from_rgb(120,220,120)));
+            }
+        });
+
+        // Row/column mini-chart
+        ui.add_space(4.0);
+        self.remap_draw_row_curve(ui);
+    }
+
+    fn remap_draw_heat_map(&mut self, ui: &mut egui::Ui, live_row: usize, live_col: usize) {
+        use egui::{Color32, RichText};
+        use auto_breaking::ecu_rom::{MAP_RPM_BINS, MAP_LOAD_BINS};
+
+        let rom = &self.bench.rom;
+        let (data_ref, min_v, max_v, x_axis, y_axis) = match self.remap_map3d_sel {
+            0 => (&rom.fuel_map.data as &[[f64;MAP_RPM_BINS];MAP_LOAD_BINS], rom.fuel_map.min, rom.fuel_map.max, &rom.fuel_map.x_axis, &rom.fuel_map.y_axis),
+            1 => (&rom.ignition_map.data, rom.ignition_map.min, rom.ignition_map.max, &rom.ignition_map.x_axis, &rom.ignition_map.y_axis),
+            2 => (&rom.boost_map.data, rom.boost_map.min, rom.boost_map.max, &rom.boost_map.x_axis, &rom.boost_map.y_axis),
+            3 => (&rom.lambda_map.data, rom.lambda_map.min, rom.lambda_map.max, &rom.lambda_map.x_axis, &rom.lambda_map.y_axis),
+            4 => (&rom.ve_map.data, rom.ve_map.min, rom.ve_map.max, &rom.ve_map.x_axis, &rom.ve_map.y_axis),
+            _ => (&rom.egr_map.data, rom.egr_map.min, rom.egr_map.max, &rom.egr_map.x_axis, &rom.egr_map.y_axis),
+        };
+        // Clone to avoid borrow issues in the loop
+        let data: Vec<[f64;MAP_RPM_BINS]> = data_ref.to_vec();
+        let x_axis = *x_axis;
+        let y_axis = *y_axis;
+        drop(rom);
+
+        let cell_w = 44.0f32;
+        let cell_h = 20.0f32;
+        let header_w = 50.0f32;
+        let header_h = 22.0f32;
+        let total_w = header_w + cell_w * MAP_RPM_BINS as f32;
+        let total_h = header_h + cell_h * MAP_LOAD_BINS as f32;
+
+        ScrollArea::both().id_source("hmap").auto_shrink([false,false])
+            .max_height(total_h + 10.0)
+            .show(ui, |ui| {
+                let (rect, _resp) = ui.allocate_exact_size(
+                    egui::vec2(total_w, total_h), egui::Sense::hover());
+                let painter = ui.painter_at(rect);
+
+                // Draw column headers (RPM)
+                for (ci, &rpm) in x_axis.iter().enumerate() {
+                    let x = rect.left() + header_w + ci as f32 * cell_w;
+                    let hdr = egui::Rect::from_min_size(
+                        egui::pos2(x, rect.top()),
+                        egui::vec2(cell_w, header_h),
+                    );
+                    painter.rect_filled(hdr, 0.0, Color32::from_gray(35));
+                    painter.text(hdr.center(), egui::Align2::CENTER_CENTER,
+                        format!("{:.0}", rpm), egui::FontId::monospace(8.0),
+                        Color32::from_gray(200));
+                }
+
+                // Draw row headers (Load) and cells
+                for (ri, &load) in y_axis.iter().enumerate().rev() {
+                    let row_screen = (MAP_LOAD_BINS - 1 - ri) as f32;
+                    let y = rect.top() + header_h + row_screen * cell_h;
+
+                    // Row label
+                    let row_rect = egui::Rect::from_min_size(
+                        egui::pos2(rect.left(), y),
+                        egui::vec2(header_w, cell_h),
+                    );
+                    painter.rect_filled(row_rect, 0.0, Color32::from_gray(30));
+                    painter.text(row_rect.center(), egui::Align2::CENTER_CENTER,
+                        format!("{:.0}%", load), egui::FontId::monospace(8.0),
+                        Color32::from_gray(200));
+
+                    for ci in 0..MAP_RPM_BINS {
+                        let x = rect.left() + header_w + ci as f32 * cell_w;
+                        let cell_rect = egui::Rect::from_min_size(
+                            egui::pos2(x, y), egui::vec2(cell_w, cell_h),
+                        );
+                        let v = data[ri][ci];
+                        let mut fill = Self::heat_color(v, min_v, max_v);
+
+                        // Highlight selected cell
+                        if ri == self.remap_cell_row && ci == self.remap_cell_col {
+                            fill = Color32::WHITE;
+                        }
+                        // Highlight live cursor cell
+                        if self.remap_show_live && ri == live_row && ci == live_col {
+                            fill = Color32::from_rgb(255, 240, 60);
+                        }
+
+                        painter.rect_filled(cell_rect, 0.0, fill);
+                        painter.rect_stroke(cell_rect, 0.0,
+                            egui::Stroke::new(0.4, Color32::from_gray(50)));
+
+                        let text_col = if Self::heat_luminance(v, min_v, max_v) > 0.5 {
+                            Color32::from_gray(20)
+                        } else {
+                            Color32::from_gray(240)
+                        };
+                        painter.text(cell_rect.center(), egui::Align2::CENTER_CENTER,
+                            format!("{:.1}", v), egui::FontId::monospace(8.5), text_col);
+                    }
+                }
+
+                // Handle click to select
+                let resp = ui.interact(rect, ui.id().with("hmap_click"),
+                    egui::Sense::click());
+                if resp.clicked() {
+                    if let Some(pos) = resp.interact_pointer_pos() {
+                        let rel = pos - rect.min;
+                        let ci = ((rel.x - header_w) / cell_w) as usize;
+                        let row_screen = ((rel.y - header_h) / cell_h) as usize;
+                        let ri = if row_screen < MAP_LOAD_BINS {
+                            MAP_LOAD_BINS - 1 - row_screen
+                        } else { 0 };
+                        if ci < MAP_RPM_BINS && ri < MAP_LOAD_BINS {
+                            self.remap_cell_row = ri;
+                            self.remap_cell_col = ci;
+                            let v = data[ri][ci];
+                            self.remap_cell_edit = format!("{:.3}", v);
+                        }
+                    }
+                }
+
+                let _ = RichText::new(""); // suppress unused import
+            });
+    }
+
+    fn remap_draw_3d_projection(&mut self, ui: &mut egui::Ui, avail: egui::Vec2, live_row: usize, live_col: usize) {
+        use egui::{Color32, Stroke};
+        use auto_breaking::ecu_rom::{MAP_RPM_BINS, MAP_LOAD_BINS};
+
+        let height = (avail.y * 0.55).clamp(180.0, 350.0);
+        let width  = (avail.x - 10.0).clamp(200.0, 900.0);
+
+        let rom = &self.bench.rom;
+        let (data_ref, min_v, max_v) = match self.remap_map3d_sel {
+            0 => (&rom.fuel_map.data as &[[f64;MAP_RPM_BINS];MAP_LOAD_BINS], rom.fuel_map.min, rom.fuel_map.max),
+            1 => (&rom.ignition_map.data, rom.ignition_map.min, rom.ignition_map.max),
+            2 => (&rom.boost_map.data, rom.boost_map.min, rom.boost_map.max),
+            3 => (&rom.lambda_map.data, rom.lambda_map.min, rom.lambda_map.max),
+            4 => (&rom.ve_map.data, rom.ve_map.min, rom.ve_map.max),
+            _ => (&rom.egr_map.data, rom.egr_map.min, rom.egr_map.max),
+        };
+        let data: Vec<[f64;MAP_RPM_BINS]> = data_ref.to_vec();
+        drop(rom);
+
+        let (rect, _) = ui.allocate_exact_size(egui::vec2(width, height), egui::Sense::hover());
+        let painter = ui.painter_at(rect);
+        painter.rect_filled(rect, 4.0, Color32::from_gray(12));
+
+        // Isometric projection parameters
+        let origin = egui::pos2(rect.left() + width * 0.15, rect.top() + height * 0.85);
+        let cell_x = width / (MAP_RPM_BINS as f32 * 2.2);
+        let cell_y = height / (MAP_LOAD_BINS as f32 * 3.5);
+        let height_scale = height * 0.45;
+
+        // Draw back to front (painter's algorithm)
+        for ri in 0..MAP_LOAD_BINS {
+            for ci in 0..MAP_RPM_BINS {
+                let v0 = data[ri][ci];
+                let v1 = if ci + 1 < MAP_RPM_BINS { data[ri][ci+1] } else { v0 };
+                let v2 = if ri + 1 < MAP_LOAD_BINS { data[ri+1][ci] } else { v0 };
+                let v3 = if ri + 1 < MAP_LOAD_BINS && ci + 1 < MAP_RPM_BINS { data[ri+1][ci+1] } else { v0 };
+
+                let norm = |v: f64| ((v - min_v) / (max_v - min_v).max(0.001)) as f32;
+
+                // Project 4 corners of this cell
+                let project = |ix: usize, iy: usize, v: f64| -> egui::Pos2 {
+                    let sx = origin.x + ix as f32 * cell_x - iy as f32 * cell_x * 0.6;
+                    let sy = origin.y - ix as f32 * cell_y * 0.4 - iy as f32 * cell_y
+                        - norm(v) * height_scale;
+                    egui::pos2(sx, sy)
+                };
+
+                let p00 = project(ci,   ri,   v0);
+                let p10 = project(ci+1, ri,   v1);
+                let p01 = project(ci,   ri+1, v2);
+                let p11 = project(ci+1, ri+1, v3);
+
+                let avg_v = (v0 + v1 + v2 + v3) / 4.0;
+                let mut fill = Self::heat_color(avg_v, min_v, max_v);
+                if self.remap_show_live && ri == live_row && ci == live_col {
+                    fill = Color32::from_rgb(255, 240, 60);
+                }
+                if ri == self.remap_cell_row && ci == self.remap_cell_col {
+                    fill = Color32::WHITE;
+                }
+
+                // Draw quad as two triangles
+                painter.add(egui::Shape::convex_polygon(
+                    vec![p00, p10, p11, p01],
+                    fill,
+                    Stroke::new(0.5, Color32::from_rgba_premultiplied(0,0,0,80)),
+                ));
+            }
+        }
+    }
+
+    fn remap_draw_row_curve(&mut self, ui: &mut egui::Ui) {
+        use egui_plot::{Line, PlotPoints};
+        use auto_breaking::ecu_rom::{MAP_RPM_BINS, MAP_LOAD_BINS};
+
+        let ri = self.remap_cell_row.min(MAP_LOAD_BINS - 1);
+        let (row_data, x_axis, unit, name) = {
+            let rom = &self.bench.rom;
+            match self.remap_map3d_sel {
+                0 => (rom.fuel_map.data[ri].to_vec(), rom.fuel_map.x_axis.to_vec(), rom.fuel_map.unit, rom.fuel_map.name),
+                1 => (rom.ignition_map.data[ri].to_vec(), rom.ignition_map.x_axis.to_vec(), rom.ignition_map.unit, rom.ignition_map.name),
+                2 => (rom.boost_map.data[ri].to_vec(), rom.boost_map.x_axis.to_vec(), rom.boost_map.unit, rom.boost_map.name),
+                3 => (rom.lambda_map.data[ri].to_vec(), rom.lambda_map.x_axis.to_vec(), rom.lambda_map.unit, rom.lambda_map.name),
+                4 => (rom.ve_map.data[ri].to_vec(), rom.ve_map.x_axis.to_vec(), rom.ve_map.unit, rom.ve_map.name),
+                _ => (rom.egr_map.data[ri].to_vec(), rom.egr_map.x_axis.to_vec(), rom.egr_map.unit, rom.egr_map.name),
+            }
+        };
+        let pts: PlotPoints = x_axis.iter().zip(row_data.iter())
+            .map(|(&x, &y)| [x, y]).collect();
+        let live_rpm = if self.remap_show_live { self.bench.ecm.rpm } else { 0.0 };
+        let _ = MAP_RPM_BINS; // suppress warning
+
+        egui_plot::Plot::new("remap_row_curve")
+            .height(90.0)
+            .allow_zoom(false)
+            .allow_drag(false)
+            .allow_scroll(false)
+            .include_y(0.0)
+            .x_axis_label("RPM")
+            .y_axis_label(unit)
+            .show(ui, |pu| {
+                pu.line(Line::new(pts).color(egui::Color32::from_rgb(80,200,255)).name(
+                    format!("{} — row {}", name, ri)));
+                if self.remap_show_live && live_rpm > 0.0 {
+                    let vl: PlotPoints = [[live_rpm, 0.0], [live_rpm, 1e9]].into_iter().collect();
+                    pu.line(Line::new(vl).color(egui::Color32::YELLOW).width(1.5));
+                }
+            });
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    fn remap_maps_2d(&mut self, ui: &mut egui::Ui) {
+        use egui::{Color32, RichText};
+        use egui_plot::{Line, PlotPoints, Points};
+        use auto_breaking::ecu_rom::MAP_2D_BINS;
+
+        let curve_names = ["Idle Speed", "Torque Limit", "Boost Limit", "Pilot Inj Width", "Rail Pressure", "Cold Start Adv"];
+
+        ui.horizontal(|ui| {
+            ui.label(RichText::new("Curve:").size(10.5).color(Color32::from_gray(180)));
+            for (i, name) in curve_names.iter().enumerate() {
+                let sel = self.remap_map2d_sel == i;
+                let fill = if sel { Color32::from_rgb(40,90,180) } else { Color32::from_gray(28) };
+                let col  = if sel { Color32::WHITE } else { Color32::from_gray(160) };
+                if ui.add(egui::Button::new(RichText::new(*name).size(10.0).color(col)).fill(fill)).clicked() {
+                    self.remap_map2d_sel = i;
+                }
+            }
+        });
+        ui.add_space(2.0);
+
+        let (desc, unit, x_label) = {
+            let rom = &self.bench.rom;
+            match self.remap_map2d_sel {
+                0 => (rom.idle_speed.description, rom.idle_speed.unit, rom.idle_speed.x_label),
+                1 => (rom.torque_limit.description, rom.torque_limit.unit, rom.torque_limit.x_label),
+                2 => (rom.boost_limit.description, rom.boost_limit.unit, rom.boost_limit.x_label),
+                3 => (rom.injector_timing.description, rom.injector_timing.unit, rom.injector_timing.x_label),
+                4 => (rom.fuel_pressure_target.description, rom.fuel_pressure_target.unit, rom.fuel_pressure_target.x_label),
+                _ => (rom.start_advance.description, rom.start_advance.unit, rom.start_advance.x_label),
+            }
+        };
+        ui.label(RichText::new(desc).size(9.5).color(Color32::from_gray(160)).italics());
+        ui.add_space(4.0);
+
+        let (pts_xy, x_axis): (Vec<[f64;2]>, Vec<f64>) = {
+            let rom = &self.bench.rom;
+            let (data, xa) = match self.remap_map2d_sel {
+                0 => (rom.idle_speed.data.to_vec(), rom.idle_speed.x_axis.to_vec()),
+                1 => (rom.torque_limit.data.to_vec(), rom.torque_limit.x_axis.to_vec()),
+                2 => (rom.boost_limit.data.to_vec(), rom.boost_limit.x_axis.to_vec()),
+                3 => (rom.injector_timing.data.to_vec(), rom.injector_timing.x_axis.to_vec()),
+                4 => (rom.fuel_pressure_target.data.to_vec(), rom.fuel_pressure_target.x_axis.to_vec()),
+                _ => (rom.start_advance.data.to_vec(), rom.start_advance.x_axis.to_vec()),
+            };
+            let pts = xa.iter().zip(data.iter()).map(|(&x,&y)| [x,y]).collect();
+            (pts, xa)
+        };
+
+        let sel_col = self.remap_cell_col.min(MAP_2D_BINS - 1);
+        let sel_pt = pts_xy.get(sel_col).copied().unwrap_or([0.0,0.0]);
+
+        let live_x = if self.remap_show_live {
+            match self.remap_map2d_sel {
+                0 | 2 | 3 | 4 | 5 => self.bench.ecm.rpm,
+                1 => self.bench.ecm.rpm,
+                _ => self.bench.ecm.rpm,
+            }
+        } else { 0.0 };
+
+        egui_plot::Plot::new("remap_2d_curve")
+            .height(200.0)
+            .allow_zoom(true)
+            .allow_drag(false)
+            .allow_scroll(false)
+            .x_axis_label(x_label)
+            .y_axis_label(unit)
+            .show(ui, |pu| {
+                pu.line(Line::new(PlotPoints::new(pts_xy.clone()))
+                    .color(Color32::from_rgb(80,200,255)).width(2.0).name("Curve"));
+                pu.points(Points::new(PlotPoints::new(pts_xy.clone()))
+                    .color(Color32::from_rgb(255,200,60)).radius(4.0));
+                // Highlight selected point
+                pu.points(Points::new(PlotPoints::new(vec![sel_pt]))
+                    .color(Color32::WHITE).radius(7.0));
+                if live_x > 0.0 {
+                    let vl: PlotPoints = [[live_x, 0.0],[live_x, 1e9]].into_iter().collect();
+                    pu.line(Line::new(vl).color(Color32::YELLOW).width(1.5).name("Live RPM"));
+                }
+            });
+
+        // Point editor table
+        ui.add_space(4.0);
+        ui.label(RichText::new("Point Editor — click row to select, edit value, press Enter").size(10.0).color(Color32::from_gray(160)));
+        egui::ScrollArea::vertical().id_source("curve2d_table").max_height(140.0).show(ui, |ui| {
+            egui::Grid::new("curve2d_grid").striped(true).min_col_width(60.0).show(ui, |ui| {
+                ui.label(RichText::new("#").size(9.5).color(Color32::from_gray(150)));
+                ui.label(RichText::new(x_label).size(9.5).color(Color32::from_gray(150)));
+                ui.label(RichText::new(unit).size(9.5).color(Color32::from_gray(150)));
+                ui.label(RichText::new("Edit").size(9.5).color(Color32::from_gray(150)));
+                ui.end_row();
+
+                for i in 0..MAP_2D_BINS {
+                    let x_val = x_axis.get(i).copied().unwrap_or(0.0);
+                    let y_val = {
+                        let rom = &self.bench.rom;
+                        match self.remap_map2d_sel {
+                            0 => rom.idle_speed.data[i],
+                            1 => rom.torque_limit.data[i],
+                            2 => rom.boost_limit.data[i],
+                            3 => rom.injector_timing.data[i],
+                            4 => rom.fuel_pressure_target.data[i],
+                            _ => rom.start_advance.data[i],
+                        }
+                    };
+                    let sel = i == sel_col;
+                    let row_col = if sel { Color32::from_rgb(60,120,220) } else { Color32::from_gray(50) };
+                    ui.colored_label(row_col, format!("{}", i));
+                    ui.colored_label(row_col, format!("{:.1}", x_val));
+                    ui.colored_label(row_col, format!("{:.3}", y_val));
+                    if ui.small_button(if sel { "✎" } else { "⋯" }).clicked() {
+                        self.remap_cell_col = i;
+                        self.remap_cell_edit = format!("{:.3}", y_val);
+                    }
+                    ui.end_row();
+                }
+            });
+        });
+        ui.horizontal(|ui| {
+            ui.label(RichText::new("Value:").size(10.5).color(Color32::from_gray(180)));
+            let te = ui.add(egui::TextEdit::singleline(&mut self.remap_cell_edit)
+                .desired_width(80.0).font(egui::FontId::monospace(11.0)));
+            if te.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter)) {
+                if let Ok(nv) = self.remap_cell_edit.trim().parse::<f64>() {
+                    let rom = &mut self.bench.rom;
+                    let row = self.remap_cell_col.min(MAP_2D_BINS-1);
+                    match self.remap_map2d_sel {
+                        0 => { rom.idle_speed.data[row] = nv.clamp(rom.idle_speed.min, rom.idle_speed.max); }
+                        1 => { rom.torque_limit.data[row] = nv.clamp(rom.torque_limit.min, rom.torque_limit.max); }
+                        2 => { rom.boost_limit.data[row] = nv.clamp(rom.boost_limit.min, rom.boost_limit.max); }
+                        3 => { rom.injector_timing.data[row] = nv.clamp(rom.injector_timing.min, rom.injector_timing.max); }
+                        4 => { rom.fuel_pressure_target.data[row] = nv.clamp(rom.fuel_pressure_target.min, rom.fuel_pressure_target.max); }
+                        _ => { rom.start_advance.data[row] = nv.clamp(rom.start_advance.min, rom.start_advance.max); }
+                    }
+                    rom.dirty = true;
+                }
+                self.remap_cell_edit.clear();
+            }
+        });
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    fn remap_hex_rom(&mut self, ui: &mut egui::Ui) {
+        use egui::{Color32, RichText};
+        use auto_breaking::ecu_rom::{ROM_SIZE, RomRegion};
+
+        const BYTES_PER_ROW: usize = 16;
+        const ROWS_PER_PAGE: usize = 32;
+
+        let total_rows = ROM_SIZE / BYTES_PER_ROW;
+        let max_offset_rows = total_rows.saturating_sub(ROWS_PER_PAGE);
+
+        // Navigation header
+        ui.horizontal(|ui| {
+            ui.label(RichText::new("ROM Navigator").size(11.0).color(Color32::from_rgb(255,200,60)).strong());
+            ui.add_space(8.0);
+            ui.label(RichText::new(format!("Offset: 0x{:06X} / 0x{:06X}", self.remap_hex_offset, ROM_SIZE))
+                .size(10.0).color(Color32::from_gray(180)).monospace());
+            ui.add_space(4.0);
+            if ui.small_button("◀◀").clicked() { self.remap_hex_offset = 0; }
+            if ui.small_button("◀").clicked() {
+                self.remap_hex_offset = self.remap_hex_offset.saturating_sub(BYTES_PER_ROW * ROWS_PER_PAGE);
+            }
+            if ui.small_button("▶").clicked() {
+                self.remap_hex_offset = (self.remap_hex_offset + BYTES_PER_ROW * ROWS_PER_PAGE)
+                    .min(max_offset_rows * BYTES_PER_ROW);
+            }
+            if ui.small_button("▶▶").clicked() {
+                self.remap_hex_offset = max_offset_rows * BYTES_PER_ROW;
+            }
+        });
+
+        // Region jump shortcuts
+        ui.horizontal_wrapped(|ui| {
+            ui.label(RichText::new("Jump:").size(10.0).color(Color32::from_gray(150)));
+            let jumps = [
+                ("Header", 0x0000usize), ("Eng Base", 0x1000), ("Fuel Map", 0x2000),
+                ("Ign Map", 0x3000), ("Boost", 0x4000), ("Lambda", 0x5000),
+                ("VE", 0x5800), ("EGR", 0x6000), ("2D Curves", 0x7000),
+                ("Aftertreat", 0x8000), ("Limits", 0x9000),
+            ];
+            for (name, addr) in jumps {
+                if ui.small_button(name).clicked() {
+                    self.remap_hex_offset = addr;
+                    self.remap_hex_cursor = addr;
+                }
+            }
+        });
+        ui.separator();
+
+        let cursor = self.remap_hex_cursor;
+        let region_name = self.bench.rom.region_name_at(cursor as u32);
+        ui.horizontal(|ui| {
+            ui.label(RichText::new(format!("Region: {}  |  Cursor: 0x{:06X}  |  Value: 0x{:02X} ({:03})",
+                region_name, cursor,
+                self.bench.rom.rom.get(cursor).copied().unwrap_or(0xFF),
+                self.bench.rom.rom.get(cursor).copied().unwrap_or(0xFF),
+            )).size(10.0).color(Color32::from_gray(200)).monospace());
+        });
+        ui.add_space(4.0);
+
+        // Hex grid
+        let start_offset = self.remap_hex_offset;
+        let font = egui::FontId::monospace(10.5);
+        let sel_color = Color32::from_rgb(255, 240, 60);
+        let cursor_color = Color32::from_rgb(80, 200, 255);
+
+        egui::ScrollArea::vertical().id_source("hexview").max_height(400.0).show(ui, |ui| {
+            egui::Frame::none()
+                .fill(Color32::from_gray(12))
+                .inner_margin(egui::Margin::same(4.0))
+                .show(ui, |ui| {
+                    egui::Grid::new("hexgrid").num_columns(3).min_col_width(40.0).spacing([4.0,1.0]).show(ui, |ui| {
+                        // Header row
+                        ui.label(RichText::new("Address ").size(10.0).color(Color32::from_gray(120)).monospace());
+                        let mut hdr = String::from("00 01 02 03 04 05 06 07  08 09 0A 0B 0C 0D 0E 0F");
+                        ui.label(RichText::new(&hdr).size(10.0).color(Color32::from_gray(100)).monospace());
+                        ui.label(RichText::new("  ASCII").size(10.0).color(Color32::from_gray(100)).monospace());
+                        ui.end_row();
+                        let _ = hdr.clear();
+
+                        for row in 0..ROWS_PER_PAGE {
+                            let row_start = start_offset + row * BYTES_PER_ROW;
+                            if row_start >= ROM_SIZE { break; }
+
+                            let addr_col = if row_start == (cursor / BYTES_PER_ROW) * BYTES_PER_ROW {
+                                Color32::from_rgb(255,200,60)
+                            } else {
+                                Color32::from_gray(140)
+                            };
+                            ui.label(RichText::new(format!("{:06X}:", row_start))
+                                .size(10.5).color(addr_col).monospace());
+
+                            // Hex bytes
+                            let mut hex_str = String::with_capacity(50);
+                            for bi in 0..BYTES_PER_ROW {
+                                let addr = row_start + bi;
+                                let byte = self.bench.rom.rom.get(addr).copied().unwrap_or(0xFF);
+                                let is_cursor = addr == cursor;
+                                let is_patched = self.bench.rom.patches.iter()
+                                    .any(|p| p.enabled && p.addr == addr as u32);
+                                let _ = is_patched;
+                                if bi == 8 { hex_str.push(' '); }
+                                hex_str.push_str(&format!("{:02X} ", byte));
+                                let _ = (is_cursor, sel_color, cursor_color);
+                            }
+                            ui.label(RichText::new(&hex_str).size(10.5).color(Color32::from_gray(220)).monospace());
+
+                            // ASCII
+                            let mut ascii_str = String::with_capacity(20);
+                            ascii_str.push(' ');
+                            for bi in 0..BYTES_PER_ROW {
+                                let addr = row_start + bi;
+                                let b = self.bench.rom.rom.get(addr).copied().unwrap_or(0xFF);
+                                ascii_str.push(if b.is_ascii_graphic() { b as char } else { '.' });
+                            }
+                            ui.label(RichText::new(&ascii_str).size(10.5).color(Color32::from_gray(160)).monospace());
+                            ui.end_row();
+                        }
+                    });
+                });
+
+            // Row click → cursor navigation
+            let resp = ui.interact(ui.min_rect(), ui.id().with("hexclick"), egui::Sense::click());
+            if resp.clicked() {
+                // Approximate cursor from click (simplified)
+                if let Some(pos) = resp.interact_pointer_pos() {
+                    let rel_y = (pos.y - ui.min_rect().top()).max(0.0);
+                    let approx_row = (rel_y / 13.0) as usize;
+                    let approx_addr = start_offset + approx_row * BYTES_PER_ROW;
+                    if approx_addr < ROM_SIZE {
+                        self.remap_hex_cursor = approx_addr;
+                    }
+                }
+            }
+        });
+
+        // Byte editor
+        ui.separator();
+        ui.horizontal(|ui| {
+            ui.label(RichText::new("Write byte at cursor  0x").size(10.5).color(Color32::from_gray(180)).monospace());
+            ui.label(RichText::new(format!("{:06X}:", cursor)).size(10.5).color(Color32::from_rgb(255,200,60)).monospace());
+            ui.add(egui::TextEdit::singleline(&mut self.remap_hex_input)
+                .desired_width(50.0).font(egui::FontId::monospace(11.0)).hint_text("hex"));
+            if ui.button("Write").clicked() || (ui.input(|i| i.key_pressed(egui::Key::Enter))) {
+                if let Ok(v) = u8::from_str_radix(self.remap_hex_input.trim().trim_start_matches("0x"), 16) {
+                    self.bench.rom.write_byte(cursor as u32, v);
+                    self.remap_hex_input.clear();
+                    self.remap_hex_cursor = (cursor + 1).min(ROM_SIZE - 1);
+                }
+            }
+            if ui.button("◀").clicked() { self.remap_hex_cursor = cursor.saturating_sub(1); }
+            if ui.button("▶").clicked() { self.remap_hex_cursor = (cursor + 1).min(ROM_SIZE - 1); }
+        });
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    fn remap_patches(&mut self, ui: &mut egui::Ui) {
+        use egui::{Color32, RichText};
+
+        ui.horizontal(|ui| {
+            ui.label(RichText::new("Category:").size(10.5).color(Color32::from_gray(180)));
+            let cats = [
+                (RemapPatchCategory::All, "All"),
+                (RemapPatchCategory::Aftertreatment, "Aftertreatment"),
+                (RemapPatchCategory::Limits, "Limits"),
+                (RemapPatchCategory::Sensors, "Sensors"),
+                (RemapPatchCategory::Diagnostics, "Diagnostics"),
+                (RemapPatchCategory::Fuel, "Fuel"),
+                (RemapPatchCategory::Other, "Other"),
+            ];
+            for (cat, lbl) in cats {
+                let sel = self.remap_patch_filter == cat;
+                let fill = if sel { Color32::from_rgb(40,90,180) } else { Color32::from_gray(28) };
+                let col  = if sel { Color32::WHITE } else { Color32::from_gray(160) };
+                if ui.add(egui::Button::new(RichText::new(lbl).size(10.0).color(col)).fill(fill)).clicked() {
+                    self.remap_patch_filter = cat;
+                }
+            }
+        });
+
+        ui.separator();
+        ui.horizontal(|ui| {
+            if ui.button(RichText::new("Enable All").size(10.0).color(Color32::from_rgb(80,220,80))).clicked() {
+                for p in &mut self.bench.rom.patches { p.enabled = true; }
+                self.bench.rom.dirty = true;
+            }
+            if ui.button(RichText::new("Disable All").size(10.0).color(Color32::from_rgb(220,80,80))).clicked() {
+                for p in &mut self.bench.rom.patches { p.enabled = false; }
+                self.bench.rom.dirty = true;
+            }
+            ui.separator();
+            // Global delete helpers
+            let del = &mut self.bench.rom.deletes;
+            ui.checkbox(&mut del.dpf_regen, RichText::new("DPF Delete (live)").size(10.0).color(Color32::from_rgb(255,160,60)));
+            ui.checkbox(&mut del.egr_valve, RichText::new("EGR Delete (live)").size(10.0).color(Color32::from_rgb(255,160,60)));
+            ui.checkbox(&mut del.adblue_def, RichText::new("AdBlue Inhibit (live)").size(10.0).color(Color32::from_rgb(255,160,60)));
+        });
+        ui.add_space(4.0);
+
+        let filter = self.remap_patch_filter;
+        egui::ScrollArea::vertical().id_source("patches_scroll").auto_shrink([false,false]).show(ui, |ui| {
+            let count = self.bench.rom.patches.len();
+            for idx in 0..count {
+                let cat_matches = match filter {
+                    RemapPatchCategory::All => true,
+                    RemapPatchCategory::Aftertreatment => matches!(self.bench.rom.patches[idx].category, auto_breaking::ecu_rom::PatchCategory::Aftertreatment),
+                    RemapPatchCategory::Limits => matches!(self.bench.rom.patches[idx].category, auto_breaking::ecu_rom::PatchCategory::Limits),
+                    RemapPatchCategory::Sensors => matches!(self.bench.rom.patches[idx].category, auto_breaking::ecu_rom::PatchCategory::Sensors),
+                    RemapPatchCategory::Diagnostics => matches!(self.bench.rom.patches[idx].category, auto_breaking::ecu_rom::PatchCategory::Diagnostics),
+                    RemapPatchCategory::Fuel => matches!(self.bench.rom.patches[idx].category, auto_breaking::ecu_rom::PatchCategory::Fuel),
+                    RemapPatchCategory::Other => matches!(self.bench.rom.patches[idx].category, auto_breaking::ecu_rom::PatchCategory::Other),
+                };
+                if !cat_matches { continue; }
+
+                let (name, desc, addr, orig, patched, enabled, cat) = {
+                    let p = &self.bench.rom.patches[idx];
+                    (p.name, p.description, p.addr, p.original, p.patched, p.enabled, p.category)
+                };
+
+                egui::Frame::none()
+                    .fill(if enabled { Color32::from_rgb(18,28,18) } else { Color32::from_gray(16) })
+                    .stroke(egui::Stroke::new(0.8, if enabled { Color32::from_rgb(60,180,60) } else { Color32::from_gray(40) }))
+                    .inner_margin(egui::Margin::symmetric(8.0, 4.0))
+                    .show(ui, |ui| {
+                        ui.horizontal(|ui| {
+                            let mut en = enabled;
+                            if ui.checkbox(&mut en, "").changed() {
+                                self.bench.rom.toggle_patch(idx);
+                            }
+                            ui.vertical(|ui| {
+                                ui.horizontal(|ui| {
+                                    ui.label(RichText::new(name).size(11.5)
+                                        .color(if enabled { Color32::from_rgb(120,255,120) } else { Color32::from_gray(200) })
+                                        .strong());
+                                    ui.separator();
+                                    ui.label(RichText::new(format!("[{}]", cat)).size(9.5).color(Color32::from_gray(130)));
+                                    ui.separator();
+                                    ui.label(RichText::new(format!("Addr: 0x{:06X}  |  ORI: 0x{:02X}  |  PATCH: 0x{:02X}", addr, orig, patched))
+                                        .size(9.5).color(Color32::from_gray(160)).monospace());
+                                });
+                                ui.label(RichText::new(desc).size(9.5).color(Color32::from_gray(180)));
+                            });
+                        });
+                    });
+                ui.add_space(2.0);
+            }
+        });
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    fn remap_rom_bits(&mut self, ui: &mut egui::Ui) {
+        use egui::{Color32, RichText};
+
+        ui.label(RichText::new("ROM Bit Fields — toggle individual control bits in the ECU ROM")
+            .size(11.0).color(Color32::from_rgb(180,120,255)).strong());
+        ui.separator();
+
+        egui::ScrollArea::vertical().id_source("bits_scroll").auto_shrink([false,false]).show(ui, |ui| {
+            let count = self.bench.rom.bit_fields.len();
+            egui::Grid::new("bits_grid").num_columns(5).striped(true).spacing([8.0,3.0]).show(ui, |ui| {
+                ui.label(RichText::new("State").size(9.5).color(Color32::from_gray(150)));
+                ui.label(RichText::new("Name").size(9.5).color(Color32::from_gray(150)));
+                ui.label(RichText::new("Addr").size(9.5).color(Color32::from_gray(150)));
+                ui.label(RichText::new("Mask").size(9.5).color(Color32::from_gray(150)));
+                ui.label(RichText::new("Description").size(9.5).color(Color32::from_gray(150)));
+                ui.end_row();
+
+                for idx in 0..count {
+                    let active = self.bench.rom.bit_field_active(idx);
+                    let (name, addr, mask, desc, cat) = {
+                        let bf = &self.bench.rom.bit_fields[idx];
+                        (bf.name, bf.addr, bf.bit_mask, bf.description, bf.category)
+                    };
+
+                    let state_col = if active { Color32::from_rgb(80,220,80) } else { Color32::from_rgb(180,60,60) };
+                    let state_txt = if active { "● ON " } else { "○ OFF" };
+
+                    if ui.add(egui::Button::new(RichText::new(state_txt).size(10.0).color(state_col).monospace())
+                        .fill(Color32::from_gray(22))).clicked() {
+                        self.bench.rom.toggle_bit_field(idx);
+                    }
+                    ui.label(RichText::new(name).size(10.0).color(Color32::WHITE));
+                    ui.label(RichText::new(format!("0x{:06X}", addr)).size(9.5).color(Color32::from_gray(180)).monospace());
+                    ui.label(RichText::new(format!("0x{:02X}", mask)).size(9.5).color(Color32::from_gray(160)).monospace());
+                    ui.label(RichText::new(format!("[{}] {}", cat, desc)).size(9.5).color(Color32::from_gray(170)));
+                    ui.end_row();
+                }
+            });
+        });
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    fn remap_live_cal(&mut self, ui: &mut egui::Ui) {
+        use egui::{Color32, RichText, Slider};
+
+        ui.label(RichText::new("LIVE CALIBRATION — all edits applied immediately to running simulation")
+            .size(12.0).color(Color32::from_rgb(120,255,120)).strong());
+        ui.separator();
+
+        egui::ScrollArea::vertical().id_source("livecal_scroll").auto_shrink([false,false]).show(ui, |ui| {
+            ui.columns(3, |cols| {
+                // ── MOTOR ────────────────────────────────────────────────
+                egui::Frame::group(cols[0].style())
+                    .fill(Color32::from_rgb(16,14,6))
+                    .stroke(egui::Stroke::new(1.0, Color32::from_rgb(255,200,60)))
+                    .show(&mut cols[0], |ui| {
+                        ui.label(RichText::new("⚙ MOTOR / INJECAO / TURBO").size(11.5)
+                            .color(Color32::from_rgb(255,200,60)).strong());
+                        ui.add_space(3.0);
+
+                        let ecm = &mut self.bench.ecm;
+
+                        macro_rules! row {
+                            ($ui:expr, $field:expr, $label:expr, $range:expr, $suffix:expr, $color:expr) => {{
+                                $ui.label(RichText::new($label).size(9.8).color($color));
+                                let mut v = $field as f32;
+                                if $ui.add_sized([$ui.available_width()-6.0, 18.0],
+                                    Slider::new(&mut v, $range).suffix($suffix)).changed() {
+                                    $field = v as f64;
+                                }
+                            }};
+                        }
+
+                        ui.label(RichText::new("— RPM —").size(9.5).color(Color32::from_gray(130)));
+                        row!(ui, ecm.remap_idle_rpm,     "Idle RPM",            600.0f32..=1200.0,  " rpm", Color32::from_rgb(120,220,120));
+                        row!(ui, ecm.remap_rated_rpm,    "Rated RPM",          1600.0f32..=3000.0,  " rpm", Color32::from_gray(190));
+                        row!(ui, ecm.remap_rpm_filter_s, "Filtro RPM (s)",        0.01f32..=0.30,    " s",   Color32::from_gray(150));
+
+                        ui.add_space(4.0);
+                        ui.label(RichText::new("— TORQUE —").size(9.5).color(Color32::from_gray(130)));
+                        row!(ui, ecm.remap_peak_torque_nm,       "Torque Pico (Nm)",       200.0f32..=2000.0, " Nm", Color32::from_rgb(255,160,60));
+                        row!(ui, ecm.remap_torque_plateau_start, "Plateau Inicio (rpm)",    600.0f32..=2000.0, " rpm", Color32::from_gray(180));
+                        row!(ui, ecm.remap_torque_plateau_end,   "Plateau Fim (rpm)",       800.0f32..=2800.0, " rpm", Color32::from_gray(180));
+
+                        ui.add_space(4.0);
+                        ui.label(RichText::new("— TURBO —").size(9.5).color(Color32::from_rgb(80,200,255)));
+                        row!(ui, ecm.remap_max_boost_kpa,    "Boost Max (kPa)",   0.0f32..=500.0,  " kPa", Color32::from_rgb(80,200,255));
+                        row!(ui, ecm.remap_boost_build_rate, "Resposta Turbo",    0.5f32..=15.0,   "",     Color32::from_rgb(80,200,255));
+
+                        ui.add_space(4.0);
+                        ui.label(RichText::new("— INJECAO —").size(9.5).color(Color32::from_rgb(160,255,160)));
+                        row!(ui, ecm.remap_idle_fuel_lph, "Consumo Idle (L/h)", 0.1f32..=5.0,    " L/h", Color32::from_rgb(160,255,160));
+                        row!(ui, ecm.remap_wot_fuel_lph,  "Consumo WOT (L/h)", 5.0f32..=100.0,  " L/h", Color32::from_rgb(160,255,160));
+
+                        ui.add_space(4.0);
+                        ui.label(RichText::new("— TERMICA —").size(9.5).color(Color32::from_rgb(255,140,140)));
+                        row!(ui, ecm.remap_thermal_target_c, "Alvo Termico WOT (C)", 70.0f32..=115.0, " C", Color32::from_rgb(255,140,140));
+
+                        ui.add_space(4.0);
+                        ui.separator();
+                        ui.label(RichText::new(format!(
+                            "Live — RPM: {:.0}  Nm: {:.0}\nBoost: {:.0} kPa  Temp: {:.0}°C\nConsumo: {:.2} L/h  Tanque: {:.1}%",
+                            ecm.rpm, ecm.actual_torque_nm, ecm.boost_pressure_kpa,
+                            ecm.coolant_temp_c, ecm.fuel_rate_lph, ecm.fuel_level_pct,
+                        )).size(9.5).color(Color32::from_gray(200)));
+                    });
+
+                // ── TRANSMISSAO ──────────────────────────────────────────
+                egui::Frame::group(cols[1].style())
+                    .fill(Color32::from_rgb(8,18,20))
+                    .stroke(egui::Stroke::new(1.0, Color32::from_rgb(60,200,200)))
+                    .show(&mut cols[1], |ui| {
+                        ui.label(RichText::new("⚙ TRANSMISSAO / TCM").size(11.5)
+                            .color(Color32::from_rgb(60,200,200)).strong());
+                        ui.add_space(3.0);
+
+                        let tcm = &mut self.bench.tcm;
+
+                        macro_rules! trow {
+                            ($ui:expr, $field:expr, $label:expr, $range:expr, $suffix:expr, $color:expr) => {{
+                                $ui.label(RichText::new($label).size(9.8).color($color));
+                                let mut v = $field as f32;
+                                if $ui.add_sized([$ui.available_width()-6.0, 18.0],
+                                    Slider::new(&mut v, $range).suffix($suffix)).changed() {
+                                    $field = v as f64;
+                                }
+                            }};
+                        }
+
+                        ui.label(RichText::new("— UPSHIFT RPM —").size(9.5).color(Color32::from_gray(130)));
+                        trow!(ui, tcm.remap_upshift_a, "Range A", 800.0f32..=2500.0, " rpm", Color32::from_gray(180));
+                        trow!(ui, tcm.remap_upshift_b, "Range B", 800.0f32..=2500.0, " rpm", Color32::from_gray(180));
+                        trow!(ui, tcm.remap_upshift_c, "Range C", 900.0f32..=2600.0, " rpm", Color32::from_gray(180));
+                        trow!(ui, tcm.remap_upshift_d, "Range D", 900.0f32..=2600.0, " rpm", Color32::from_gray(180));
+
+                        ui.add_space(4.0);
+                        ui.label(RichText::new("— DOWNSHIFT —").size(9.5).color(Color32::from_gray(130)));
+                        trow!(ui, tcm.remap_downshift_rpm, "Downshift lugging", 600.0f32..=1500.0, " rpm", Color32::from_rgb(255,140,60));
+                        trow!(ui, tcm.remap_idle_rpm,       "Stall guard",      600.0f32..=1100.0, " rpm", Color32::from_rgb(120,220,120));
+
+                        ui.add_space(4.0);
+                        ui.label(RichText::new("— TROCA —").size(9.5).color(Color32::from_gray(130)));
+                        trow!(ui, tcm.remap_shift_duration_normal_s, "Normal (s)",  0.10f32..=0.80, " s", Color32::from_gray(180));
+                        trow!(ui, tcm.remap_shift_duration_range_s,  "Range (s)",   0.20f32..=1.20, " s", Color32::from_gray(180));
+                        trow!(ui, tcm.remap_auto_cooldown_s,         "Cooldown (s)",0.10f32..=1.50, " s", Color32::from_gray(160));
+
+                        ui.add_space(4.0);
+                        ui.label(RichText::new("— CREEPER —").size(9.5).color(Color32::from_rgb(180,255,120)));
+                        trow!(ui, tcm.remap_creeper_ratio, "Reducao Creeper (x)", 2.0f32..=16.0, "x", Color32::from_rgb(180,255,120));
+                        tcm.creeper_ratio = tcm.remap_creeper_ratio;
+
+                        ui.add_space(4.0);
+                        ui.separator();
+                        ui.label(RichText::new(format!(
+                            "Live — {}  {:.1} km/h\nClutch: {} Slip: {:.0}%\nShifts: {}  Dist: {:.2} km",
+                            tcm.gear_label, tcm.ground_speed_kmh,
+                            tcm.clutch_state, tcm.clutch_slip_pct,
+                            tcm.total_shifts, tcm.total_distance_km,
+                        )).size(9.5).color(Color32::from_gray(200)));
+                    });
+
+                // ── SHUTTLE + DELETE FLAGS ───────────────────────────────
+                egui::Frame::group(cols[2].style())
+                    .fill(Color32::from_rgb(10,10,22))
+                    .stroke(egui::Stroke::new(1.0, Color32::from_rgb(180,120,255)))
+                    .show(&mut cols[2], |ui| {
+                        ui.label(RichText::new("🔄 SHUTTLE + DELETE FLAGS").size(11.5)
+                            .color(Color32::from_rgb(180,120,255)).strong());
+                        ui.add_space(3.0);
+
+                        let tcm = &mut self.bench.tcm;
+                        macro_rules! srow {
+                            ($ui:expr, $field:expr, $label:expr, $range:expr, $suffix:expr) => {{
+                                $ui.label(RichText::new($label).size(9.8).color(Color32::from_gray(190)));
+                                let mut v = $field as f32;
+                                if $ui.add_sized([$ui.available_width()-6.0, 18.0],
+                                    Slider::new(&mut v, $range).suffix($suffix)).changed() {
+                                    $field = v as f64;
+                                }
+                            }};
+                        }
+
+                        ui.label(RichText::new("— SHUTTLE —").size(9.5).color(Color32::from_rgb(180,120,255)));
+                        srow!(ui, tcm.remap_shuttle_max_speed_kmh, "Max vel D→R (km/h)", 0.5f32..=15.0, " km/h");
+                        tcm.shuttle_max_speed_kmh = tcm.remap_shuttle_max_speed_kmh;
+                        srow!(ui, tcm.shuttle_neutral_dwell_s, "Dwell Neutro (s)", 0.05f32..=2.5, " s");
+
+                        let state = if tcm.shuttle_inhibit_active {
+                            format!("⏳ INIBIDO {:.1}/{:.1} km/h", tcm.ground_speed_kmh, tcm.shuttle_max_speed_kmh)
+                        } else if tcm.shuttle_target_dir.is_some() {
+                            let rem = (tcm.shuttle_neutral_dwell_s - tcm.shuttle_dwell_timer).max(0.0);
+                            format!("⏸ DWELL {:.2}s", rem)
+                        } else {
+                            format!("✅ {}", tcm.gear_label)
+                        };
+                        ui.label(RichText::new(state).size(10.5).color(Color32::WHITE).strong());
+
+                        ui.add_space(6.0);
+                        ui.separator();
+                        ui.label(RichText::new("— DELETE FLAGS (live) —").size(9.5).color(Color32::from_rgb(255,160,60)));
+                        let del = &mut self.bench.rom.deletes;
+                        let chk = |ui: &mut egui::Ui, f: &mut bool, label: &str, color: Color32| {
+                            ui.checkbox(f, RichText::new(label).size(10.0).color(color));
+                        };
+                        chk(ui, &mut del.dpf_regen,             "DPF Regen Delete",       Color32::from_rgb(255,140,60));
+                        chk(ui, &mut del.dpf_soot_fault,        "DPF Soot Fault Mask",    Color32::from_rgb(255,140,60));
+                        chk(ui, &mut del.egr_valve,             "EGR Valve Delete",       Color32::from_rgb(255,140,60));
+                        chk(ui, &mut del.egr_fault,             "EGR Fault Mask",         Color32::from_rgb(255,160,80));
+                        chk(ui, &mut del.o2_lambda_plausibility,"O2/Lambda Delete",       Color32::from_rgb(255,200,60));
+                        chk(ui, &mut del.nox_sensor,            "NOx Sensor Delete",      Color32::from_rgb(255,200,60));
+                        chk(ui, &mut del.adblue_def,            "AdBlue/DEF Inhibit",     Color32::from_rgb(255,200,60));
+                        chk(ui, &mut del.swirl_flap,            "Swirl Flap Delete",      Color32::from_gray(200));
+                        ui.separator();
+                        chk(ui, &mut del.speed_limiter,         "Speed Limiter Delete",   Color32::from_rgb(80,200,255));
+                        chk(ui, &mut del.torque_derate,         "Torque Derate Delete",   Color32::from_rgb(80,200,255));
+
+                        ui.add_space(4.0);
+                        ui.separator();
+                        ui.label(RichText::new(format!(
+                            "ECM — RPM: {:.0}  Carga: {:.0}%\nDPF soot: {:.0}%  EGR: {:.0}%\nDEF: {:.0}%",
+                            self.bench.ecm.rpm, self.bench.ecm.percent_load,
+                            self.bench.ecm.dpf_soot_pct, self.bench.ecm.egr_valve_pct,
+                            self.bench.ecm.def_level_pct,
+                        )).size(9.5).color(Color32::from_gray(200)));
+                    });
+            });
+        });
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    fn heat_color(v: f64, min_v: f64, max_v: f64) -> egui::Color32 {
+        let t = ((v - min_v) / (max_v - min_v).max(0.001)).clamp(0.0, 1.0) as f32;
+        // Blue → Cyan → Green → Yellow → Red gradient (ECU Titanium style)
+        if t < 0.25 {
+            let u = t / 0.25;
+            egui::Color32::from_rgb(0, (u * 255.0) as u8, 255)
+        } else if t < 0.5 {
+            let u = (t - 0.25) / 0.25;
+            egui::Color32::from_rgb(0, 255, ((1.0 - u) * 255.0) as u8)
+        } else if t < 0.75 {
+            let u = (t - 0.5) / 0.25;
+            egui::Color32::from_rgb((u * 255.0) as u8, 255, 0)
+        } else {
+            let u = (t - 0.75) / 0.25;
+            egui::Color32::from_rgb(255, ((1.0 - u) * 255.0) as u8, 0)
+        }
+    }
+
+    fn heat_luminance(v: f64, min_v: f64, max_v: f64) -> f32 {
+        let t = ((v - min_v) / (max_v - min_v).max(0.001)).clamp(0.0, 1.0) as f32;
+        // approximate luminance of the heat_color at this t
+        if t < 0.25 { 0.3 }
+        else if t < 0.5 { 0.7 }
+        else if t < 0.75 { 0.8 }
+        else { 0.5 }
     }
 }

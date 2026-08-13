@@ -28,6 +28,10 @@ fn hw_config_parses_cli_flags() {
         "--hw-mode=live".to_string(),
         "--dry-run".to_string(),
         "--allowlist=./allowlist.json".to_string(),
+        "--vendor-name=cat_comm".to_string(),
+        "--vendor-template-dir=./vendor_template".to_string(),
+        "--vendor-bridge-exe=./vendor_template/cat_comm_bridge.exe".to_string(),
+        "--vendor-bridge-timeout-ms=2200".to_string(),
         "--enable-write".to_string(),
         "--noninteractive-approved".to_string(),
         "--uds-retries=5".to_string(),
@@ -42,6 +46,16 @@ fn hw_config_parses_cli_flags() {
     let cfg = HwConfig::from_cli_args(&args).expect("valid args");
     assert_eq!(cfg.mode, HwMode::Live);
     assert!(cfg.dry_run);
+    assert_eq!(cfg.vendor_name.as_deref(), Some("cat_comm"));
+    assert_eq!(
+        cfg.vendor_template_dir.as_deref(),
+        Some(std::path::Path::new("./vendor_template"))
+    );
+    assert_eq!(
+        cfg.vendor_bridge_exe.as_deref(),
+        Some(std::path::Path::new("./vendor_template/cat_comm_bridge.exe"))
+    );
+    assert_eq!(cfg.vendor_bridge_timeout_ms, 2200);
     assert_eq!(
         cfg.allowlist_path.as_deref(),
         Some(std::path::Path::new("./allowlist.json"))
@@ -191,3 +205,4 @@ fn replay_can_record_keeps_explicit_timestamp() {
     assert_eq!(rec.ts, 999);
     assert!(rec.raw_hex.is_none());
 }
+

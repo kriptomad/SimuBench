@@ -119,9 +119,22 @@ pub struct HeavyEcm {
     // ─ Diagnostics ──────────────────────────────────────────
     pub active_dtcs: Vec<Dtc>,
     pub stored_dtcs: Vec<Dtc>,
-    pub mil_active: bool, // Malfunction Indicator Lamp
-    pub amber_lamp: bool, // Amber Warning
-    pub red_lamp: bool,   // Red Stop
+    pub mil_active: bool,
+    pub amber_lamp: bool,
+    pub red_lamp: bool,
+
+    // ─ Remap-able engine parameters ──────────────────────────────────────────
+    pub remap_idle_rpm: f64,
+    pub remap_rated_rpm: f64,
+    pub remap_peak_torque_nm: f64,
+    pub remap_torque_plateau_start: f64,
+    pub remap_torque_plateau_end: f64,
+    pub remap_max_boost_kpa: f64,
+    pub remap_boost_build_rate: f64,
+    pub remap_idle_fuel_lph: f64,
+    pub remap_wot_fuel_lph: f64,
+    pub remap_thermal_target_c: f64,
+    pub remap_rpm_filter_s: f64,
 
     // Internal state
     rpm_integral: f64,
@@ -184,6 +197,17 @@ impl HeavyEcm {
             mil_active: false,
             amber_lamp: false,
             red_lamp: false,
+            remap_idle_rpm: IDLE_RPM,
+            remap_rated_rpm: RATED_RPM,
+            remap_peak_torque_nm: PEAK_TORQUE_NM,
+            remap_torque_plateau_start: 1200.0,
+            remap_torque_plateau_end: 1800.0,
+            remap_max_boost_kpa: 300.0,
+            remap_boost_build_rate: 3.0,
+            remap_idle_fuel_lph: 1.5,
+            remap_wot_fuel_lph: 55.0,
+            remap_thermal_target_c: 92.0,
+            remap_rpm_filter_s: 0.06,
             rpm_integral: 0.0,
             warmup_complete: false,
         }

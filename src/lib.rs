@@ -19,6 +19,8 @@ pub mod j1939;
 pub mod network_mgmt;
 pub mod nvm;
 pub mod uds;
+pub mod io; // Added io module
+pub mod ecu_rom;
 
 // ── Sensor suite (new) ───────────────────────────────────────────────────────
 pub mod autonomous;
@@ -248,6 +250,7 @@ pub struct HeavyMachinery {
     pub leak_rig: LeakPhysicsRig,
     pub leak_reports: Vec<CircuitResult>,
     pub metrics: SimMetrics,
+    pub rom: ecu_rom::EcuRom,
 }
 
 impl Default for HeavyMachinery {
@@ -306,6 +309,7 @@ impl HeavyMachinery {
             leak_rig: LeakPhysicsRig::with_default_machine_presets(),
             leak_reports: Vec::new(),
             metrics: SimMetrics::default(),
+            rom: ecu_rom::EcuRom::new(),
         }
     }
 
@@ -482,9 +486,9 @@ impl HeavyMachinery {
             self.tcm.ground_speed_kmh,
             self.brake_pct,
             self.throttle_pct,
-            self.tcm.clutch_slip_pct, // use as steering proxy
-            self.tcm.ground_speed_kmh * 0.01,
-            0.0,
+            self.abs.steering_angle_deg, // keep last known steering; wired via vcm/ICM in future
+            self.imu.gyro_z.to_degrees(), // real yaw rate from IMU gyro (rad/s → deg/s)
+            self.imu.lateral_g,           // real lateral g from IMU accelerometer
             dt,
         );
         let _effective_throttle = self.throttle_pct * (1.0 - tcs_cut);
@@ -563,13 +567,13 @@ impl HeavyMachinery {
         self.gps
             .update(self.tcm.ground_speed_kmh, self.vehicle_heading(), dt);
 
-        // IMU
+        // IMU: proper lateral accel from ABS sensor; yaw rate from ABS; grade from GPS pitch
         self.imu.update(
             self.vehicle_accel_ms2(),
-            0.0,
-            self.tcm.ground_speed_kmh * 0.01,
+            self.abs.lateral_g * 9.81,       // lateral m/s² from ESP sensor
+            self.abs.yaw_rate_deg_s,          // deg/s from ESP sensor
             self.vehicle_heading(),
-            0.0,
+            0.0,                              // grade: TODO wire from GPS vertical velocity
             self.ecm.rpm,
             dt,
         );
@@ -761,6 +765,22 @@ impl HeavyMachinery {
                     self.metrics.replay_failures
                 ),
             });
+        }
+
+        // 18. ── ROM delete flags applied to ECM live state ───────────────────
+        let del = &self.rom.deletes;
+        if del.dpf_regen {
+            self.ecm.regen_requested = false;
+            self.ecm.aftertreatment = crate::ecu_ecm::AftertreatmentState::Normal;
+        }
+        if del.dpf_soot_fault {
+            self.ecm.dpf_soot_pct = self.ecm.dpf_soot_pct.min(20.0);
+        }
+        if del.egr_valve {
+            self.ecm.egr_valve_pct = 0.0;
+        }
+        if del.adblue_def {
+            self.ecm.def_level_pct = self.ecm.def_level_pct.max(15.0);
         }
     }
 
