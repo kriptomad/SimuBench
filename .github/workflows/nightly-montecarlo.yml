@@ -13,7 +13,7 @@ jobs:
         model: [reduced, high-fidelity]
         seed_batch: [1, 2, 3]
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@stable
       - name: Run Monte Carlo script
