@@ -1,4 +1,6 @@
-# SimuBench
+
+[![Rust](https://shields.io)](https://www.rust-lang.org/)
+
 
 SimuBench e uma bancada visual completa de simulacao, diagnostico, calibracao e engenharia para ECUs de maquinas pesadas, escrita em Rust.
 
