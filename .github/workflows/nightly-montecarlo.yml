@@ -19,7 +19,7 @@ jobs:
       - name: Run Monte Carlo script
         run: bash scripts/run_monte_carlo.sh 1 ${{ matrix.model }}
       - name: Upload artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: monte-artifacts-${{ matrix.model }}-${{ matrix.seed_batch }}
           path: artifacts/monte
