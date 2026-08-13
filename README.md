@@ -61,6 +61,241 @@ src/
 
 ---
 
+## Compiling Section
+
+Todas as formas possiveis de compilar, inicializar, testar e empacotar o SimuBench.
+
+### Pre-requisitos
+
+```powershell
+# Instalar Rust (se nao tiver)
+winget install Rustlang.Rustup          # Windows
+curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh  # Linux/macOS
+
+# Verificar versao minima (edition 2021, estavel)
+rustc --version    # recomendado >= 1.78
+cargo --version
+```
+
+---
+
+### Build — Debug (desenvolvimento)
+
+```powershell
+# Compilar sem rodar (rapido, sem otimizacoes)
+cargo build
+
+# Compilar com feature vendor-windows (adapter Cat Comm)
+cargo build --features vendor-windows
+
+# Compilar com observabilidade avancada (tracing estruturado)
+cargo build --features advanced_observability
+
+# Compilar todas as features juntas
+cargo build --features vendor-windows,advanced_observability
+
+# Compilar apenas a biblioteca (sem binarios)
+cargo build --lib
+```
+
+---
+
+### Build — Release (producao / distribuicao)
+
+```powershell
+# Release otimizado (LTO, sem debug info) — binario final
+cargo build --release
+
+# Release com vendor-windows
+cargo build --release --features vendor-windows
+
+# Release com todas as features
+cargo build --release --features vendor-windows,advanced_observability
+
+# Caminho do binario gerado
+# Windows: target\release\auto_breaking.exe
+# Linux:   target/release/auto_breaking
+```
+
+---
+
+### Executar — GUI Desktop
+
+```powershell
+# Modo padrao (simulacao pura)
+cargo run
+
+# Modo release (mais rapido, sem debug info)
+cargo run --release
+
+# Passar argumentos de hardware ao GUI
+cargo run -- --hw-mode=sim
+cargo run --features vendor-windows -- --hw-mode=live --vendor-name=cat_comm --vendor-template-dir=C:/cat/template
+```
+
+---
+
+### Executar — CLI (simulator_cli)
+
+```powershell
+# Validar bridge Cat Comm (handshake + capabilities)
+cargo run --features vendor-windows --bin simulator_cli -- `
+  --validate-cat-bridge `
+  --hw-mode=live `
+  --vendor-name=cat_comm `
+  --vendor-template-dir=C:/cat/template
+
+# Executar 12 fases de producao em modo simulado
+cargo run --bin simulator_cli -- `
+  --run-production-phases `
+  --hw-mode=sim `
+  --noninteractive-approved `
+  --phase-report-dir=reports
+
+# Executar 12 fases de producao com flash em hardware real
+cargo run --features vendor-windows --bin simulator_cli -- `
+  --run-production-phases `
+  --hw-mode=live `
+  --vendor-name=cat_comm `
+  --vendor-template-dir=C:/cat/template `
+  --enable-write `
+  --noninteractive-approved `
+  --dry-run=false `
+  --allowlist=allowlist.example.json `
+  --target-sa=00 `
+  --firmware=firmware.bin `
+  --phase-report-dir=reports `
+  --execute-flash
+
+# Versao release da CLI (producao)
+cargo run --release --features vendor-windows --bin simulator_cli -- `
+  --run-production-phases --hw-mode=live `
+  --vendor-name=cat_comm --vendor-template-dir=C:/cat/template `
+  --enable-write --noninteractive-approved --dry-run=false `
+  --allowlist=allowlist.example.json --target-sa=00 `
+  --firmware=firmware.bin --phase-report-dir=reports --execute-flash
+```
+
+---
+
+### Executar — Bridge de Referencia
+
+```powershell
+# Rodar o bridge de referencia diretamente (stdio-JSONL)
+cargo run --bin cat_comm_bridge
+
+# Com feature vendor-windows ativo
+cargo run --features vendor-windows --bin cat_comm_bridge
+
+# Compilar e copiar para diretorio de template
+cargo build --features vendor-windows --bin cat_comm_bridge
+Copy-Item target\debug\cat_comm_bridge.exe C:\cat\template\
+
+# Script completo de build + stage
+powershell -NoProfile -ExecutionPolicy Bypass `
+  -File scripts/build_cat_comm_template_bridge.ps1
+```
+
+---
+
+### Testes
+
+```powershell
+# Todos os testes (workspace completo)
+cargo test --workspace
+
+# Testes da lib principal com output visivel
+cargo test --lib -- --nocapture
+
+# Suite especifica
+cargo test --test io_mock
+cargo test --test speed_regression
+cargo test --test system_failure_scenarios
+cargo test --test property_invariants
+cargo test --test leak_system_integration
+
+# E2E vendor bridge (requer feature + Windows)
+cargo test --features vendor-windows --test vendor_bridge_e2e
+
+# Testes com feature observabilidade
+cargo test --workspace --features advanced_observability
+
+# Rodar um teste especifico pelo nome
+cargo test --workspace nome_do_teste -- --nocapture
+```
+
+---
+
+### Verificacao de Compilacao (sem build completo)
+
+```powershell
+# Check padrao (mais rapido que build)
+cargo check
+
+# Check com feature vendor-windows
+cargo check --features vendor-windows
+
+# Check com todas as features
+cargo check --features vendor-windows,advanced_observability
+
+# Check de todos os targets (bins + tests + examples)
+cargo check --all-targets
+
+# Clippy (linter)
+cargo clippy
+cargo clippy --features vendor-windows -- -D warnings
+```
+
+---
+
+### Automacao Windows Completa
+
+```powershell
+# Build + stage do bridge + validar handshake + 12 fases + flash + relatorio
+powershell -NoProfile -ExecutionPolicy Bypass `
+  -File scripts/run_windows_template_e2e.ps1
+
+# Apenas build + stage do bridge
+powershell -NoProfile -ExecutionPolicy Bypass `
+  -File scripts/build_cat_comm_template_bridge.ps1
+```
+
+---
+
+### Limpeza
+
+```powershell
+# Remover artefatos de build
+cargo clean
+
+# Remover apenas artefatos debug (manter release)
+Remove-Item -Recurse -Force target\debug
+
+# Rebuild completo a partir do zero
+cargo clean; cargo build
+```
+
+---
+
+### Resumo Rapido
+
+| Objetivo | Comando |
+|---|---|
+| Compilar debug | `cargo build` |
+| Compilar release | `cargo build --release` |
+| Rodar GUI (sim) | `cargo run` |
+| Rodar GUI (release) | `cargo run --release` |
+| CLI sim 12 fases | `cargo run --bin simulator_cli -- --run-production-phases --hw-mode=sim --noninteractive-approved --phase-report-dir=reports` |
+| CLI live + flash | `cargo run --features vendor-windows --bin simulator_cli -- --run-production-phases --hw-mode=live --vendor-name=cat_comm --vendor-template-dir=C:/cat/template --enable-write --noninteractive-approved --dry-run=false --allowlist=allowlist.example.json --target-sa=00 --firmware=firmware.bin --phase-report-dir=reports --execute-flash` |
+| Validar bridge | `cargo run --features vendor-windows --bin simulator_cli -- --validate-cat-bridge --hw-mode=live --vendor-name=cat_comm --vendor-template-dir=C:/cat/template` |
+| Todos os testes | `cargo test --workspace` |
+| E2E vendor bridge | `cargo test --features vendor-windows --test vendor_bridge_e2e` |
+| Automacao Windows | `powershell -File scripts/run_windows_template_e2e.ps1` |
+| Lint / check | `cargo check --features vendor-windows` |
+| Limpar build | `cargo clean` |
+
+---
+
 ## Quickstart
 
 ```powershell
