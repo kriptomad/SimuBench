@@ -1,7 +1,7 @@
 
 ![Rust](https://img.shields.io/badge/Rust-000000?style=for-the-badge&logo=rust&logoColor=white)
 
-
+![Top language](https://img.shields.io/github/languages/top/kriptomad/SimuBench)
 SimuBench e uma bancada visual completa de simulacao, diagnostico, calibracao e engenharia para ECUs de maquinas pesadas, escrita em Rust.
 
 Desenvolvida como ambiente de engenharia real — cada modulo implementa protocolos, fisicas e comportamentos do hardware fisico correspondente, incluindo J1939, UDS/ISO 14229, CAN, sistemas hidraulicos, ABS/ESP, motores diesel Tier 4 e transmissoes powershift.
